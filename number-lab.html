@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#0a0b2e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/number-lab.css">
+  <title>Number Lab · Hero Academy</title>
+</head>
+<body class="zone-body zone-number-lab">
+  <div class="sky" aria-hidden="true"><div class="stars stars-1"></div><div class="stars stars-2"></div><div class="clouds"><div class="cloud cloud-1"></div><div class="cloud cloud-2"></div></div></div>
+  <header class="zone-header">
+    <button class="back-btn" onclick="window.location.href='index.html'" aria-label="Back to map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    </button>
+    <div class="zone-header-title"><p class="zone-header-eyebrow">🔢 NUMBER LAB</p><h1 class="zone-header-skill" id="currentSkillName">Loading…</h1></div>
+    <div class="zone-header-stats">
+      <div class="mini-stat" title="Correct in a row"><span class="mini-stat-icon">⭐</span><span class="mini-stat-value" id="streakInSkill">0</span><span class="mini-stat-divider">/</span><span class="mini-stat-target" id="masteryTarget">5</span></div>
+      <div class="mini-stat" title="Coins this session"><span class="mini-stat-icon">🪙</span><span class="mini-stat-value" id="sessionCoins">0</span></div>
+    </div>
+  </header>
+  <main class="lab-main">
+    <section class="example-card" id="exampleCard">
+      <div class="example-ralphie-wrap"><img src="assets/ralphie/ralphie_pointing.webp" alt="Ralphie explaining" class="example-ralphie"></div>
+      <div class="example-content">
+        <p class="example-label">⚡ LET'S LOOK AT ONE</p>
+        <h3 class="example-problem" id="exampleProblem">3 + 4 = ?</h3>
+        <p class="example-explanation" id="exampleExplanation">Start with 3, count up 4 more.</p>
+        <p class="example-visual" id="exampleVisual"></p>
+        <button class="example-got-it" id="exampleGotIt">GOT IT — LET'S TRY!</button>
+      </div>
+    </section>
+    <section class="problem-card" id="problemCard" hidden>
+      <div class="mastery-dots" id="masteryDots"></div>
+      <div class="lab-ralphie-wrap"><img src="assets/ralphie/ralphie_thinking.webp" alt="" class="lab-ralphie" id="labRalphie"><div class="lab-speech" id="labSpeech" hidden><span class="lab-speech-text" id="labSpeechText"></span></div></div>
+      <div class="problem-display"><p class="problem-label">PROBLEM <span id="problemNum">1</span></p><h2 class="problem-question" id="problemQuestion">3 + 4 = ?</h2></div>
+      <div class="answer-choices" id="answerChoices"></div>
+      <div class="feedback" id="feedback" hidden></div>
+      <button class="hint-btn" id="hintBtn"><span class="hint-icon">💡</span><span>Need a hint?</span></button>
+      <div class="hint-display" id="hintDisplay" hidden><p class="hint-text" id="hintText"></p></div>
+    </section>
+    <section class="mastery-card" id="masteryCard" hidden>
+      <div class="mastery-burst"><svg viewBox="0 0 200 200" class="burst-svg-large" aria-hidden="true"><path d="M100,10 L115,55 L160,40 L130,80 L175,90 L130,105 L160,150 L115,135 L100,180 L85,135 L40,150 L70,105 L25,90 L70,80 L40,40 L85,55 Z" fill="#ffd147"/></svg><div class="mastery-pow">POW!</div></div>
+      <h2 class="mastery-title">SKILL MASTERED!</h2>
+      <p class="mastery-skill-name" id="masterySkillName">Addition within 10</p>
+      <div class="mastery-rewards"><div class="mastery-reward"><span class="mastery-reward-icon">🪙</span><span class="mastery-reward-value">+5</span><span class="mastery-reward-label">coins</span></div><div class="mastery-reward"><span class="mastery-reward-icon">⭐</span><span class="mastery-reward-value">+1</span><span class="mastery-reward-label">badge</span></div></div>
+      <img src="assets/ralphie/ralphie_trophy.webp" alt="" class="mastery-ralphie">
+      <button class="mastery-next" id="masteryNext">NEXT SKILL!</button>
+      <button class="mastery-rest" id="masteryRest">TAKE A BREAK</button>
+    </section>
+  </main>
+  <button class="humphrey-btn" id="humphreyBtn" aria-label="Talk to Miss Humphrey">
+    <span class="humphrey-pulse"></span>
+    <span class="humphrey-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span>
+    <span class="humphrey-label">Ms. Humphrey</span>
+  </button>
+  <script src="js/math-skills.js"></script>
+  <script src="js/number-lab.js"></script>
+  <script src="js/humphrey-integration.js" defer></script>
+</body>
+</html>

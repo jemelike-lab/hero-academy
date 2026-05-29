@@ -1,0 +1,32 @@
+const CACHE_VERSION = "hero-academy-v3";
+const CORE = [
+  "./", "./index.html", "./number-lab.html",
+  "./css/style.css", "./css/number-lab.css",
+  "./js/app.js", "./js/math-skills.js", "./js/number-lab.js",
+  "./js/humphrey-integration.js",
+  "./manifest.webmanifest",
+  "./assets/ralphie/ralphie_default.webp",
+  "./assets/ralphie/ralphie_waving.webp",
+  "./assets/ralphie/ralphie_cheering.webp",
+  "./assets/ralphie/ralphie_thinking.webp",
+  "./assets/ralphie/ralphie_surprised.webp",
+  "./assets/ralphie/ralphie_sad.webp",
+  "./assets/ralphie/ralphie_reading.webp",
+  "./assets/ralphie/ralphie_basketball.webp",
+  "./assets/ralphie/ralphie_painting.webp",
+  "./assets/ralphie/ralphie_magnifying.webp",
+  "./assets/ralphie/ralphie_guitar.webp",
+  "./assets/ralphie/ralphie_flexing.webp",
+  "./assets/ralphie/ralphie_clapping.webp",
+  "./assets/ralphie/ralphie_pointing.webp",
+  "./assets/ralphie/ralphie_trophy.webp",
+];
+self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(CORE))); self.skipWaiting(); });
+self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))))); self.clients.claim(); });
+self.addEventListener("fetch", (e) => {
+  if (e.request.method !== "GET") return;
+  var url = new URL(e.request.url);
+  if (url.origin === self.location.origin) {
+    e.respondWith(caches.match(e.request).then(c => c || fetch(e.request).then(r => { if (r.ok) { var cl = r.clone(); caches.open(CACHE_VERSION).then(ca => ca.put(e.request, cl)); } return r; }).catch(() => c || new Response("Offline"))));
+  }
+});

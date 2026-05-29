@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#0a0b2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hero Academy">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
+  <title>Hero Academy · Nigel</title>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <div class="stars stars-1"></div><div class="stars stars-2"></div><div class="stars stars-3"></div>
+    <div class="shooting-star"></div>
+    <div class="clouds"><div class="cloud cloud-1"></div><div class="cloud cloud-2"></div><div class="cloud cloud-3"></div></div>
+  </div>
+  <header class="hud" role="banner">
+    <button class="hud-avatar" id="avatarBtn" aria-label="View your hero">
+      <span class="avatar-ring"><span class="avatar-emoji">🐢</span><span class="avatar-level" id="avatarLevel">1</span></span>
+    </button>
+    <div class="hud-logo"><h1 class="logo-title"><span class="logo-line-1">HERO</span><span class="logo-line-2">ACADEMY</span></h1></div>
+    <div class="hud-stats">
+      <div class="stat stat-coins" title="Coins earned"><span class="stat-icon">🪙</span><span class="stat-value" id="coinCount">0</span></div>
+      <div class="stat stat-streak" title="Daily streak"><span class="stat-icon">🔥</span><span class="stat-value" id="streakCount">0</span></div>
+    </div>
+  </header>
+  <main class="main" role="main">
+    <section class="hero" aria-label="Welcome">
+      <div class="hero-greeting">
+        <p class="hero-eyebrow" id="timeGreeting">Good morning,</p>
+        <h2 class="hero-name">Nigel!</h2>
+        <p class="hero-message" id="heroMessage">Ready to train your powers today?</p>
+      </div>
+      <div class="hero-character">
+        <div class="hero-shadow"></div>
+        <img src="assets/ralphie/ralphie_waving.webp" alt="Ralphie waving hello" class="hero-ralphie" id="heroRalphie">
+        <div class="speech-bubble" id="speechBubble"><span class="speech-text">Welcome back!</span><span class="speech-tail"></span></div>
+      </div>
+    </section>
+    <section class="daily-banner" aria-label="Today's challenge">
+      <div class="daily-icon">⭐</div>
+      <div class="daily-content"><p class="daily-label">TODAY'S CHALLENGE</p><p class="daily-text" id="dailyText">Complete 3 training zones to unlock a reward!</p></div>
+      <div class="daily-progress"><div class="progress-track"><div class="progress-fill" id="dailyProgress" style="width:0%"></div></div><span class="progress-text"><span id="dailyDone">0</span>/3</span></div>
+    </section>
+    <section class="zones" aria-label="Training zones">
+      <h3 class="section-title"><span class="title-pow">CHOOSE YOUR</span><span class="title-main">TRAINING ZONE</span></h3>
+      <div class="zones-grid" id="zonesGrid"></div>
+    </section>
+    <section class="arena-card" id="arenaCard">
+      <div class="arena-bg" aria-hidden="true"></div>
+      <div class="arena-content">
+        <div class="arena-icon-wrap"><img src="assets/ralphie/ralphie_basketball.webp" alt="" class="arena-ralphie"></div>
+        <div class="arena-text"><p class="arena-label">REWARD ZONE</p><h3 class="arena-title">The Arena 🏀</h3><p class="arena-desc" id="arenaDesc">Complete a training zone to unlock!</p></div>
+        <button class="arena-btn" id="arenaBtn" disabled><span class="arena-btn-text">LOCKED</span><span class="arena-btn-icon">🔒</span></button>
+      </div>
+    </section>
+  </main>
+  <button class="humphrey-btn" id="humphreyBtn" aria-label="Talk to Miss Humphrey">
+    <span class="humphrey-pulse"></span>
+    <span class="humphrey-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span>
+    <span class="humphrey-label">Ms. Humphrey</span>
+  </button>
+  <div class="welcome-overlay" id="welcomeOverlay" hidden>
+    <div class="welcome-content">
+      <div class="welcome-burst"><svg viewBox="0 0 200 200" class="burst-svg" aria-hidden="true"><path d="M100,10 L115,55 L160,40 L130,80 L175,90 L130,105 L160,150 L115,135 L100,180 L85,135 L40,150 L70,105 L25,90 L70,80 L40,40 L85,55 Z" fill="#ffd147"/></svg><h2 class="welcome-title">WELCOME!</h2></div>
+      <p class="welcome-text">I'm Ralphie, your buddy. Miss Humphrey is your teacher. Let's train!</p>
+      <button class="welcome-btn" id="welcomeBtn">LET'S GO!</button>
+    </div>
+  </div>
+  <div class="zone-modal" id="zoneModal" hidden>
+    <div class="zone-modal-backdrop"></div>
+    <div class="zone-modal-card" id="zoneModalCard">
+      <button class="zone-modal-close" id="zoneModalClose" aria-label="Close">×</button>
+      <div class="zone-modal-content">
+        <img src="" alt="" class="zone-modal-ralphie" id="zoneModalRalphie">
+        <h3 class="zone-modal-title" id="zoneModalTitle">Zone</h3>
+        <p class="zone-modal-desc" id="zoneModalDesc">Description</p>
+        <div class="zone-modal-stats"><div class="zone-stat"><span class="zone-stat-label">Progress</span><span class="zone-stat-value" id="zoneModalProgress">0%</span></div><div class="zone-stat"><span class="zone-stat-label">Today</span><span class="zone-stat-value">15 min</span></div></div>
+        <button class="zone-modal-enter" id="zoneModalEnter">ENTER ZONE</button>
+      </div>
+    </div>
+  </div>
+  <script src="js/app.js"></script>
+  <script src="js/humphrey-integration.js" defer></script>
+  <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}</script>
+</body>
+</html>
