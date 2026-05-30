@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/number-lab.css">
+  <link rel="stylesheet" href="css/humphrey.css">
   <title>Number Lab · Hero Academy</title>
 </head>
 <body class="zone-body zone-number-lab">
@@ -65,5 +66,13 @@
   <script src="js/math-skills.js"></script>
   <script src="js/number-lab.js"></script>
   <script src="js/humphrey-integration.js" defer></script>
+
+  <script src="js/humphrey.js"></script>
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
+      window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'the Number Lab' });
+    }
+  </script>
 </body>
 </html>

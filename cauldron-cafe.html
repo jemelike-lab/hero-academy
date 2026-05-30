@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0b2e">
 <title>Cauldron Café · Hero Academy</title>
+<link rel="stylesheet" href="css/humphrey.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -647,6 +648,15 @@ class CauldronScene extends Phaser.Scene {
 
   winLevel() {
     state.busy = true;
+    if (typeof state.haStreak !== 'number') state.haStreak = 0;
+    state.haStreak += 1;
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      var H = window.HeroAcademy.Humphrey;
+      if (state.haStreak === 10) H.say('streak-10', { kidName: 'Nigel', streak: 10 });
+      else if (state.haStreak === 5) H.say('streak-5', { kidName: 'Nigel', streak: 5 });
+      else if (state.haStreak === 3) H.say('streak-3', { kidName: 'Nigel', streak: 3 });
+      else H.say('correct-answer', { kidName: 'Nigel' });
+    }
     state.stars++;
     state.score += 100;
     this.starsLabel.setText(`⭐ ${state.stars}`);
@@ -710,6 +720,10 @@ class CauldronScene extends Phaser.Scene {
 
   failLevel(mismatch) {
     state.busy = true;
+    state.haStreak = 0;
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.say('wrong-answer', { kidName: 'Nigel' });
+    }
     const v = VEGGIES.find(x => x.id === mismatch.id);
     let msg;
     if (mismatch.have < mismatch.want) {
@@ -747,6 +761,9 @@ class CauldronScene extends Phaser.Scene {
 
   winGame() {
     state.busy = true;
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.say('mastery-achieved', { kidName: 'Nigel', topic: 'cooking at the Cauldron Café' });
+    }
     speak(`Amazing work! You earned ${state.stars} stars!`);
     this.setRalphieState('trophy');
     setTimeout(() => {
@@ -840,6 +857,14 @@ const config = {
 };
 
 new Phaser.Game(config);
+</script>
+
+<script src="js/humphrey.js"></script>
+<script>
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
+    window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'the Cauldron Café' });
+  }
 </script>
 </body>
 </html>
