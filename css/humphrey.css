@@ -1,0 +1,221 @@
+/* ============================================================================
+   Hero Academy — Ms. Humphrey widget
+   Phase 2 v0.1 — corner portrait + speech bubble
+   Inherits :root vars from css/style.css when present, fallbacks otherwise.
+   ============================================================================ */
+
+.ha-humphrey {
+  --ha-h-size: 88px;
+  --ha-h-bubble-bg: var(--ha-card-bg, #fff8eb);
+  --ha-h-bubble-border: var(--ha-border, #f0d9a6);
+  --ha-h-bubble-text: var(--ha-ink, #2a2418);
+  --ha-h-shadow: 0 8px 24px rgba(70, 50, 20, 0.18), 0 2px 6px rgba(70, 50, 20, 0.10);
+  --ha-h-accent: var(--ha-primary, #d97f3a);
+  --ha-h-mute-bg: rgba(255, 255, 255, 0.96);
+
+  position: fixed;
+  z-index: 9000;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  /* Safe-area: respect iPad/iPhone notch + home indicator */
+  padding: max(env(safe-area-inset-top, 0), 12px)
+           max(env(safe-area-inset-right, 0), 12px)
+           max(env(safe-area-inset-bottom, 0), 12px)
+           max(env(safe-area-inset-left, 0), 12px);
+}
+
+/* --- Corner positioning ---------------------------------------------------- */
+
+.ha-humphrey--bottom-right { bottom: 0; right: 0; flex-direction: row; }
+.ha-humphrey--bottom-left  { bottom: 0; left: 0;  flex-direction: row-reverse; }
+.ha-humphrey--top-right    { top: 0;    right: 0; flex-direction: row;        align-items: flex-start; }
+.ha-humphrey--top-left     { top: 0;    left: 0;  flex-direction: row-reverse; align-items: flex-start; }
+
+/* --- Portrait + mute ------------------------------------------------------- */
+
+.ha-humphrey__portrait-wrap {
+  position: relative;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.ha-humphrey__portrait {
+  display: block;
+  width: var(--ha-h-size);
+  height: var(--ha-h-size);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--ha-h-bubble-bg);
+  box-shadow: var(--ha-h-shadow);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 220ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.ha-humphrey__portrait:hover { transform: scale(1.04); }
+.ha-humphrey__portrait:active { transform: scale(0.96); }
+.ha-humphrey__portrait:focus-visible {
+  outline: 3px solid var(--ha-h-accent);
+  outline-offset: 3px;
+}
+
+.ha-humphrey__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  /* Pull the face up — MJ shots have whitespace above the head */
+  object-position: center 18%;
+}
+
+/* Talking state: subtle bobble + glow */
+.ha-humphrey[data-speaking="true"] .ha-humphrey__portrait {
+  animation: ha-humphrey-talk 0.42s ease-in-out infinite alternate;
+  box-shadow: 0 8px 24px rgba(217, 127, 58, 0.32),
+              0 0 0 3px rgba(217, 127, 58, 0.20);
+}
+@keyframes ha-humphrey-talk {
+  from { transform: translateY(0)    scale(1); }
+  to   { transform: translateY(-2px) scale(1.015); }
+}
+
+/* Mute toggle */
+.ha-humphrey__mute {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ha-h-mute-bg);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease;
+}
+.ha-humphrey--bottom-left .ha-humphrey__mute,
+.ha-humphrey--top-left    .ha-humphrey__mute { right: auto; left: -2px; }
+.ha-humphrey__mute:hover  { transform: scale(1.1); }
+.ha-humphrey__mute:active { transform: scale(0.92); }
+
+.ha-humphrey__mute-icon {
+  width: 14px; height: 14px;
+  display: inline-block;
+  /* Speaker icon — inline SVG via mask */
+  background: currentColor;
+  color: var(--ha-h-bubble-text);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 10v4h4l5 4V6L7 10H3zm12.5 2A4.5 4.5 0 0 0 13 7.97v8.05A4.5 4.5 0 0 0 15.5 12zM13 4.06v2.06A6 6 0 0 1 13 18v2.06A8 8 0 0 0 13 4.06z' fill='black'/></svg>") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3 10v4h4l5 4V6L7 10H3zm12.5 2A4.5 4.5 0 0 0 13 7.97v8.05A4.5 4.5 0 0 0 15.5 12zM13 4.06v2.06A6 6 0 0 1 13 18v2.06A8 8 0 0 0 13 4.06z' fill='black'/></svg>") center / contain no-repeat;
+}
+/* Muted icon swap: speaker-X */
+.ha-humphrey[data-muted="true"] .ha-humphrey__mute-icon {
+  color: #c33;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.21.05-.42.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.96 8.96 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.17v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z' fill='black'/></svg>") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.21.05-.42.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.96 8.96 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.17v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z' fill='black'/></svg>") center / contain no-repeat;
+}
+
+/* --- Speech bubble --------------------------------------------------------- */
+
+.ha-humphrey__bubble {
+  pointer-events: auto;
+  background: var(--ha-h-bubble-bg);
+  color: var(--ha-h-bubble-text);
+  border: 2px solid var(--ha-h-bubble-border);
+  border-radius: 18px;
+  padding: 12px 16px;
+  max-width: min(280px, calc(100vw - 140px));
+  box-shadow: var(--ha-h-shadow);
+  font: 500 0.95rem/1.4 var(--ha-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  position: relative;
+  /* Hidden by default — only visible while speaking */
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  transition: opacity 200ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+.ha-humphrey__bubble[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Bubble tail — pointing to the portrait */
+.ha-humphrey__bubble::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--ha-h-bubble-bg);
+  border-right: 2px solid var(--ha-h-bubble-border);
+  border-bottom: 2px solid var(--ha-h-bubble-border);
+  bottom: 14px;
+}
+.ha-humphrey--bottom-right .ha-humphrey__bubble::after,
+.ha-humphrey--top-right    .ha-humphrey__bubble::after {
+  right: -8px;
+  transform: rotate(-45deg);
+}
+.ha-humphrey--bottom-left .ha-humphrey__bubble::after,
+.ha-humphrey--top-left    .ha-humphrey__bubble::after {
+  left: -8px;
+  transform: rotate(135deg);
+}
+
+.ha-humphrey__text {
+  margin: 0;
+  /* prevents tall-but-narrow bubble */
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+/* --- Hidden state ---------------------------------------------------------- */
+
+.ha-humphrey[hidden] { display: none !important; }
+
+/* --- Responsive ------------------------------------------------------------ */
+
+@media (max-width: 480px) {
+  .ha-humphrey {
+    --ha-h-size: 72px;
+    gap: 10px;
+  }
+  .ha-humphrey__bubble {
+    max-width: min(220px, calc(100vw - 110px));
+    font-size: 0.88rem;
+    padding: 10px 14px;
+  }
+}
+
+/* In landscape phone, shrink further so she doesn't dominate */
+@media (max-height: 480px) and (orientation: landscape) {
+  .ha-humphrey { --ha-h-size: 64px; }
+  .ha-humphrey__bubble { font-size: 0.85rem; padding: 8px 12px; }
+}
+
+/* --- Accessibility: respect prefers-reduced-motion ----------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .ha-humphrey__portrait,
+  .ha-humphrey__bubble,
+  .ha-humphrey__mute { transition: none !important; }
+  .ha-humphrey[data-speaking="true"] .ha-humphrey__portrait { animation: none; }
+}
+
+/* --- Dark mode awareness (in case style.css ever adds it) ---------------- */
+
+@media (prefers-color-scheme: dark) {
+  .ha-humphrey {
+    --ha-h-bubble-bg: var(--ha-card-bg, #2a2418);
+    --ha-h-bubble-border: var(--ha-border, #4a3a20);
+    --ha-h-bubble-text: var(--ha-ink, #f5e8c8);
+    --ha-h-mute-bg: rgba(40, 35, 25, 0.96);
+  }
+}

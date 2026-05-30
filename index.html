@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/humphrey.css">
   <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
   <title>Hero Academy · Nigel</title>
 </head>
@@ -90,6 +91,17 @@
   </div>
   <script src="js/app.js"></script>
   <script src="js/humphrey-integration.js" defer></script>
+  <script src="js/humphrey.js"></script>
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+      });
+      window.HeroAcademy.Humphrey.say('welcome', { kidName: 'Nigel' });
+    }
+  </script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}</script>
 </body>
 </html>
