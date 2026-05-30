@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Cauldron Café · Hero Academy</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+<style>
+  :root {
+    --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
+    --gold:#ffd147; --gold-deep:#f5b800; --gold-bright:#ffe580;
+    --orange:#ff8b3d; --orange-bright:#ffa86b;
+    --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --text:#fff;
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%;
+    background:linear-gradient(135deg,var(--bg-space),var(--bg-deep) 40%,var(--bg-purple));
+    overflow:hidden; font-family:var(--font-display);
+    touch-action:none; -webkit-user-select:none; user-select:none;
+  }
+  #game-container {
+    width:100vw; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+  }
+  canvas { display:block; }
+  .back-btn {
+    position:fixed; top:calc(var(--safe-top) + 14px); left:18px;
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:var(--text); padding:8px 16px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    text-decoration:none; backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px); z-index:10;
+    display:inline-flex; align-items:center; gap:6px;
+    transition:transform .12s ease;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  .badge {
+    position:fixed; bottom:calc(var(--safe-bottom) + 8px); right:12px;
+    color:rgba(255,209,71,0.5); font-size:11px;
+    font-family:var(--font-display); pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<a href="number-lab.html" class="back-btn">← Number Lab</a>
+<div id="game-container"></div>
+<div class="badge">Cauldron Café · v0.2</div>
+
+<script>
+/* =============================================================
+   RALPHIE'S CAULDRON CAFÉ — Hero Academy Number Lab
+   Counting + addition through cooking
+   ============================================================= */
+
+const W = 1024, H = 768;
+
+// Match site design system
+const COLOR = {
+  bgDeep:    0x0a0b2e,
+  bgPurple:  0x1a1554,
+  bgNavy:    0x1e2876,
+  gold:      0xffd147,
+  goldDeep:  0xf5b800,
+  goldBright:0xffe580,
+  orange:    0xff8b3d,
+  orangeBright:0xffa86b,
+  magenta:   0xec4899,
+  violet:    0xa855f7,
+  emerald:   0x2ec27e,
+  red:       0xef4444,
+  text:      0xffffff,
+  cream:     0xfff8e1,
+  iron:      0x1a1a1a
+};
+
+const VEGGIES = [
+  { id: 'carrot',   emoji: '🥕', label: 'Carrots',   color: 0xff8b3d },
+  { id: 'potato',   emoji: '🥔', label: 'Potatoes',  color: 0xd4a574 },
+  { id: 'mushroom', emoji: '🍄', label: 'Mushrooms', color: 0xec4899 },
+  { id: 'pumpkin',  emoji: '🎃', label: 'Pumpkins',  color: 0xffa86b }
+];
+
+const LEVELS = [
+  { order: { carrot: 3 },                          customer: '🧙‍♀️', name: 'Wanda the Witch' },
+  { order: { potato: 5 },                          customer: '🧙‍♂️', name: 'Merlin the Wise' },
+  { order: { mushroom: 4 },                        customer: '👻', name: 'Boo the Ghost' },
+  { order: { carrot: 3, potato: 2 },               customer: '🤴', name: 'Prince Patrick' },
+  { order: { mushroom: 4, pumpkin: 1 },            customer: '🐉', name: 'Drago the Dragon' },
+  { order: { carrot: 2, potato: 2, mushroom: 2 },  customer: '🧝', name: 'Ellie the Elf' },
+  { order: { pumpkin: 3, carrot: 4 },              customer: '🧚', name: 'Pip the Fairy' },
+  { order: { mushroom: 5, potato: 3, carrot: 2 },  customer: '🧛', name: 'Count Snackula' }
+];
+
+// Ralphie expression mapping (asset filenames in assets/ralphie/)
+const RALPHIE_STATES = [
+  'default', 'pointing', 'thinking', 'clapping',
+  'cheering', 'surprised', 'trophy', 'sad', 'flexing'
+];
+
+let state = {
+  levelIndex: 0,
+  cauldron: { carrot: 0, potato: 0, mushroom: 0, pumpkin: 0 },
+  stars: 0,
+  score: 0,
+  muted: false,
+  busy: false,
+  hasRalphieAssets: false
+};
+
+// === Voice ===
+// TODO: swap for ElevenLabs TTS via Miss Humphrey agent (agent_5901kssbzjm1e0yvd0kdwxa3r49m)
+function speak(text) {
+  if (state.muted || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95; u.pitch = 1.1; u.volume = 0.9;
+  speechSynthesis.speak(u);
+}
+
+class CauldronScene extends Phaser.Scene {
+  constructor() { super('Cauldron'); }
+
+  preload() {
+    // Suppress 404 noise when running standalone (assets only exist in deployed PWA)
+    this.load.on('loaderror', () => {});
+    RALPHIE_STATES.forEach(s => {
+      this.load.image(`ralphie_${s}`, `assets/ralphie/ralphie_${s}.webp`);
+    });
+  }
+
+  create() {
+    state.hasRalphieAssets = this.textures.exists('ralphie_default');
+
+    this.drawBackground();
+    this.drawTitle();
+    this.drawCustomerArea();
+    this.drawCauldron();
+    this.drawRalphie();
+    this.drawVeggieShelf();
+    this.drawHUD();
+    this.drawServeButton();
+    this.drawMuteButton();
+
+    this.tweens.add({
+      targets: this.ralphie, y: this.ralphie.y - 12,
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    this.time.delayedCall(600, () => this.startLevel(0));
+  }
+
+  // ---- Ralphie helpers (image with emoji fallback) ----
+  makeRalphie(x, y) {
+    if (state.hasRalphieAssets) {
+      const img = this.add.image(x, y, 'ralphie_default');
+      // Scale to fit ~110px height regardless of source dimensions
+      const targetH = 130;
+      img.setScale(targetH / img.height);
+      return img;
+    }
+    return this.add.text(x, y, '🐢', { fontSize: '110px' }).setOrigin(0.5);
+  }
+  setRalphieState(stateName) {
+    if (!state.hasRalphieAssets) return;
+    const key = `ralphie_${stateName}`;
+    if (this.textures.exists(key)) this.ralphie.setTexture(key);
+  }
+
+  // ---- Visual setup ----
+  drawBackground() {
+    const g = this.add.graphics();
+    g.fillGradientStyle(COLOR.bgDeep, COLOR.bgDeep, COLOR.bgPurple, COLOR.bgNavy, 1);
+    g.fillRect(0, 0, W, H);
+
+    // moon
+    this.add.circle(900, 95, 40, 0xfff4c2, 0.9);
+    this.add.circle(900, 95, 50, 0xfff4c2, 0.15);
+
+    // stars
+    for (let i = 0; i < 60; i++) {
+      const s = this.add.text(
+        Phaser.Math.Between(0, W),
+        Phaser.Math.Between(0, 380),
+        '✦',
+        { fontSize: `${Phaser.Math.Between(8, 18)}px`, color: '#ffd147' }
+      );
+      s.setAlpha(Phaser.Math.FloatBetween(0.2, 0.7));
+      this.tweens.add({
+        targets: s, alpha: 0.1,
+        duration: Phaser.Math.Between(1500, 3500),
+        yoyo: true, repeat: -1
+      });
+    }
+
+    // floor (stone planks)
+    const floor = this.add.graphics();
+    floor.fillStyle(0x2a1a4e, 1);
+    floor.fillRect(0, 620, W, 148);
+    for (let x = 0; x < W; x += 80) {
+      floor.lineStyle(2, 0x1a0b2e, 0.5);
+      floor.lineBetween(x, 620, x, 768);
+    }
+  }
+
+  drawTitle() {
+    const t = this.add.text(W/2, 38, "Ralphie's Cauldron Café", {
+      fontFamily: 'Cherry Bomb One',
+      fontSize: '40px',
+      color: '#ffd147',
+      stroke: '#0a0b2e',
+      strokeThickness: 5
+    }).setOrigin(0.5);
+    t.setShadow(0, 4, '#ff8b3d', 8, true, true);
+  }
+
+  drawCustomerArea() {
+    // customer platform
+    const platform = this.add.graphics();
+    platform.fillStyle(0x000000, 0.3);
+    platform.fillEllipse(170, 290, 180, 30);
+
+    this.customer = this.add.text(170, 200, '🧙‍♀️', {
+      fontSize: '130px'
+    }).setOrigin(0.5);
+
+    this.customerName = this.add.text(170, 295, '', {
+      fontFamily: 'Fredoka',
+      fontSize: '20px',
+      fontStyle: '600',
+      color: '#ffd147'
+    }).setOrigin(0.5);
+
+    this.bubbleGfx = this.add.graphics();
+    this.orderText = this.add.text(560, 180, '', {
+      fontFamily: 'Fredoka',
+      fontSize: '30px',
+      fontStyle: '600',
+      color: '#0a0b2e',
+      align: 'center',
+      wordWrap: { width: 460 }
+    }).setOrigin(0.5);
+  }
+
+  drawSpeechBubble() {
+    const b = this.bubbleGfx;
+    b.clear();
+    b.fillStyle(0xfff8e1, 1);
+    b.lineStyle(4, 0xffd147, 1);
+    b.fillRoundedRect(310, 100, 500, 160, 22);
+    b.strokeRoundedRect(310, 100, 500, 160, 22);
+    b.fillTriangle(310, 175, 270, 200, 312, 210);
+    b.lineStyle(4, 0xffd147, 1);
+    b.strokeTriangle(310, 175, 270, 200, 312, 210);
+    b.fillStyle(0xfff8e1, 1);
+    b.fillRect(310, 178, 6, 30);
+  }
+
+  drawCauldron() {
+    const cx = W/2, cy = 480;
+
+    const glow = this.add.circle(cx, cy + 50, 130, COLOR.orange, 0.4);
+    this.tweens.add({
+      targets: glow, alpha: 0.2, scale: 1.1,
+      duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    const c = this.add.graphics();
+    c.fillStyle(COLOR.iron, 1);
+    c.fillEllipse(cx, cy + 60, 280, 80);
+    c.fillRect(cx - 140, cy - 20, 280, 80);
+    c.fillStyle(0x2a2a2a, 1);
+    c.fillEllipse(cx, cy - 20, 280, 50);
+    c.fillStyle(0x0a0a0a, 1);
+    c.fillEllipse(cx, cy - 25, 240, 35);
+    c.fillStyle(COLOR.iron, 1);
+    c.fillRect(cx - 100, cy + 80, 18, 30);
+    c.fillRect(cx + 82, cy + 80, 18, 30);
+    c.fillStyle(0x444444, 1);
+    [-90, -30, 30, 90].forEach(dx => c.fillCircle(cx + dx, cy + 5, 4));
+
+    this.soupColor = this.add.circle(cx, cy - 20, 110, COLOR.orange, 0.8);
+    this.soupColor.setScale(1.1, 0.3);
+
+    this.bubbles = [];
+    for (let i = 0; i < 8; i++) {
+      const b = this.add.circle(
+        cx + Phaser.Math.Between(-100, 100),
+        cy - 25,
+        Phaser.Math.Between(6, 14),
+        COLOR.gold, 0.6
+      );
+      this.bubbles.push(b);
+      this.animateBubble(b, cx, cy);
+    }
+
+    this.cauldronContents = this.add.text(cx, cy + 130, '', {
+      fontFamily: 'Fredoka',
+      fontSize: '26px',
+      fontStyle: '600',
+      color: '#ffffff',
+      align: 'center'
+    }).setOrigin(0.5);
+  }
+
+  animateBubble(b, cx, cy) {
+    b.x = cx + Phaser.Math.Between(-100, 100);
+    b.y = cy - 25;
+    b.alpha = 0;
+    b.setScale(0);
+    this.tweens.add({
+      targets: b,
+      y: cy - 80,
+      alpha: { from: 0.8, to: 0 },
+      scale: { from: 0.3, to: 1.2 },
+      duration: Phaser.Math.Between(1200, 2500),
+      delay: Phaser.Math.Between(0, 1500),
+      onComplete: () => this.animateBubble(b, cx, cy)
+    });
+  }
+
+  drawRalphie() {
+    this.ralphie = this.makeRalphie(900, 340);
+
+    // chef hat — sits above Ralphie's head
+    this.chefHat = this.add.text(900, 245, '👨‍🍳', {
+      fontSize: '40px'
+    }).setOrigin(0.5);
+
+    this.add.text(900, 415, 'Ralphie', {
+      fontFamily: 'Fredoka',
+      fontSize: '20px',
+      fontStyle: '600',
+      color: '#4dd99c'
+    }).setOrigin(0.5);
+
+    this.ralphieSpeech = this.add.text(900, 440, '', {
+      fontFamily: 'Fredoka',
+      fontSize: '14px',
+      color: '#ffd147',
+      align: 'center',
+      wordWrap: { width: 180 }
+    }).setOrigin(0.5);
+  }
+
+  drawVeggieShelf() {
+    const shelfY = 660;
+    const startX = 120;
+    const spacing = 200;
+
+    const shelf = this.add.graphics();
+    shelf.fillStyle(0x6b4226, 1);
+    shelf.fillRoundedRect(60, 620, 920, 10, 4);
+
+    this.veggieButtons = {};
+
+    VEGGIES.forEach((v, i) => {
+      const x = startX + i * spacing;
+
+      const bg = this.add.graphics();
+      bg.fillStyle(COLOR.cream, 1);
+      bg.lineStyle(4, v.color, 1);
+      bg.fillRoundedRect(x - 80, shelfY - 50, 160, 110, 16);
+      bg.strokeRoundedRect(x - 80, shelfY - 50, 160, 110, 16);
+
+      const emoji = this.add.text(x, shelfY - 10, v.emoji, {
+        fontSize: '60px'
+      }).setOrigin(0.5);
+
+      this.add.text(x, shelfY + 40, v.label, {
+        fontFamily: 'Fredoka',
+        fontSize: '16px',
+        fontStyle: '600',
+        color: '#0a0b2e'
+      }).setOrigin(0.5);
+
+      const badge = this.add.circle(x + 55, shelfY - 35, 18, COLOR.orange, 1);
+      badge.setStrokeStyle(3, COLOR.cream);
+      const badgeText = this.add.text(x + 55, shelfY - 36, '0', {
+        fontFamily: 'Fredoka',
+        fontSize: '18px',
+        fontStyle: '700',
+        color: '#fff'
+      }).setOrigin(0.5);
+      badge.setVisible(false);
+      badgeText.setVisible(false);
+
+      const minusBg = this.add.circle(x - 55, shelfY - 35, 16, 0x888888, 1);
+      minusBg.setStrokeStyle(3, COLOR.cream);
+      const minusText = this.add.text(x - 55, shelfY - 38, '−', {
+        fontFamily: 'Fredoka',
+        fontSize: '24px',
+        fontStyle: '700',
+        color: '#fff'
+      }).setOrigin(0.5);
+      minusBg.setVisible(false);
+      minusText.setVisible(false);
+      minusBg.setInteractive({ useHandCursor: true });
+      minusBg.on('pointerdown', () => this.removeVeggie(v.id));
+
+      const hit = this.add.zone(x, shelfY, 160, 110);
+      hit.setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => this.addVeggie(v.id, x, shelfY - 10));
+      hit.on('pointerover', () => { emoji.setScale(1.1); });
+      hit.on('pointerout',  () => { emoji.setScale(1); });
+
+      this.veggieButtons[v.id] = { emoji, badge, badgeText, minusBg, minusText, x, y: shelfY - 10 };
+    });
+  }
+
+  drawServeButton() {
+    const x = W/2, y = 720;
+    const bg = this.add.graphics();
+    bg.fillStyle(COLOR.orange, 1);
+    bg.lineStyle(4, COLOR.gold, 1);
+    bg.fillRoundedRect(x - 110, y - 28, 220, 56, 28);
+    bg.strokeRoundedRect(x - 110, y - 28, 220, 56, 28);
+
+    const text = this.add.text(x, y, 'SERVE! 🍲', {
+      fontFamily: 'Cherry Bomb One',
+      fontSize: '28px',
+      color: '#fff8e1',
+      stroke: '#0a0b2e',
+      strokeThickness: 3
+    }).setOrigin(0.5);
+
+    const hit = this.add.zone(x, y, 220, 56);
+    hit.setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => this.serve());
+    hit.on('pointerover', () => {
+      this.tweens.add({ targets: [bg, text], scale: 1.06, duration: 120 });
+    });
+    hit.on('pointerout', () => {
+      this.tweens.add({ targets: [bg, text], scale: 1, duration: 120 });
+    });
+
+    this.serveButton = { bg, text };
+
+    this.tweens.add({
+      targets: bg, alpha: 0.85,
+      duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  }
+
+  drawMuteButton() {
+    const btn = this.add.text(W - 40, 40, '🔊', { fontSize: '32px' }).setOrigin(0.5);
+    btn.setInteractive({ useHandCursor: true });
+    btn.on('pointerdown', () => {
+      state.muted = !state.muted;
+      btn.setText(state.muted ? '🔇' : '🔊');
+      if (state.muted) speechSynthesis.cancel();
+    });
+  }
+
+  drawHUD() {
+    const pillBg = this.add.graphics();
+    pillBg.fillStyle(COLOR.cream, 0.95);
+    pillBg.lineStyle(3, COLOR.gold, 1);
+    pillBg.fillRoundedRect(20, 22, 150, 36, 18);
+    pillBg.strokeRoundedRect(20, 22, 150, 36, 18);
+    this.levelLabel = this.add.text(95, 40, '', {
+      fontFamily: 'Fredoka',
+      fontSize: '18px',
+      fontStyle: '700',
+      color: '#0a0b2e'
+    }).setOrigin(0.5);
+
+    this.starsLabel = this.add.text(185, 40, '⭐ 0', {
+      fontFamily: 'Fredoka',
+      fontSize: '22px',
+      fontStyle: '700',
+      color: '#ffd147',
+      stroke: '#0a0b2e',
+      strokeThickness: 3
+    }).setOrigin(0, 0.5);
+  }
+
+  // ---- Game logic ----
+  startLevel(idx) {
+    if (idx >= LEVELS.length) return this.winGame();
+
+    state.levelIndex = idx;
+    state.cauldron = { carrot: 0, potato: 0, mushroom: 0, pumpkin: 0 };
+    state.busy = false;
+
+    const lvl = LEVELS[idx];
+
+    this.levelLabel.setText(`Order ${idx + 1} of ${LEVELS.length}`);
+
+    this.customer.setText(lvl.customer);
+    this.customer.setScale(0); this.customer.setAlpha(0);
+    this.customerName.setText(lvl.name);
+    this.customerName.setAlpha(0);
+    this.tweens.add({
+      targets: this.customer, scale: 1, alpha: 1,
+      duration: 500, ease: 'Back.easeOut'
+    });
+    this.tweens.add({
+      targets: this.customerName, alpha: 1, duration: 500, delay: 200
+    });
+
+    if (this.customerBob) this.customerBob.stop();
+    this.customerBob = this.tweens.add({
+      targets: this.customer,
+      y: this.customer.y - 8,
+      duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 600
+    });
+
+    this.drawSpeechBubble();
+    const orderStr = this.formatOrder(lvl.order);
+    this.orderText.setText(orderStr.display);
+    this.orderText.setAlpha(0);
+    this.tweens.add({
+      targets: this.orderText, alpha: 1, duration: 400, delay: 300
+    });
+
+    // Ralphie reacts — pointing at the order
+    this.setRalphieState('pointing');
+    const tips = ["Let's cook!", "I'll help count!", "You got this!", "Yum yum yum!", "Order up!"];
+    this.ralphieSpeech.setText(Phaser.Utils.Array.GetRandom(tips));
+
+    this.updateCauldronDisplay();
+    this.refreshVeggieBadges();
+
+    this.time.delayedCall(600, () => speak(`${lvl.name} says: ${orderStr.spoken}`));
+
+    // Switch to thinking after order is spoken
+    this.time.delayedCall(2400, () => this.setRalphieState('thinking'));
+  }
+
+  formatOrder(order) {
+    const keys = Object.keys(order).filter(k => order[k] > 0);
+    const parts = keys.map(k => {
+      const v = VEGGIES.find(x => x.id === k);
+      return `${order[k]} ${v.emoji}`;
+    });
+    const wordParts = keys.map(k => {
+      const v = VEGGIES.find(x => x.id === k);
+      const word = order[k] === 1 ? v.label.slice(0, -1) : v.label.toLowerCase();
+      return `${order[k]} ${word}`;
+    });
+    let display, spoken;
+    if (parts.length === 1) {
+      display = `I want\n${parts[0]}!`;
+      spoken = `I want ${wordParts[0]}.`;
+    } else if (parts.length === 2) {
+      display = `I want\n${parts[0]} and ${parts[1]}!`;
+      spoken = `I want ${wordParts[0]} and ${wordParts[1]}.`;
+    } else {
+      display = `I want\n${parts.slice(0, -1).join(', ')} and ${parts.slice(-1)}!`;
+      spoken = `I want ${wordParts.slice(0, -1).join(', ')} and ${wordParts.slice(-1)}.`;
+    }
+    return { display, spoken };
+  }
+
+  addVeggie(id, fromX, fromY) {
+    if (state.busy) return;
+    state.cauldron[id]++;
+
+    const v = VEGGIES.find(x => x.id === id);
+    const flier = this.add.text(fromX, fromY, v.emoji, { fontSize: '60px' }).setOrigin(0.5);
+    this.tweens.add({
+      targets: flier,
+      x: W/2, y: 480, scale: 0.4,
+      duration: 450, ease: 'Quad.easeIn',
+      onComplete: () => { flier.destroy(); this.cauldronSplash(); }
+    });
+
+    this.updateCauldronDisplay();
+    this.refreshVeggieBadges();
+  }
+
+  removeVeggie(id) {
+    if (state.busy) return;
+    if (state.cauldron[id] <= 0) return;
+    state.cauldron[id]--;
+    this.updateCauldronDisplay();
+    this.refreshVeggieBadges();
+  }
+
+  cauldronSplash() {
+    const ripple = this.add.circle(W/2, 460, 30, COLOR.gold, 0.6);
+    this.tweens.add({
+      targets: ripple, scale: 3, alpha: 0,
+      duration: 500, onComplete: () => ripple.destroy()
+    });
+  }
+
+  refreshVeggieBadges() {
+    Object.keys(this.veggieButtons).forEach(id => {
+      const btn = this.veggieButtons[id];
+      const count = state.cauldron[id];
+      btn.badge.setVisible(count > 0);
+      btn.badgeText.setVisible(count > 0);
+      btn.badgeText.setText(String(count));
+      btn.minusBg.setVisible(count > 0);
+      btn.minusText.setVisible(count > 0);
+    });
+  }
+
+  updateCauldronDisplay() {
+    const parts = Object.keys(state.cauldron)
+      .filter(k => state.cauldron[k] > 0)
+      .map(k => {
+        const v = VEGGIES.find(x => x.id === k);
+        return `${v.emoji}×${state.cauldron[k]}`;
+      });
+    this.cauldronContents.setText(parts.length ? parts.join('  ') : 'Empty cauldron');
+  }
+
+  serve() {
+    if (state.busy) return;
+    const lvl = LEVELS[state.levelIndex];
+    const expected = lvl.order;
+    const got = state.cauldron;
+
+    let correct = true;
+    let mismatch = null;
+    const allKeys = new Set([...Object.keys(expected), ...Object.keys(got)]);
+    allKeys.forEach(k => {
+      const want = expected[k] || 0;
+      const have = got[k] || 0;
+      if (want !== have) {
+        correct = false;
+        if (!mismatch) mismatch = { id: k, want, have };
+      }
+    });
+
+    if (correct) this.winLevel();
+    else this.failLevel(mismatch);
+  }
+
+  winLevel() {
+    state.busy = true;
+    state.stars++;
+    state.score += 100;
+    this.starsLabel.setText(`⭐ ${state.stars}`);
+
+    speak('Yum yum yum! Thank you!');
+    this.ralphieSpeech.setText('Perfect! Yay!');
+
+    // Ralphie celebrates
+    this.setRalphieState('clapping');
+    this.tweens.add({
+      targets: this.ralphie,
+      angle: { from: -8, to: 8 },
+      duration: 200, yoyo: true, repeat: 3,
+      onComplete: () => this.ralphie.setAngle(0)
+    });
+
+    const munches = ['😋', '😋', '🤤', '🥰'];
+    let i = 0;
+    this.time.addEvent({
+      delay: 250, repeat: 3,
+      callback: () => this.customer.setText(munches[i++ % munches.length])
+    });
+
+    // gold coin burst
+    for (let n = 0; n < 18; n++) {
+      const coin = this.add.text(W/2, 480, '🪙', { fontSize: '32px' }).setOrigin(0.5);
+      const ang = Phaser.Math.FloatBetween(-Math.PI, 0);
+      const dist = Phaser.Math.Between(150, 320);
+      this.tweens.add({
+        targets: coin,
+        x: W/2 + Math.cos(ang) * dist,
+        y: 480 + Math.sin(ang) * dist + 200,
+        scale: 0.5, alpha: 0,
+        rotation: Phaser.Math.FloatBetween(-3, 3),
+        duration: 1200, ease: 'Quad.easeIn',
+        onComplete: () => coin.destroy()
+      });
+    }
+
+    this.tweens.add({
+      targets: this.starsLabel, scale: 1.5,
+      duration: 200, yoyo: true, ease: 'Back.easeOut'
+    });
+
+    this.time.delayedCall(1800, () => {
+      this.tweens.add({
+        targets: [this.customer, this.customerName, this.orderText],
+        x: '-=200', alpha: 0,
+        duration: 400,
+        onComplete: () => {
+          this.customer.x = 170;
+          this.customerName.x = 170;
+          this.orderText.x = 560;
+          this.startLevel(state.levelIndex + 1);
+        }
+      });
+    });
+  }
+
+  failLevel(mismatch) {
+    state.busy = true;
+    const v = VEGGIES.find(x => x.id === mismatch.id);
+    let msg;
+    if (mismatch.have < mismatch.want) {
+      const need = mismatch.want - mismatch.have;
+      msg = `Almost! I need ${need} more ${v.label.toLowerCase()}.`;
+    } else if (mismatch.have > mismatch.want) {
+      const extra = mismatch.have - mismatch.want;
+      msg = `Whoops! That's ${extra} too many ${v.label.toLowerCase()}.`;
+    } else {
+      msg = `Hmm, check the order again!`;
+    }
+    speak(msg);
+    this.ralphieSpeech.setText('Try again!');
+    this.setRalphieState('surprised');
+
+    this.tweens.add({
+      targets: this.soupColor,
+      x: '+=10',
+      duration: 60, yoyo: true, repeat: 4,
+      onComplete: () => {
+        state.busy = false;
+        this.setRalphieState('thinking');
+      }
+    });
+
+    const flash = this.add.graphics();
+    flash.fillStyle(COLOR.red, 0.3);
+    flash.fillRoundedRect(310, 100, 500, 160, 22);
+    this.tweens.add({
+      targets: flash, alpha: 0,
+      duration: 600,
+      onComplete: () => flash.destroy()
+    });
+  }
+
+  winGame() {
+    state.busy = true;
+    speak(`Amazing work! You earned ${state.stars} stars!`);
+    this.setRalphieState('trophy');
+
+    const overlay = this.add.graphics();
+    overlay.fillStyle(COLOR.bgDeep, 0.9);
+    overlay.fillRect(0, 0, W, H);
+
+    this.add.text(W/2, 200, '🎉  CHEF MASTER!  🎉', {
+      fontFamily: 'Cherry Bomb One',
+      fontSize: '56px',
+      color: '#ffd147',
+      stroke: '#0a0b2e',
+      strokeThickness: 6
+    }).setOrigin(0.5);
+
+    this.add.text(W/2, 290, 'You served everyone!', {
+      fontFamily: 'Fredoka',
+      fontSize: '32px',
+      color: '#fff8e1'
+    }).setOrigin(0.5);
+
+    this.add.text(W/2, 360, `⭐ ${state.stars} STARS ⭐`, {
+      fontFamily: 'Cherry Bomb One',
+      fontSize: '44px',
+      color: '#ffd147'
+    }).setOrigin(0.5);
+
+    // Big Ralphie with trophy
+    if (state.hasRalphieAssets && this.textures.exists('ralphie_trophy')) {
+      const big = this.add.image(W/2, 480, 'ralphie_trophy');
+      big.setScale(280 / big.height);
+      this.tweens.add({
+        targets: big, scale: { from: big.scale, to: big.scale * 1.08 },
+        duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+      });
+    } else {
+      const bigRalphie = this.add.text(W/2, 470, '🐢', { fontSize: '180px' }).setOrigin(0.5);
+      this.tweens.add({
+        targets: bigRalphie, angle: 360, duration: 1200, repeat: -1
+      });
+    }
+
+    const btnBg = this.add.graphics();
+    btnBg.fillStyle(COLOR.orange, 1);
+    btnBg.lineStyle(4, COLOR.gold, 1);
+    btnBg.fillRoundedRect(W/2 - 140, 640, 280, 60, 30);
+    btnBg.strokeRoundedRect(W/2 - 140, 640, 280, 60, 30);
+    this.add.text(W/2, 670, 'COOK AGAIN! 🍲', {
+      fontFamily: 'Cherry Bomb One',
+      fontSize: '26px',
+      color: '#fff8e1'
+    }).setOrigin(0.5);
+    const btnHit = this.add.zone(W/2, 670, 280, 60).setInteractive({ useHandCursor: true });
+    btnHit.on('pointerdown', () => {
+      state.stars = 0; state.score = 0;
+      this.starsLabel.setText('⭐ 0');
+      this.scene.restart();
+    });
+
+    for (let i = 0; i < 40; i++) {
+      const emojis = ['🎊','🎉','⭐','🌟','✨'];
+      const c = this.add.text(
+        Phaser.Math.Between(0, W),
+        -50,
+        Phaser.Utils.Array.GetRandom(emojis),
+        { fontSize: `${Phaser.Math.Between(20, 36)}px` }
+      );
+      this.tweens.add({
+        targets: c,
+        y: H + 50,
+        rotation: Phaser.Math.FloatBetween(-6, 6),
+        duration: Phaser.Math.Between(3000, 6000),
+        delay: Phaser.Math.Between(0, 2000),
+        repeat: -1
+      });
+    }
+  }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: W, height: H,
+  parent: 'game-container',
+  backgroundColor: '#0a0b2e',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: CauldronScene
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
