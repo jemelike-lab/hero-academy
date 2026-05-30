@@ -55,6 +55,7 @@
     font-family:var(--font-display); pointer-events:none;
   }
 </style>
+<script src="js/characters.js"></script>
 </head>
 <body>
 <a href="number-lab.html" class="back-btn">← Number Lab</a>
@@ -699,7 +700,9 @@ class CauldronScene extends Phaser.Scene {
           this.customer.x = 170;
           this.customerName.x = 170;
           this.orderText.x = 560;
-          this.startLevel(state.levelIndex + 1);
+          const sq = window.HeroAcademy && window.HeroAcademy.Characters;
+              const advance = () => this.startLevel(state.levelIndex + 1);
+              if (sq) sq.maybeSurprise('numberlab').then(advance); else advance();
         }
       });
     });
@@ -746,6 +749,10 @@ class CauldronScene extends Phaser.Scene {
     state.busy = true;
     speak(`Amazing work! You earned ${state.stars} stars!`);
     this.setRalphieState('trophy');
+    setTimeout(() => {
+      const sq2 = window.HeroAcademy && window.HeroAcademy.Characters;
+      if (sq2) sq2.celebrateWin();
+    }, 1800);
 
     const overlay = this.add.graphics();
     overlay.fillStyle(COLOR.bgDeep, 0.9);

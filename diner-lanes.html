@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Diner Lanes · Hero Academy</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+<style>
+  :root {
+    --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
+    --gold:#ffd147; --gold-bright:#ffe580;
+    --orange:#ff8b3d;
+    --magenta:#ec4899;
+    --cyan:#14b8d4; --cyan-bright:#38ccea;
+    --emerald:#2ec27e;
+    --red:#ef4444;
+    --diner-red:#c0392b; --diner-cream:#fff4dc; --diner-wood:#8b5a2b;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --text:#fff;
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-retro:'Bungee',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%;
+    background:linear-gradient(135deg,var(--bg-space),var(--bg-deep) 40%,var(--bg-purple));
+    overflow:hidden; font-family:var(--font-display);
+    touch-action:none; -webkit-user-select:none; user-select:none;
+  }
+  #game-container {
+    width:100vw; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+  }
+  canvas { display:block; }
+  .back-btn {
+    position:fixed; top:calc(var(--safe-top) + 14px); left:18px;
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:var(--text); padding:8px 16px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    text-decoration:none; backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px); z-index:10;
+    display:inline-flex; align-items:center; gap:6px;
+    transition:transform .12s ease;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  .badge {
+    position:fixed; bottom:calc(var(--safe-bottom) + 8px); right:12px;
+    color:rgba(255,209,71,0.5); font-size:11px;
+    font-family:var(--font-display); pointer-events:none;
+  }
+</style>
+<script src="js/characters.js"></script>
+</head>
+<body>
+<a href="index.html" class="back-btn">← Home</a>
+<div id="game-container"></div>
+<div class="badge">Diner Lanes · v0.1</div>
+
+<script>
+/* =============================================================
+   RALPHIE'S DINER LANES — Hero Academy Explorer's Hall
+   Bowling + US geography + counting
+   ============================================================= */
+
+const W = 1024, H = 768;
+
+const COLOR = {
+  bgDeep:    0x0a0b2e,
+  bgPurple:  0x1a1554,
+  bgNavy:    0x1e2876,
+  gold:      0xffd147,
+  goldBright:0xffe580,
+  cyan:      0x14b8d4,
+  cyanBright:0x38ccea,
+  red:       0xef4444,
+  magenta:   0xec4899,
+  emerald:   0x2ec27e,
+  dinerRed:  0xc0392b,
+  dinerCream:0xfff4dc,
+  dinerWood: 0x8b5a2b,
+  woodLight: 0xa67242,
+  woodDark:  0x5a3a1a,
+  text:      0xffffff,
+  pinWhite:  0xfff8e1,
+  pinRed:    0xc0392b,
+  black:     0x1a1a1a
+};
+
+const CUSTOMERS = [
+  { name: 'Mia',          state: 'California',    capital: 'Sacramento', emoji: '🌮', label: 'fish tacos',      count: 4, avatar: '🧒', map: { x: 845, y: 200 } },
+  { name: 'Pedro',        state: 'Texas',         capital: 'Austin',     emoji: '🍖', label: 'BBQ ribs',        count: 5, avatar: '🤠', map: { x: 905, y: 235 } },
+  { name: 'Crabby Chris', state: 'Maryland',      capital: 'Annapolis',  emoji: '🦀', label: 'crab cakes',      count: 3, avatar: '👦', map: { x: 962, y: 185 } },
+  { name: 'Sunny Sam',    state: 'Florida',       capital: 'Tallahassee',emoji: '🍊', label: 'oranges',         count: 6, avatar: '👵', map: { x: 962, y: 250 } },
+  { name: 'Mac',          state: 'Wisconsin',     capital: 'Madison',    emoji: '🧀', label: 'cheese curds',    count: 7, avatar: '🧑', map: { x: 925, y: 165 } },
+  { name: 'Lou',          state: 'Louisiana',     capital: 'Baton Rouge',emoji: '🍤', label: 'shrimp gumbo',    count: 4, avatar: '🧑‍🎤', map: { x: 925, y: 240 } },
+  { name: 'Wynn',         state: 'Hawaii',        capital: 'Honolulu',   emoji: '🍍', label: 'pineapple pizza', count: 5, avatar: '🏄', map: { x: 830, y: 270 } },
+  { name: 'Lex',          state: 'Massachusetts', capital: 'Boston',     emoji: '🦞', label: 'lobster rolls',   count: 3, avatar: '👴', map: { x: 970, y: 165 } }
+];
+
+const DECOY_FOODS = [
+  { emoji: '🍕', label: 'pizza' },
+  { emoji: '🍔', label: 'burgers' },
+  { emoji: '🍣', label: 'sushi' },
+  { emoji: '🥞', label: 'pancakes' },
+  { emoji: '🌭', label: 'hot dogs' },
+  { emoji: '🍩', label: 'donuts' },
+  { emoji: '🥟', label: 'dumplings' },
+  { emoji: '🌯', label: 'burritos' },
+  { emoji: '🍜', label: 'noodles' },
+  { emoji: '🥗', label: 'salad' }
+];
+
+const RALPHIE_STATES = ['default','pointing','thinking','clapping','cheering','surprised','trophy','flexing'];
+
+let state = {
+  levelIndex: 0,
+  expectedCount: 0,
+  pinsCorrectKnocked: 0,
+  pins: [],
+  stars: 0,
+  passport: [],
+  busy: false,
+  muted: false,
+  hasRalphieAssets: false
+};
+
+// === Voice ===
+// TODO: swap for ElevenLabs TTS via Miss Humphrey (agent_5901kssbzjm1e0yvd0kdwxa3r49m)
+function speak(text) {
+  if (state.muted || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95; u.pitch = 1.05; u.volume = 0.9;
+  speechSynthesis.speak(u);
+}
+
+class DinerScene extends Phaser.Scene {
+  constructor() { super('Diner'); }
+
+  preload() {
+    this.load.on('loaderror', () => {});
+    RALPHIE_STATES.forEach(s => {
+      this.load.image(`ralphie_${s}`, `assets/ralphie/ralphie_${s}.webp`);
+    });
+  }
+
+  create() {
+    state.hasRalphieAssets = this.textures.exists('ralphie_default');
+
+    this.drawBackground();
+    this.drawDinerRoom();
+    this.drawLane();
+    this.drawTitle();
+    this.drawCustomerArea();
+    this.drawMap();
+    this.drawRalphie();
+    this.drawHUD();
+    this.drawOrderDisplay();
+    this.drawMuteButton();
+
+    this.pinsLayer = this.add.container(0, 0);
+    this.ballLayer = this.add.container(0, 0);
+
+    this.time.delayedCall(600, () => this.startLevel(0));
+  }
+
+  // ===== Visual setup =====
+
+  drawBackground() {
+    const g = this.add.graphics();
+    g.fillGradientStyle(COLOR.bgDeep, COLOR.bgDeep, COLOR.bgPurple, COLOR.bgNavy, 1);
+    g.fillRect(0, 0, W, H);
+
+    // tiny stars on top edges
+    for (let i = 0; i < 25; i++) {
+      const s = this.add.text(
+        Phaser.Math.Between(0, W),
+        Phaser.Math.Between(0, 60),
+        '✦',
+        { fontSize: `${Phaser.Math.Between(6, 12)}px`, color: '#ffd147' }
+      );
+      s.setAlpha(Phaser.Math.FloatBetween(0.2, 0.6));
+      this.tweens.add({
+        targets: s, alpha: 0.1,
+        duration: Phaser.Math.Between(1500, 3000),
+        yoyo: true, repeat: -1
+      });
+    }
+  }
+
+  drawDinerRoom() {
+    // checkered floor under the lane (small visible at bottom)
+    const g = this.add.graphics();
+    const checkSize = 36;
+    for (let x = 0; x < W; x += checkSize) {
+      for (let y = 660; y < H; y += checkSize) {
+        const isLight = ((x / checkSize) + (y / checkSize)) % 2 === 0;
+        g.fillStyle(isLight ? 0xfff4dc : 0xc0392b, 0.6);
+        g.fillRect(x, y, checkSize, checkSize);
+      }
+    }
+
+    // Diner neon sign at top center
+    const sign = this.add.graphics();
+    sign.fillStyle(COLOR.dinerRed, 0.85);
+    sign.lineStyle(3, COLOR.cyanBright, 1);
+    sign.fillRoundedRect(W/2 - 200, 8, 400, 64, 14);
+    sign.strokeRoundedRect(W/2 - 200, 8, 400, 64, 14);
+  }
+
+  drawTitle() {
+    this.add.text(W/2, 40, "RALPHIE'S DINER LANES", {
+      fontFamily: 'Bungee',
+      fontSize: '26px',
+      color: '#fff4dc',
+      stroke: '#0a0b2e',
+      strokeThickness: 4
+    }).setOrigin(0.5);
+    // bowling pin + fork-and-knife crossed
+    this.add.text(W/2 - 175, 40, '🎳', { fontSize: '32px' }).setOrigin(0.5);
+    this.add.text(W/2 + 175, 40, '🍴', { fontSize: '32px' }).setOrigin(0.5);
+  }
+
+  drawLane() {
+    // Wood-floored bowling lane in the middle of the screen
+    const laneLeft = 120, laneRight = 720, laneTop = 130, laneBottom = 580;
+
+    // Lane wood
+    const lane = this.add.graphics();
+    lane.fillStyle(COLOR.dinerWood, 1);
+    lane.fillRect(laneLeft, laneTop, laneRight - laneLeft, laneBottom - laneTop);
+
+    // Wood planks (horizontal lines)
+    lane.lineStyle(2, COLOR.woodDark, 0.5);
+    for (let y = laneTop + 30; y < laneBottom; y += 40) {
+      lane.lineBetween(laneLeft, y, laneRight, y);
+    }
+    // lighter highlights
+    lane.lineStyle(1, COLOR.woodLight, 0.5);
+    for (let y = laneTop + 15; y < laneBottom; y += 40) {
+      lane.lineBetween(laneLeft, y, laneRight, y);
+    }
+
+    // Gutters
+    lane.fillStyle(0x2a1a1a, 1);
+    lane.fillRect(laneLeft - 22, laneTop, 22, laneBottom - laneTop);
+    lane.fillRect(laneRight, laneTop, 22, laneBottom - laneTop);
+
+    // Lane arrows (bowling targeting marks)
+    lane.fillStyle(0x000000, 0.4);
+    for (let i = -2; i <= 2; i++) {
+      const ax = (laneLeft + laneRight) / 2 + i * 70;
+      const ay = laneBottom - 90;
+      lane.fillTriangle(ax, ay, ax - 8, ay + 14, ax + 8, ay + 14);
+    }
+
+    // Foul line near the bottom
+    lane.fillStyle(COLOR.gold, 0.8);
+    lane.fillRect(laneLeft, laneBottom - 16, laneRight - laneLeft, 4);
+  }
+
+  drawCustomerArea() {
+    // Customer sits at the top of the lane (where the customer/server waits)
+    this.customerAvatar = this.add.text(W/2 - 280, 105, '🧒', { fontSize: '60px' }).setOrigin(0.5);
+
+    // Speech bubble
+    this.bubbleGfx = this.add.graphics();
+    this.orderHeadline = this.add.text(W/2 - 90, 92, '', {
+      fontFamily: 'Fredoka', fontSize: '18px', fontStyle: '700',
+      color: '#0a0b2e', align: 'left', wordWrap: { width: 380 }
+    }).setOrigin(0, 0.5);
+    this.orderSubline = this.add.text(W/2 - 90, 116, '', {
+      fontFamily: 'Fredoka', fontSize: '14px', fontStyle: '500',
+      color: '#1a1554', align: 'left', wordWrap: { width: 380 }
+    }).setOrigin(0, 0.5);
+  }
+
+  drawSpeechBubble() {
+    const b = this.bubbleGfx;
+    b.clear();
+    b.fillStyle(0xfff8e1, 1);
+    b.lineStyle(3, COLOR.gold, 1);
+    b.fillRoundedRect(W/2 - 110, 72, 460, 72, 14);
+    b.strokeRoundedRect(W/2 - 110, 72, 460, 72, 14);
+    // Tail pointing left toward customer
+    b.fillTriangle(W/2 - 110, 100, W/2 - 130, 115, W/2 - 108, 130);
+    b.lineStyle(3, COLOR.gold, 1);
+    b.strokeTriangle(W/2 - 110, 100, W/2 - 130, 115, W/2 - 108, 130);
+    b.fillStyle(0xfff8e1, 1);
+    b.fillRect(W/2 - 112, 103, 6, 24);
+  }
+
+  drawMap() {
+    // Right-side US map sidebar
+    const mapBg = this.add.graphics();
+    mapBg.fillStyle(COLOR.bgDeep, 0.6);
+    mapBg.lineStyle(2, COLOR.cyan, 0.5);
+    mapBg.fillRoundedRect(770, 130, 240, 240, 14);
+    mapBg.strokeRoundedRect(770, 130, 240, 240, 14);
+
+    this.add.text(890, 148, 'PASSPORT MAP', {
+      fontFamily: 'Bungee', fontSize: '12px', color: '#38ccea'
+    }).setOrigin(0.5);
+
+    // Simplified US continental outline (stylized)
+    const us = this.add.graphics();
+    us.fillStyle(COLOR.emerald, 0.35);
+    us.lineStyle(2, COLOR.cyan, 0.9);
+    // Rough US continental shape (approximate)
+    const pts = [
+      800,180, 820,168, 870,158, 930,158, 970,164, 990,170, 1000,180,
+      1000,200, 990,215, 985,235, 970,250, 950,255, 925,250, 900,255,
+      870,250, 850,255, 825,250, 810,235, 800,215, 795,195
+    ];
+    const poly = new Phaser.Geom.Polygon(pts);
+    us.fillPoints(poly.points, true);
+    us.strokePoints(poly.points, true);
+
+    // Hawaii (small island bottom-left of frame)
+    us.fillStyle(COLOR.emerald, 0.35);
+    us.fillCircle(810, 280, 6);
+    us.lineStyle(2, COLOR.cyan, 0.9);
+    us.strokeCircle(810, 280, 6);
+
+    // State markers
+    this.stateMarkers = {};
+    CUSTOMERS.forEach(c => {
+      const dot = this.add.circle(c.map.x, c.map.y, 4, COLOR.text, 0.6);
+      this.stateMarkers[c.state] = dot;
+    });
+
+    // Active state label
+    this.activeStateLabel = this.add.text(890, 320, '', {
+      fontFamily: 'Fredoka', fontSize: '16px', fontStyle: '700', color: '#ffd147',
+      align: 'center', wordWrap: { width: 220 }
+    }).setOrigin(0.5);
+    this.activeStateCapital = this.add.text(890, 348, '', {
+      fontFamily: 'Fredoka', fontSize: '12px', color: '#38ccea',
+      align: 'center'
+    }).setOrigin(0.5);
+
+    // Active marker (gold ring)
+    this.activeMarker = this.add.graphics();
+  }
+
+  highlightState(stateName) {
+    // Dim all dots
+    Object.values(this.stateMarkers).forEach(d => {
+      d.setFillStyle(COLOR.text, 0.6);
+      d.setScale(1);
+    });
+    const customer = CUSTOMERS.find(c => c.state === stateName);
+    if (!customer) return;
+
+    // Highlight active
+    const dot = this.stateMarkers[stateName];
+    dot.setFillStyle(COLOR.gold, 1);
+
+    // Gold pulse ring on it
+    this.activeMarker.clear();
+    this.activeMarker.lineStyle(3, COLOR.gold, 1);
+    this.activeMarker.strokeCircle(customer.map.x, customer.map.y, 10);
+    this.tweens.killTweensOf(this.activeMarker);
+    this.activeMarker.setAlpha(1);
+    this.activeMarker.setScale(1);
+    this.tweens.add({
+      targets: this.activeMarker,
+      scale: 1.6, alpha: 0,
+      duration: 1100, repeat: -1, ease: 'Quad.out'
+    });
+
+    this.activeStateLabel.setText(stateName);
+    this.activeStateCapital.setText(`Capital: ${customer.capital}`);
+  }
+
+  drawRalphie() {
+    // Player area at bottom-left, off the lane
+    if (state.hasRalphieAssets) {
+      this.ralphie = this.add.image(60, 640, 'ralphie_default');
+      this.ralphie.setScale(110 / this.ralphie.height);
+    } else {
+      this.ralphie = this.add.text(60, 640, '🐢', { fontSize: '90px' }).setOrigin(0.5);
+    }
+    this.add.text(60, 710, 'Ralphie', {
+      fontFamily: 'Fredoka', fontSize: '14px', fontStyle: '600', color: '#4dd99c'
+    }).setOrigin(0.5);
+
+    this.ralphieSpeech = this.add.text(60, 730, '', {
+      fontFamily: 'Fredoka', fontSize: '11px', color: '#ffd147',
+      align: 'center', wordWrap: { width: 110 }
+    }).setOrigin(0.5);
+
+    // gentle bob
+    this.tweens.add({
+      targets: this.ralphie, y: this.ralphie.y - 6,
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  }
+
+  setRalphieState(name) {
+    if (!state.hasRalphieAssets) return;
+    const key = `ralphie_${name}`;
+    if (this.textures.exists(key)) this.ralphie.setTexture(key);
+  }
+
+  drawHUD() {
+    // Level pill
+    const pillBg = this.add.graphics();
+    pillBg.fillStyle(COLOR.dinerCream, 0.95);
+    pillBg.lineStyle(3, COLOR.gold, 1);
+    pillBg.fillRoundedRect(20, 88, 90, 28, 14);
+    pillBg.strokeRoundedRect(20, 88, 90, 28, 14);
+    this.levelLabel = this.add.text(65, 102, '', {
+      fontFamily: 'Fredoka', fontSize: '14px', fontStyle: '700', color: '#0a0b2e'
+    }).setOrigin(0.5);
+
+    // Stars
+    this.starsLabel = this.add.text(20, 130, '⭐ 0', {
+      fontFamily: 'Fredoka', fontSize: '18px', fontStyle: '700',
+      color: '#ffd147', stroke: '#0a0b2e', strokeThickness: 3
+    }).setOrigin(0, 0.5);
+  }
+
+  drawOrderDisplay() {
+    // Order banner at the bottom of the lane (above the foul line area)
+    const orderBg = this.add.graphics();
+    orderBg.fillStyle(COLOR.gold, 1);
+    orderBg.lineStyle(4, COLOR.dinerRed, 1);
+    orderBg.fillRoundedRect(180, 605, 480, 50, 18);
+    orderBg.strokeRoundedRect(180, 605, 480, 50, 18);
+
+    this.orderBigText = this.add.text(420, 630, '', {
+      fontFamily: 'Bungee', fontSize: '22px', color: '#0a0b2e',
+      align: 'center'
+    }).setOrigin(0.5);
+  }
+
+  drawMuteButton() {
+    const btn = this.add.text(W - 36, 40, '🔊', { fontSize: '24px' }).setOrigin(0.5);
+    btn.setInteractive({ useHandCursor: true });
+    btn.on('pointerdown', () => {
+      state.muted = !state.muted;
+      btn.setText(state.muted ? '🔇' : '🔊');
+      if (state.muted) speechSynthesis.cancel();
+    });
+  }
+
+  // ===== Pins =====
+
+  createPin(x, y, emoji, isCorrect) {
+    const container = this.add.container(x, y);
+
+    // Shadow
+    const shadow = this.add.ellipse(0, 42, 50, 12, 0x000000, 0.4);
+    container.add(shadow);
+
+    // Pin body (classic bowling pin shape using ellipse + rect)
+    const pin = this.add.graphics();
+    pin.fillStyle(COLOR.pinWhite, 1);
+    pin.fillCircle(0, -20, 16);            // head
+    pin.fillCircle(0, 8, 22);              // belly
+    pin.fillEllipse(0, 30, 30, 14);        // base
+    // body taper
+    pin.fillRoundedRect(-10, -10, 20, 24, 8);
+
+    // Red stripes (classic bowling pin)
+    pin.fillStyle(COLOR.pinRed, 1);
+    pin.fillRect(-14, -8, 28, 4);
+    pin.fillRect(-14, -1, 28, 3);
+
+    container.add(pin);
+
+    // Food emoji label (on the pin's belly)
+    const emojiText = this.add.text(0, 8, emoji, {
+      fontSize: '28px'
+    }).setOrigin(0.5);
+    container.add(emojiText);
+
+    container.setSize(70, 90);
+    container.setInteractive({ useHandCursor: true });
+    container.on('pointerdown', () => this.bowlAtPin(container));
+    container.on('pointerover', () => { if (!container.getData('knocked')) container.setScale(1.06); });
+    container.on('pointerout',  () => { if (!container.getData('knocked')) container.setScale(1); });
+
+    container.setData('isCorrect', isCorrect);
+    container.setData('emoji', emoji);
+    container.setData('knocked', false);
+
+    return container;
+  }
+
+  setupPins(customer) {
+    // Remove old pins
+    state.pins.forEach(p => p.destroy());
+    state.pins = [];
+
+    // Build pin data: customer.count correct pins + decoys
+    const decoyCount = Math.max(3, Math.min(5, 11 - customer.count));
+    const decoyFoods = Phaser.Utils.Array.Shuffle([...DECOY_FOODS]).slice(0, decoyCount);
+
+    const pinDatas = [];
+    for (let i = 0; i < customer.count; i++) {
+      pinDatas.push({ emoji: customer.emoji, isCorrect: true });
+    }
+    decoyFoods.forEach(d => pinDatas.push({ emoji: d.emoji, isCorrect: false }));
+    Phaser.Utils.Array.Shuffle(pinDatas);
+
+    // Position in 3-row formation in the lane (laneLeft 120 to laneRight 720)
+    // 4 cols x up to 3 rows
+    const total = pinDatas.length;
+    const cols = Math.min(4, total);
+    const rows = Math.ceil(total / cols);
+    const laneCenterX = 420;
+    const startY = 200;
+    const colSpacing = 110;
+    const rowSpacing = 110;
+
+    pinDatas.forEach((data, i) => {
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      const colsInThisRow = (r === rows - 1) ? (total - r * cols) : cols;
+      const rowOffset = (r % 2 === 1) ? 40 : 0;  // stagger alternate rows
+      const x = laneCenterX - (colsInThisRow - 1) * colSpacing / 2 + c * colSpacing + rowOffset;
+      const y = startY + r * rowSpacing;
+      const pin = this.createPin(x, y, data.emoji, data.isCorrect);
+
+      // Entrance animation
+      pin.setScale(0);
+      this.tweens.add({
+        targets: pin, scale: 1,
+        duration: 350, delay: i * 60,
+        ease: 'Back.easeOut'
+      });
+
+      state.pins.push(pin);
+    });
+  }
+
+  // ===== Bowling =====
+
+  bowlAtPin(pinContainer) {
+    if (state.busy) return;
+    if (pinContainer.getData('knocked')) return;
+
+    const isCorrect = pinContainer.getData('isCorrect');
+    const emoji = pinContainer.getData('emoji');
+
+    state.busy = true;
+
+    // Bowling ball start position (between Ralphie and the lane bottom)
+    const ballStart = { x: 420, y: 680 };
+
+    const ball = this.add.circle(ballStart.x, ballStart.y, 22, COLOR.black);
+    ball.setStrokeStyle(2, 0x555555);
+    // Finger holes
+    const holes = this.add.graphics();
+    holes.fillStyle(0x000000, 1);
+    holes.fillCircle(0, -6, 3);
+    holes.fillCircle(-6, 3, 3);
+    holes.fillCircle(6, 3, 3);
+    holes.x = ballStart.x; holes.y = ballStart.y;
+
+    // Roll to the pin
+    this.tweens.add({
+      targets: [ball, holes],
+      x: pinContainer.x, y: pinContainer.y + 10,
+      duration: 480,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        ball.destroy(); holes.destroy();
+        this.impactPin(pinContainer, isCorrect, emoji);
+      }
+    });
+
+    // Roll spin effect
+    this.tweens.add({
+      targets: holes, rotation: 6,
+      duration: 480, ease: 'Linear'
+    });
+  }
+
+  impactPin(pinContainer, isCorrect, emoji) {
+    if (isCorrect) {
+      // Knock pin down
+      pinContainer.setData('knocked', true);
+      this.tweens.add({
+        targets: pinContainer,
+        angle: 70, y: pinContainer.y + 18,
+        alpha: 0.55, scale: 0.92,
+        duration: 380, ease: 'Quad.easeOut',
+        onComplete: () => {
+          state.pinsCorrectKnocked++;
+          this.checkWin();
+          state.busy = false;
+        }
+      });
+
+      // Sparkle burst
+      for (let i = 0; i < 8; i++) {
+        const star = this.add.text(pinContainer.x, pinContainer.y - 10, '✨', {
+          fontSize: `${Phaser.Math.Between(14, 22)}px`
+        }).setOrigin(0.5);
+        const ang = Phaser.Math.FloatBetween(-Math.PI, 0);
+        const dist = Phaser.Math.Between(50, 110);
+        this.tweens.add({
+          targets: star,
+          x: pinContainer.x + Math.cos(ang) * dist,
+          y: pinContainer.y + Math.sin(ang) * dist,
+          alpha: 0, scale: 0.4,
+          duration: 600,
+          onComplete: () => star.destroy()
+        });
+      }
+
+      this.setRalphieState('clapping');
+      this.ralphieSpeech.setText('Strike!');
+      speak('Strike!');
+      this.time.delayedCall(700, () => this.setRalphieState('thinking'));
+
+    } else {
+      // Wrong pin — shake left/right, ball "bounces off"
+      const originalX = pinContainer.x;
+      this.tweens.add({
+        targets: pinContainer,
+        x: { from: originalX, to: originalX + 10 },
+        duration: 50, yoyo: true, repeat: 4,
+        onComplete: () => {
+          pinContainer.x = originalX;
+          state.busy = false;
+        }
+      });
+
+      // Red flash on pin
+      const flash = this.add.circle(pinContainer.x, pinContainer.y, 38, COLOR.red, 0.5);
+      this.tweens.add({
+        targets: flash, alpha: 0, scale: 1.5,
+        duration: 400, onComplete: () => flash.destroy()
+      });
+
+      this.setRalphieState('surprised');
+      this.ralphieSpeech.setText('Not that one!');
+      speak('Not that one!');
+      this.time.delayedCall(700, () => this.setRalphieState('thinking'));
+    }
+  }
+
+  // ===== Game logic =====
+
+  startLevel(idx) {
+    if (idx >= CUSTOMERS.length) return this.winGame();
+
+    state.levelIndex = idx;
+    state.pinsCorrectKnocked = 0;
+    state.busy = false;
+
+    const c = CUSTOMERS[idx];
+
+    // HUD
+    this.levelLabel.setText(`Order ${idx + 1}/${CUSTOMERS.length}`);
+
+    // Customer
+    this.customerAvatar.setText(c.avatar);
+    this.customerAvatar.setScale(0); this.customerAvatar.setAlpha(0);
+    this.tweens.add({
+      targets: this.customerAvatar, scale: 1, alpha: 1,
+      duration: 500, ease: 'Back.easeOut'
+    });
+
+    // Bubble + text
+    this.drawSpeechBubble();
+    this.orderHeadline.setText(`Hi! I'm ${c.name} from ${c.state}.`);
+    this.orderSubline.setText(`My family of ${c.count} would love ${c.label}!`);
+    this.orderHeadline.setAlpha(0); this.orderSubline.setAlpha(0);
+    this.tweens.add({
+      targets: [this.orderHeadline, this.orderSubline],
+      alpha: 1, duration: 400, delay: 300
+    });
+
+    // Order banner
+    this.orderBigText.setText(`ORDER: ${c.count} × ${c.emoji}`);
+
+    // Map
+    this.highlightState(c.state);
+
+    // Pins
+    state.expectedCount = c.count;
+    this.setupPins(c);
+
+    // Ralphie
+    this.setRalphieState('pointing');
+    this.ralphieSpeech.setText("Let's bowl!");
+
+    // Speak the order
+    this.time.delayedCall(600, () => speak(`${c.name} from ${c.state} wants ${c.count} ${c.label}.`));
+    this.time.delayedCall(2800, () => this.setRalphieState('thinking'));
+  }
+
+  checkWin() {
+    if (state.pinsCorrectKnocked >= state.expectedCount) {
+      this.winLevel();
+    }
+  }
+
+  winLevel() {
+    state.busy = true;
+    state.stars++;
+    const c = CUSTOMERS[state.levelIndex];
+    state.passport.push(c.state);
+
+    this.starsLabel.setText(`⭐ ${state.stars}`);
+    this.tweens.add({
+      targets: this.starsLabel, scale: 1.4,
+      duration: 200, yoyo: true, ease: 'Back.easeOut'
+    });
+
+    this.setRalphieState('cheering');
+    this.ralphieSpeech.setText('Great job!');
+    speak(`Wonderful! You earned a ${c.state} sticker!`);
+
+    // Big state sticker animation in center
+    this.showStateSticker(c);
+
+    // Customer happy
+    const munches = ['😋','🤤','🥰','😋'];
+    let mi = 0;
+    this.time.addEvent({
+      delay: 250, repeat: 3,
+      callback: () => this.customerAvatar.setText(munches[mi++ % munches.length])
+    });
+
+    // Gold coin burst from order banner
+    for (let n = 0; n < 14; n++) {
+      const coin = this.add.text(420, 630, '🪙', { fontSize: '24px' }).setOrigin(0.5);
+      const ang = Phaser.Math.FloatBetween(-Math.PI, 0);
+      const dist = Phaser.Math.Between(120, 240);
+      this.tweens.add({
+        targets: coin,
+        x: 420 + Math.cos(ang) * dist,
+        y: 630 + Math.sin(ang) * dist + 100,
+        scale: 0.5, alpha: 0,
+        rotation: Phaser.Math.FloatBetween(-3, 3),
+        duration: 1100, ease: 'Quad.easeIn',
+        onComplete: () => coin.destroy()
+      });
+    }
+
+    this.time.delayedCall(2400, () => {
+      const sq = window.HeroAcademy && window.HeroAcademy.Characters;
+      const advance = () => this.startLevel(state.levelIndex + 1);
+      if (sq) sq.maybeSurprise('explorershall').then(advance); else advance();
+    });
+  }
+
+  showStateSticker(c) {
+    const cx = 420, cy = 380;
+    const sticker = this.add.container(cx, cy);
+    // Sticker bg
+    const bg = this.add.graphics();
+    bg.fillStyle(COLOR.dinerCream, 1);
+    bg.lineStyle(5, COLOR.gold, 1);
+    bg.fillRoundedRect(-150, -90, 300, 180, 18);
+    bg.strokeRoundedRect(-150, -90, 300, 180, 18);
+    sticker.add(bg);
+    // Wavy stamp border decoration
+    sticker.add(this.add.text(0, -60, '★ ★ ★', {
+      fontFamily: 'Bungee', fontSize: '18px', color: '#ffd147'
+    }).setOrigin(0.5));
+    // State name
+    sticker.add(this.add.text(0, -28, c.state.toUpperCase(), {
+      fontFamily: 'Bungee', fontSize: '22px', color: '#c0392b'
+    }).setOrigin(0.5));
+    // Capital
+    sticker.add(this.add.text(0, 4, `Capital: ${c.capital}`, {
+      fontFamily: 'Fredoka', fontSize: '14px', fontStyle: '600', color: '#0a0b2e'
+    }).setOrigin(0.5));
+    // Big food emoji
+    sticker.add(this.add.text(0, 50, c.emoji, {
+      fontSize: '52px'
+    }).setOrigin(0.5));
+
+    sticker.setScale(0); sticker.setAlpha(0);
+    this.tweens.add({
+      targets: sticker,
+      scale: 1, alpha: 1, angle: { from: -10, to: 0 },
+      duration: 600, ease: 'Back.easeOut'
+    });
+    this.tweens.add({
+      targets: sticker, alpha: 0, scale: 0.7,
+      duration: 400, delay: 1700,
+      onComplete: () => sticker.destroy()
+    });
+  }
+
+  winGame() {
+    state.busy = true;
+    this.setRalphieState('trophy');
+    setTimeout(() => {
+      const sq2 = window.HeroAcademy && window.HeroAcademy.Characters;
+      if (sq2) sq2.celebrateWin();
+    }, 1800);
+    speak(`Amazing! You earned ${state.stars} state stickers!`);
+
+    const overlay = this.add.graphics();
+    overlay.fillStyle(COLOR.bgDeep, 0.92);
+    overlay.fillRect(0, 0, W, H);
+
+    this.add.text(W/2, 180, '🎳 STRIKE MASTER! 🦞', {
+      fontFamily: 'Bungee',
+      fontSize: '38px',
+      color: '#ffd147',
+      stroke: '#c0392b',
+      strokeThickness: 5
+    }).setOrigin(0.5);
+
+    this.add.text(W/2, 240, 'You served every state!', {
+      fontFamily: 'Fredoka', fontSize: '24px', fontStyle: '600', color: '#fff4dc'
+    }).setOrigin(0.5);
+
+    this.add.text(W/2, 290, `⭐ ${state.stars} state stickers ⭐`, {
+      fontFamily: 'Bungee', fontSize: '28px', color: '#ffd147'
+    }).setOrigin(0.5);
+
+    // Passport collage
+    const startX = W/2 - (state.passport.length - 1) * 70;
+    state.passport.forEach((stateName, i) => {
+      const c = CUSTOMERS.find(x => x.state === stateName);
+      const stamp = this.add.container(startX + i * 140, 400);
+      const bg = this.add.graphics();
+      bg.fillStyle(COLOR.dinerCream, 1);
+      bg.lineStyle(3, COLOR.gold, 1);
+      bg.fillRoundedRect(-55, -50, 110, 100, 10);
+      bg.strokeRoundedRect(-55, -50, 110, 100, 10);
+      stamp.add(bg);
+      stamp.add(this.add.text(0, -28, c.state.slice(0, 9).toUpperCase(), {
+        fontFamily: 'Bungee', fontSize: '11px', color: '#c0392b'
+      }).setOrigin(0.5));
+      stamp.add(this.add.text(0, 14, c.emoji, { fontSize: '36px' }).setOrigin(0.5));
+      stamp.setScale(0);
+      this.tweens.add({
+        targets: stamp, scale: 1,
+        duration: 400, delay: i * 120,
+        ease: 'Back.easeOut'
+      });
+    });
+
+    // Play again button
+    const btnBg = this.add.graphics();
+    btnBg.fillStyle(COLOR.dinerRed, 1);
+    btnBg.lineStyle(4, COLOR.gold, 1);
+    btnBg.fillRoundedRect(W/2 - 140, 560, 280, 60, 30);
+    btnBg.strokeRoundedRect(W/2 - 140, 560, 280, 60, 30);
+    this.add.text(W/2, 590, 'BOWL AGAIN! 🎳', {
+      fontFamily: 'Bungee', fontSize: '22px', color: '#fff4dc'
+    }).setOrigin(0.5);
+    const btnHit = this.add.zone(W/2, 590, 280, 60).setInteractive({ useHandCursor: true });
+    btnHit.on('pointerdown', () => {
+      state.stars = 0; state.passport = [];
+      this.starsLabel.setText('⭐ 0');
+      this.scene.restart();
+    });
+
+    // Confetti
+    for (let i = 0; i < 30; i++) {
+      const c = this.add.text(
+        Phaser.Math.Between(0, W), -50,
+        Phaser.Utils.Array.GetRandom(['🎊','🎉','⭐','🌟','✨','🏆']),
+        { fontSize: `${Phaser.Math.Between(20, 32)}px` }
+      );
+      this.tweens.add({
+        targets: c, y: H + 50,
+        rotation: Phaser.Math.FloatBetween(-6, 6),
+        duration: Phaser.Math.Between(3000, 6000),
+        delay: Phaser.Math.Between(0, 2000),
+        repeat: -1
+      });
+    }
+  }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: W, height: H,
+  parent: 'game-container',
+  backgroundColor: '#0a0b2e',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+  scene: DinerScene
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
