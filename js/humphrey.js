@@ -185,6 +185,22 @@
         "What a week, {kidName}! Let me tell you what I noticed.",
       ],
     },
+    'homework-assigned': {
+      expression: 'encouraging',
+      lines: [
+        "Hi {kidName}! Today's homework is {topic}. You've got this!",
+        "Ready for today's homework, {kidName}? Let's tackle {topic}.",
+        "Homework time, {kidName}! We're working on {topic} today.",
+      ],
+    },
+    'homework-done': {
+      expression: 'cheering',
+      lines: [
+        "You did it, {kidName}! Today's homework is finished!",
+        "All done, {kidName}! Great work on your homework!",
+        "Homework complete, {kidName}! I'm so proud of you.",
+      ],
+    },
     // Fallback used if an unknown event is fired
     '_default': {
       expression: 'idle',

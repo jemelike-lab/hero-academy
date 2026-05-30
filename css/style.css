@@ -135,3 +135,23 @@ img{display:block;max-width:100%}
 @media(min-width:600px){.hud,.main{max-width:680px}.hero-name{font-size:64px}.hero-message{font-size:16px;max-width:280px}.hero-character{width:200px;height:200px}.hero-ralphie{width:200px;height:200px}.zones-grid{gap:18px}.zone-card{min-height:220px}.zone-img-wrap{width:110px;height:110px}.zone-name{font-size:17px}.title-main{font-size:28px}}
 @media(min-width:900px){.hud,.main{max-width:900px}.zones-grid{grid-template-columns:repeat(4,1fr);gap:16px}.zone-card{min-height:240px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}}
+
+/* === Homework card === */
+.homework-card { margin: 16px; padding: 16px 18px; background: rgba(26,21,84,0.85); border: 2px solid #ffd147; border-radius: 16px; color: #fff; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 20px rgba(255,209,71,0.2); }
+.homework-card[hidden] { display: none; }
+.homework-header { display: flex; align-items: center; gap: 12px; }
+.homework-emoji { font-size: 36px; line-height: 1; }
+.homework-title-wrap { display: flex; flex-direction: column; }
+.homework-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #ffd147; font-weight: 700; }
+.homework-title { font-size: 20px; margin: 2px 0 0; font-family: 'Fredoka', sans-serif; color: #fff; }
+.homework-progress { display: flex; align-items: center; gap: 10px; }
+.homework-progress-track { flex: 1; height: 14px; background: rgba(255,255,255,0.15); border-radius: 7px; overflow: hidden; }
+.homework-progress-fill { height: 100%; background: linear-gradient(90deg, #ffd147, #ffe580); width: 0%; transition: width 0.5s ease-out; }
+.homework-progress-text { font-size: 14px; font-weight: 700; color: #ffd147; min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+.homework-btn { padding: 14px 24px; background: #ffd147; color: #0a0b2e; border: none; border-radius: 12px; font-family: 'Fredoka', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; transition: transform 0.15s; }
+.homework-btn:active { transform: scale(0.96); }
+.homework-card.done { border-color: #2ec27e; box-shadow: 0 4px 20px rgba(46,194,126,0.25); }
+.homework-card.done .homework-eyebrow,
+.homework-card.done .homework-progress-text { color: #2ec27e; }
+.homework-card.done .homework-btn { background: #2ec27e; color: #fff; }
+.homework-card.done .homework-progress-fill { background: #2ec27e; }
