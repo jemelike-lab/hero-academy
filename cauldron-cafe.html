@@ -491,6 +491,7 @@ class CauldronScene extends Phaser.Scene {
 
   // ---- Game logic ----
   startLevel(idx) {
+    console.log("[HA] startLevel", idx);
     if (idx >= LEVELS.length) return this.winGame();
 
     state.levelIndex = idx;
@@ -832,7 +833,7 @@ const config = {
   scene: CauldronScene
 };
 
-new Phaser.Game(config);
+window.HA = new Phaser.Game(config); window._state = state;
 </script>
 </body>
 </html>
