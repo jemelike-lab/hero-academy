@@ -568,17 +568,23 @@
         return resp.blob();
       })
       .then((blob) => {
-        const blobUrl = URL.createObjectURL(blob);
         return new Promise((resolve) => {
-          const audio = new Audio();
-          audio.addEventListener('canplaythrough', () => {
-            stopAudio();
-            state.currentAudio = audio;
-            audio.play().then(() => resolve(true)).catch(() => resolve(false));
-          }, { once: true });
-          audio.addEventListener('error', () => resolve(false), { once: true });
-          audio.src = blobUrl;
-          audio.load();
+          const blobUrl = URL.createObjectURL(blob);
+          const audio = new Audio(blobUrl);
+          audio.preload = 'auto';
+          stopAudio();
+          state.currentAudio = audio;
+          let settled = false;
+          const done = (ok) => { if (settled) return; settled = true; resolve(ok); };
+          audio.addEventListener('error', () => { debug('TTS audio error'); done(false); }, { once: true });
+          audio.addEventListener('ended', () => { try { URL.revokeObjectURL(blobUrl); } catch(e){} }, { once: true });
+          const p = audio.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => done(true)).catch((err) => { debug('TTS play rejected:', err); done(false); });
+          } else {
+            done(true);
+          }
+          setTimeout(() => done(false), 8000);
         });
       })
       .catch((err) => {
