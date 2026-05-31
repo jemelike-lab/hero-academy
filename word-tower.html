@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Word Tower · Hero Academy</title>
+<link rel="stylesheet" href="css/humphrey.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
+  --gold:#ffd147; --gold-deep:#f5b800; --gold-bright:#ffe580;
+  --orange:#ff8b3d; --orange-bright:#ffa86b;
+  --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
+  --cyan:#14b8d4; --red:#ef4444;
+  --surface-glass:rgba(255,255,255,0.08);
+  --border-light:rgba(255,255,255,0.18);
+  --text:#fff;
+  --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-space);color:var(--text);font-family:var(--font-display);}
+body{display:flex;flex-direction:column;padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);}
+
+/* Header */
+.wt-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;z-index:10;}
+.wt-back{background:rgba(0,0,0,0.4);border:2px solid var(--border-light);border-radius:50px;color:#fff;padding:8px 16px;font:600 14px var(--font-display);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:background .2s;}
+.wt-back:hover{background:rgba(255,255,255,0.12);}
+.wt-title-wrap{text-align:center;}
+.wt-zone{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--emerald);font-weight:600;}
+.wt-skill-name{font-size:16px;font-weight:700;}
+.wt-hud{display:flex;gap:14px;align-items:center;font-weight:600;font-size:14px;}
+.wt-hud span{display:flex;align-items:center;gap:4px;}
+
+/* Main layout */
+.wt-main{flex:1;display:flex;align-items:center;justify-content:center;gap:40px;padding:10px 30px;position:relative;overflow:hidden;}
+
+/* Starfield bg */
+.wt-stars{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.wt-star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:wt-twinkle 3s ease-in-out infinite;}
+@keyframes wt-twinkle{0%,100%{opacity:0.2;}50%{opacity:1;}}
+
+/* Tower */
+.wt-tower{display:flex;flex-direction:column-reverse;gap:8px;align-items:center;z-index:2;min-width:100px;}
+.wt-brick{width:90px;height:44px;border-radius:8px;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;transition:all .4s cubic-bezier(.34,1.56,.64,1);position:relative;}
+.wt-brick.lit{background:linear-gradient(135deg,var(--emerald),#34d399);border-color:var(--emerald);box-shadow:0 0 20px rgba(46,194,126,0.4);transform:scale(1.05);}
+.wt-brick.current{border-color:var(--gold);box-shadow:0 0 16px rgba(255,209,71,0.3);animation:wt-pulse-brick 2s ease-in-out infinite;}
+@keyframes wt-pulse-brick{0%,100%{box-shadow:0 0 16px rgba(255,209,71,0.3);}50%{box-shadow:0 0 28px rgba(255,209,71,0.5);}}
+.wt-tower-top{font-size:32px;animation:wt-float 3s ease-in-out infinite;}
+@keyframes wt-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+.wt-ralphie-climb{width:56px;height:56px;object-fit:contain;transition:all .5s cubic-bezier(.34,1.56,.64,1);}
+
+/* Challenge card */
+.wt-card{background:linear-gradient(145deg,rgba(26,21,84,0.95),rgba(10,11,46,0.95));border:2px solid var(--border-light);border-radius:24px;padding:36px 40px;max-width:520px;width:100%;z-index:2;text-align:center;backdrop-filter:blur(10px);box-shadow:0 8px 40px rgba(0,0,0,0.4);}
+.wt-emoji-display{font-size:72px;margin-bottom:12px;animation:wt-bounce-in .5s cubic-bezier(.34,1.56,.64,1);}
+@keyframes wt-bounce-in{0%{transform:scale(0) rotate(-20deg);opacity:0;}100%{transform:scale(1) rotate(0);opacity:1;}}
+.wt-prompt{font-size:15px;color:rgba(255,255,255,0.6);margin-bottom:6px;font-weight:500;}
+.wt-sentence{font-size:22px;font-weight:700;margin-bottom:28px;line-height:1.4;}
+.wt-sentence .wt-blank{display:inline-block;min-width:80px;border-bottom:3px dashed var(--gold);margin:0 4px;color:var(--gold);}
+.wt-choices{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.wt-choice{font:700 20px var(--font-display);padding:16px 12px;border-radius:14px;border:2.5px solid var(--border-light);background:rgba(255,255,255,0.06);color:#fff;cursor:pointer;transition:all .15s;letter-spacing:0.5px;-webkit-tap-highlight-color:transparent;}
+.wt-choice:active{transform:scale(0.95);}
+.wt-choice.correct{background:linear-gradient(135deg,var(--emerald),#34d399)!important;border-color:var(--emerald)!important;color:#fff!important;animation:wt-pop .3s cubic-bezier(.34,1.56,.64,1);}
+.wt-choice.wrong{background:rgba(239,68,68,0.3)!important;border-color:var(--red)!important;animation:wt-shake .4s;}
+.wt-choice:disabled{opacity:0.5;cursor:default;}
+@keyframes wt-pop{0%{transform:scale(1);}50%{transform:scale(1.1);}100%{transform:scale(1);}}
+@keyframes wt-shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-8px);}75%{transform:translateX(8px);}}
+
+/* Feedback */
+.wt-feedback{margin-top:20px;padding:12px 16px;border-radius:12px;font-size:15px;font-weight:600;display:none;}
+.wt-feedback.show{display:block;animation:wt-bounce-in .3s;}
+.wt-feedback.success{background:rgba(46,194,126,0.15);border:1px solid rgba(46,194,126,0.3);color:var(--emerald);}
+.wt-feedback.error{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#ff8888;}
+.wt-feedback.scaffold{background:rgba(255,209,71,0.12);border:1px solid rgba(255,209,71,0.3);color:var(--gold);}
+
+/* Mastery screen */
+.wt-mastery{display:none;text-align:center;padding:40px;}
+.wt-mastery.show{display:block;}
+.wt-mastery-star{font-size:80px;animation:wt-spin-in .6s cubic-bezier(.34,1.56,.64,1);}
+@keyframes wt-spin-in{0%{transform:scale(0) rotate(-180deg);opacity:0;}100%{transform:scale(1) rotate(0);opacity:1;}}
+.wt-mastery h2{font-size:28px;margin:16px 0 8px;color:var(--gold);}
+.wt-mastery p{font-size:16px;color:rgba(255,255,255,0.7);margin-bottom:24px;}
+.wt-mastery-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.wt-mastery-btn{font:700 16px var(--font-display);padding:14px 28px;border-radius:14px;border:none;cursor:pointer;transition:transform .15s;}
+.wt-mastery-btn:active{transform:scale(0.95);}
+.wt-mastery-btn.primary{background:linear-gradient(135deg,var(--gold),var(--orange));color:#1a1554;}
+.wt-mastery-btn.secondary{background:rgba(255,255,255,0.1);border:2px solid var(--border-light);color:#fff;}
+
+/* Version tag */
+.wt-version{position:fixed;bottom:8px;right:12px;font-size:10px;color:rgba(255,255,255,0.2);z-index:0;}
+
+/* Responsive */
+@media(max-width:700px){
+  .wt-main{flex-direction:column;gap:16px;padding:6px 16px;}
+  .wt-tower{flex-direction:row;gap:6px;min-width:auto;}
+  .wt-brick{width:48px;height:36px;font-size:14px;}
+  .wt-card{padding:24px 20px;}
+  .wt-emoji-display{font-size:56px;}
+  .wt-sentence{font-size:18px;}
+  .wt-choice{font-size:17px;padding:13px 10px;}
+  .wt-ralphie-climb{width:40px;height:40px;}
+}
+</style>
+</head>
+<body>
+
+<div class="wt-stars" id="stars"></div>
+
+<header class="wt-header">
+  <a class="wt-back" href="index.html">← Home</a>
+  <div class="wt-title-wrap">
+    <div class="wt-zone">📖 WORD TOWER</div>
+    <div class="wt-skill-name" id="skillName">CVC Words</div>
+  </div>
+  <div class="wt-hud">
+    <span>⭐ <b id="streakDisplay">0</b> / <b id="masteryTarget">5</b></span>
+    <span>🪙 <b id="coinsDisplay">0</b></span>
+  </div>
+</header>
+
+<main class="wt-main" id="gameArea">
+  <!-- Tower -->
+  <div class="wt-tower" id="tower">
+    <div class="wt-tower-top">⭐</div>
+  </div>
+
+  <!-- Challenge card -->
+  <div class="wt-card" id="challengeCard">
+    <div class="wt-emoji-display" id="emojiDisplay">🐱</div>
+    <div class="wt-prompt" id="promptText">Which word spells this?</div>
+    <div class="wt-sentence" id="sentenceText"></div>
+    <div class="wt-choices" id="choices"></div>
+    <div class="wt-feedback" id="feedback"></div>
+  </div>
+
+  <!-- Mastery screen -->
+  <div class="wt-mastery" id="masteryScreen">
+    <div class="wt-mastery-star">🏆</div>
+    <h2>SKILL MASTERED!</h2>
+    <p id="masterySkillName">CVC Words</p>
+    <div class="wt-mastery-btns">
+      <button class="wt-mastery-btn primary" id="masteryNext">NEXT SKILL →</button>
+      <button class="wt-mastery-btn secondary" id="masteryHome" onclick="location.href='index.html'">BACK TO MAP</button>
+    </div>
+  </div>
+</main>
+
+<span class="wt-version">Word Tower · v0.1</span>
+
+<script>
+/* ═══════════════════════════════════════════════
+   WORD SKILLS DATA
+   ═══════════════════════════════════════════════ */
+var WORD_SKILL_ORDER = ['cvc_words','cvce_words','sight_words_1'];
+
+var WORD_SKILLS = {
+  cvc_words: {
+    id:'cvc_words', name:'CVC Words', masteryCount:5,
+    type:'spell', prompt:'Which word spells this?',
+    words:[
+      {word:'cat',emoji:'🐱',choices:['cat','cot','cut','kit']},
+      {word:'dog',emoji:'🐕',choices:['dog','dig','dug','dag']},
+      {word:'sun',emoji:'☀️',choices:['sun','sin','son','san']},
+      {word:'cup',emoji:'☕',choices:['cup','cap','cop','cep']},
+      {word:'hat',emoji:'🎩',choices:['hat','hit','hot','hut']},
+      {word:'bed',emoji:'🛏️',choices:['bed','bad','bid','bud']},
+      {word:'pig',emoji:'🐷',choices:['pig','peg','pug','pag']},
+      {word:'bus',emoji:'🚌',choices:['bus','bas','bis','bos']},
+      {word:'map',emoji:'🗺️',choices:['map','mop','mip','mup']},
+      {word:'pen',emoji:'✏️',choices:['pen','pin','pan','pun']},
+      {word:'fox',emoji:'🦊',choices:['fox','fix','fax','fux']},
+      {word:'hen',emoji:'🐔',choices:['hen','han','hin','hun']}
+    ]
+  },
+  cvce_words: {
+    id:'cvce_words', name:'Magic E Words', masteryCount:5,
+    type:'spell', prompt:'Which word matches?',
+    words:[
+      {word:'cake',emoji:'🎂',choices:['cake','cak','cook','coke']},
+      {word:'bike',emoji:'🚲',choices:['bike','bik','bake','back']},
+      {word:'home',emoji:'🏠',choices:['home','hom','ham','hime']},
+      {word:'rose',emoji:'🌹',choices:['rose','ros','ruse','rase']},
+      {word:'kite',emoji:'🪁',choices:['kite','kit','kate','ket']},
+      {word:'bone',emoji:'🦴',choices:['bone','bon','bane','bune']},
+      {word:'lake',emoji:'🏞️',choices:['lake','lak','like','luck']},
+      {word:'five',emoji:'5️⃣',choices:['five','fiv','fave','fove']},
+      {word:'nose',emoji:'👃',choices:['nose','nos','nase','nuse']},
+      {word:'cube',emoji:'🧊',choices:['cube','cub','cabe','cobe']}
+    ]
+  },
+  sight_words_1: {
+    id:'sight_words_1', name:'Sight Words', masteryCount:5,
+    type:'fill', prompt:'Pick the missing word:',
+    words:[
+      {word:'said',sentence:'She ___ hello to me.',choices:['said','sed','sayed','siad']},
+      {word:'have',sentence:'We ___ three cats at home.',choices:['have','hav','hive','hove']},
+      {word:'were',sentence:'They ___ playing outside.',choices:['were','where','wear','wer']},
+      {word:'does',sentence:'He ___ his homework every day.',choices:['does','dose','doos','duz']},
+      {word:'gone',sentence:'She has ___ to the store.',choices:['gone','gon','gane','goen']},
+      {word:'been',sentence:'I have ___ to that park before.',choices:['been','ben','bean','bien']},
+      {word:'come',sentence:'Please ___ here, Nigel!',choices:['come','com','came','cume']},
+      {word:'give',sentence:'Can you ___ me that book?',choices:['give','giv','gave','gove']},
+      {word:'once',sentence:'I went there ___ last year.',choices:['once','onse','wonce','ounce']},
+      {word:'know',sentence:'Do you ___ the answer?',choices:['know','now','noe','knoe']}
+    ]
+  }
+};
+
+/* ═══════════════════════════════════════════════
+   GAME STATE
+   ═══════════════════════════════════════════════ */
+var STATE_KEY = 'hero_academy_state_v1';
+var game = {
+  currentSkillId: null,
+  streak: 0,
+  coins: 0,
+  strikes: 0,
+  problemsAttempted: 0,
+  usedWords: []
+};
+
+function loadState() {
+  try { var r = localStorage.getItem(STATE_KEY); return r ? JSON.parse(r) : {}; } catch(e) { return {}; }
+}
+function saveState() {
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+var state = loadState();
+
+function getCurrentWordSkill() {
+  return state.currentWordSkill || 'cvc_words';
+}
+
+/* ═══════════════════════════════════════════════
+   STARFIELD
+   ═══════════════════════════════════════════════ */
+(function(){
+  var c = document.getElementById('stars');
+  for(var i=0;i<60;i++){
+    var s = document.createElement('div');
+    s.className = 'wt-star';
+    s.style.left = Math.random()*100+'%';
+    s.style.top = Math.random()*100+'%';
+    s.style.width = s.style.height = (1+Math.random()*2)+'px';
+    s.style.animationDelay = Math.random()*3+'s';
+    s.style.animationDuration = (2+Math.random()*3)+'s';
+    c.appendChild(s);
+  }
+})();
+
+/* ═══════════════════════════════════════════════
+   TOWER RENDERING
+   ═══════════════════════════════════════════════ */
+function renderTower(masteryCount, streak) {
+  var t = document.getElementById('tower');
+  t.innerHTML = '';
+  // Ralphie at top when mastered
+  var star = document.createElement('div');
+  star.className = 'wt-tower-top';
+  star.textContent = '⭐';
+  t.appendChild(star);
+  // Bricks (top to bottom visually, but column-reverse makes index 0 = bottom)
+  for(var i = masteryCount - 1; i >= 0; i--) {
+    var b = document.createElement('div');
+    b.className = 'wt-brick';
+    if(i < streak) {
+      b.classList.add('lit');
+      b.textContent = '✓';
+    } else if(i === streak) {
+      b.classList.add('current');
+      b.textContent = '?';
+    }
+    t.appendChild(b);
+  }
+  // Ralphie at current level
+  var r = document.createElement('img');
+  r.className = 'wt-ralphie-climb';
+  r.src = 'assets/ralphie/ralphie_reading.webp';
+  r.alt = 'Ralphie';
+  r.onerror = function(){ this.textContent = '🐢'; this.style.fontSize = '36px'; };
+  t.appendChild(r);
+}
+
+/* ═══════════════════════════════════════════════
+   GAME LOGIC
+   ═══════════════════════════════════════════════ */
+function initGame() {
+  game.currentSkillId = getCurrentWordSkill();
+  game.streak = state.wordSkillProgress ? (state.wordSkillProgress[game.currentSkillId] || 0) : 0;
+  game.coins = 0;
+  game.strikes = 0;
+  game.problemsAttempted = 0;
+  game.usedWords = [];
+
+  var sk = WORD_SKILLS[game.currentSkillId];
+  if(!sk) { showAllDone(); return; }
+  document.getElementById('skillName').textContent = sk.name;
+  document.getElementById('masteryTarget').textContent = sk.masteryCount;
+  document.getElementById('streakDisplay').textContent = game.streak;
+  document.getElementById('coinsDisplay').textContent = game.coins;
+
+  renderTower(sk.masteryCount, game.streak);
+  showChallenge();
+}
+
+function pickWord() {
+  var sk = WORD_SKILLS[game.currentSkillId];
+  var available = sk.words.filter(function(w){ return game.usedWords.indexOf(w.word) === -1; });
+  if(available.length === 0) { game.usedWords = []; available = sk.words; }
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+function shuffleArray(arr) {
+  var a = arr.slice();
+  for(var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+function showChallenge() {
+  var sk = WORD_SKILLS[game.currentSkillId];
+  var word = pickWord();
+  game.currentWord = word;
+  game.strikes = 0;
+  game.usedWords.push(word.word);
+
+  document.getElementById('challengeCard').style.display = '';
+  document.getElementById('masteryScreen').className = 'wt-mastery';
+
+  var emoji = document.getElementById('emojiDisplay');
+  var prompt = document.getElementById('promptText');
+  var sentence = document.getElementById('sentenceText');
+  var feedback = document.getElementById('feedback');
+  feedback.className = 'wt-feedback';
+  feedback.style.display = 'none';
+
+  if(sk.type === 'spell') {
+    emoji.textContent = word.emoji;
+    emoji.style.display = '';
+    prompt.textContent = sk.prompt;
+    sentence.textContent = '';
+  } else {
+    emoji.style.display = 'none';
+    prompt.textContent = sk.prompt;
+    var parts = word.sentence.split('___');
+    sentence.innerHTML = parts[0] + '<span class="wt-blank">___</span>' + (parts[1]||'');
+  }
+
+  // Render choices
+  var container = document.getElementById('choices');
+  container.innerHTML = '';
+  var shuffled = shuffleArray(word.choices);
+  shuffled.forEach(function(c) {
+    var btn = document.createElement('button');
+    btn.className = 'wt-choice';
+    btn.textContent = c;
+    btn.onclick = function(){ handleChoice(c, btn); };
+    container.appendChild(btn);
+  });
+
+  // Re-trigger bounce animation
+  emoji.style.animation = 'none';
+  emoji.offsetHeight;
+  emoji.style.animation = '';
+}
+
+function handleChoice(choice, btn) {
+  var sk = WORD_SKILLS[game.currentSkillId];
+  var correct = choice === game.currentWord.word;
+
+  // Disable all buttons
+  document.querySelectorAll('.wt-choice').forEach(function(b){ b.disabled = true; });
+
+  if(correct) {
+    btn.classList.add('correct');
+    game.streak++;
+    game.coins++;
+    game.problemsAttempted++;
+    if(!state.wordSkillProgress) state.wordSkillProgress = {};
+    if(game.strikes === 0) {
+      state.wordSkillProgress[game.currentSkillId] = game.streak;
+    }
+    saveState();
+
+    document.getElementById('streakDisplay').textContent = game.streak;
+    document.getElementById('coinsDisplay').textContent = game.coins;
+    renderTower(sk.masteryCount, game.streak);
+
+    // Humphrey events
+    var H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+    if(H && game.streak < sk.masteryCount) {
+      if(game.streak === 5) H.say('streak-5',{kidName:'Nigel',streak:5});
+      else if(game.streak === 3) H.say('streak-3',{kidName:'Nigel',streak:3});
+      else H.say('correct-answer',{kidName:'Nigel'});
+    }
+
+    showFeedback('success', ['Yes! 🎉','Got it! ⚡','Perfect! 💪','Nailed it! 🌟'][Math.floor(Math.random()*4)]);
+
+    if(game.streak >= sk.masteryCount) {
+      setTimeout(function(){ showMastery(sk); }, 1200);
+    } else {
+      setTimeout(showChallenge, 1400);
+    }
+  } else {
+    btn.classList.add('wrong');
+    game.strikes++;
+    game.streak = 0;
+    if(!state.wordSkillProgress) state.wordSkillProgress = {};
+    state.wordSkillProgress[game.currentSkillId] = 0;
+    saveState();
+    document.getElementById('streakDisplay').textContent = 0;
+    renderTower(sk.masteryCount, 0);
+
+    var H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+
+    if(game.strikes === 1) {
+      if(H) H.say('wrong-answer',{kidName:'Nigel'});
+      showFeedback('error', 'Not quite! Look carefully and try again.');
+      setTimeout(function(){
+        document.querySelectorAll('.wt-choice').forEach(function(b){
+          if(!b.classList.contains('wrong')) b.disabled = false;
+        });
+      }, 800);
+    } else {
+      // Scaffold: highlight correct answer
+      showFeedback('scaffold', 'The word is: ' + game.currentWord.word.toUpperCase() + '. Tap it!');
+      document.querySelectorAll('.wt-choice').forEach(function(b){
+        if(b.textContent === game.currentWord.word) {
+          b.disabled = false;
+          b.style.borderColor = 'var(--gold)';
+          b.style.boxShadow = '0 0 20px rgba(255,209,71,0.5)';
+          b.style.animation = 'wt-pulse-brick 1.2s ease-in-out infinite';
+          b.onclick = function(){
+            b.classList.add('correct');
+            game.problemsAttempted++;
+            setTimeout(showChallenge, 1000);
+          };
+        }
+      });
+    }
+  }
+}
+
+function showFeedback(type, text) {
+  var fb = document.getElementById('feedback');
+  fb.className = 'wt-feedback show ' + type;
+  fb.textContent = text;
+  fb.style.display = '';
+}
+
+function showMastery(sk) {
+  var H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+  if(H) H.say('mastery-achieved',{kidName:'Nigel',topic:sk.name});
+
+  document.getElementById('challengeCard').style.display = 'none';
+  document.getElementById('masteryScreen').className = 'wt-mastery show';
+  document.getElementById('masterySkillName').textContent = sk.name;
+
+  game.coins += 5;
+  state.coins = (state.coins || 0) + game.coins;
+  if(!state.skillsMastered) state.skillsMastered = [];
+  if(state.skillsMastered.indexOf(sk.id) === -1) state.skillsMastered.push(sk.id);
+
+  // Advance to next skill
+  var idx = WORD_SKILL_ORDER.indexOf(sk.id);
+  var nextId = WORD_SKILL_ORDER[idx + 1];
+  if(nextId) {
+    state.currentWordSkill = nextId;
+    if(!state.wordSkillProgress) state.wordSkillProgress = {};
+    state.wordSkillProgress[nextId] = 0;
+  }
+
+  // Update zone progress
+  var mastered = (state.skillsMastered || []).filter(function(s){ return WORD_SKILLS[s]; }).length;
+  if(!state.zoneProgress) state.zoneProgress = {};
+  state.zoneProgress['word-tower'] = Math.min(100, Math.round(mastered / WORD_SKILL_ORDER.length * 100));
+  saveState();
+
+  burstConfetti();
+
+  document.getElementById('masteryNext').onclick = function(){
+    if(nextId) {
+      game.streak = 0;
+      game.usedWords = [];
+      game.currentSkillId = nextId;
+      document.getElementById('skillName').textContent = WORD_SKILLS[nextId].name;
+      document.getElementById('masteryTarget').textContent = WORD_SKILLS[nextId].masteryCount;
+      renderTower(WORD_SKILLS[nextId].masteryCount, 0);
+      showChallenge();
+    } else {
+      showAllDone();
+    }
+  };
+}
+
+function showAllDone() {
+  var H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+  if(H) H.say('mastery-achieved',{kidName:'Nigel',topic:'all your reading skills'});
+  document.getElementById('challengeCard').style.display = 'none';
+  document.getElementById('masteryScreen').className = 'wt-mastery show';
+  document.querySelector('.wt-mastery h2').textContent = 'ALL WORDS MASTERED!';
+  document.getElementById('masterySkillName').textContent = "You're a Reading Hero, Nigel.";
+  document.getElementById('masteryNext').textContent = 'BACK TO MAP';
+  document.getElementById('masteryNext').onclick = function(){ location.href = 'index.html'; };
+  document.getElementById('masteryHome').hidden = true;
+}
+
+/* ═══════════════════════════════════════════════
+   CONFETTI
+   ═══════════════════════════════════════════════ */
+function burstConfetti(){
+  var colors=['#ffd147','#ec4899','#4287ff','#2ec27e','#a855f7','#ff8b3d'];
+  var ct=document.createElement('div');
+  ct.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden';
+  for(var i=0;i<70;i++){
+    var p=document.createElement('div'),sz=6+Math.random()*10,cl=colors[Math.floor(Math.random()*colors.length)],sx=20+Math.random()*60,dr=(Math.random()-0.5)*70,rt=Math.random()*720,du=1.5+Math.random()*1.2;
+    p.style.cssText='position:absolute;left:'+sx+'%;top:40%;width:'+sz+'px;height:'+sz+'px;background:'+cl+';border-radius:'+(Math.random()>0.5?'50%':'2px')+';animation:wt-confetti '+du+'s '+Math.random()*0.4+'s cubic-bezier(0.2,0.7,0.3,1) forwards;--drift:'+dr+'vw;--rot:'+rt+'deg;';
+    ct.appendChild(p);
+  }
+  document.body.appendChild(ct);
+  setTimeout(function(){ct.remove();},3500);
+}
+(function(){var s=document.createElement('style');s.textContent='@keyframes wt-confetti{0%{transform:translate(0,-50vh) rotate(0);opacity:1;}100%{transform:translate(var(--drift),80vh) rotate(var(--rot));opacity:0;}}';document.head.appendChild(s);})();
+
+/* ═══════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', initGame);
+</script>
+
+<script src="js/humphrey.js"></script>
+<script>
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
+    window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'the Word Tower' });
+  }
+</script>
+</body>
+</html>
