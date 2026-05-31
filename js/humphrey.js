@@ -504,7 +504,7 @@
 
       const displayTimer = setTimeout(finish, utterance.duration);
 
-      if (!state.cfg.audioEnabled || isMuted()) return;
+      if (!state.cfg.audioEnabled || isMuted() || !state.audioUnlocked) return;
 
       playAudio(utterance).then((played) => {
         if (!played) return;        // text-only display already running
