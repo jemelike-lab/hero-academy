@@ -60,11 +60,12 @@ export default async function handler(req, res) {
           text: text.trim(),
           model_id: MODEL_ID,
           voice_settings: {
-            stability: 0.55,
-            similarity_boost: 0.78,
-            style: 0.35,
+            stability: 0.70,
+            similarity_boost: 0.75,
+            style: 0.15,
             use_speaker_boost: true,
           },
+          speed: 0.82,
         }),
       }
     );
