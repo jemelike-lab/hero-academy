@@ -294,6 +294,11 @@
     state.mounted = true;
     emit('mounted');
     debug('Mounted. Position:', cfg.position);
+    // Drain any items that were queued before mount finished (e.g. zone-enter
+    // fired from the page's inline init script before DOMContentLoaded). Without
+    // this, those items sit in queue forever and pop out on the user's first
+    // post-mount say() — playing welcome audio over the first answer response.
+    pump();
   }
 
   function unmount() {
