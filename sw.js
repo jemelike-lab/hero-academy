@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v19";
+const CACHE_VERSION = "hero-academy-v20";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -7,7 +7,6 @@ const CORE = [
   "./diner-lanes.html",
   "./css/style.css", "./css/number-lab.css",
   "./js/app.js", "./js/math-skills.js", "./js/number-lab.js",
-  "./js/humphrey-integration.js",
   "./manifest.webmanifest",
   "./assets/ralphie/ralphie_default.webp",
   "./assets/ralphie/ralphie_waving.webp",

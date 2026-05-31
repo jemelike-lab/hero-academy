@@ -679,20 +679,20 @@
   function setupAudioUnlock() {
     const unlock = () => {
       if (state.audioUnlocked) return;
-      const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
-      audio.volume = 0;
-      const p = audio.play();
-      if (p && p.then) {
-        p.then(() => {
-          state.audioUnlocked = true;
-          debug('audio unlocked via silent play');
-          try { audio.pause(); audio.src = ''; } catch (e) {}
-        }).catch((err) => {
-          debug('audio unlock failed (may already be unlocked):', err && err.name);
-        });
-      } else {
-        state.audioUnlocked = true;
-      }
+      // SYNCHRONOUS unlock: set the flag inside the user-gesture stack BEFORE
+      // play() so any speak() call in the same click handler passes the gate.
+      state.audioUnlocked = true;
+      debug('audio unlocked (synchronous flag set in user gesture)');
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+        audio.volume = 0;
+        const p = audio.play();
+        if (p && p.then) {
+          p.then(() => {
+            try { audio.pause(); audio.src = ''; } catch (e) {}
+          }).catch(() => {});
+        }
+      } catch (e) { /* flag already set; play attempt best-effort */ }
     };
     ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown'].forEach((ev) => {
       document.addEventListener(ev, unlock, { once: false, capture: true, passive: true });
