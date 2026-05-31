@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0a0b2e">
 <title>Hero Hall · Hero Academy</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/humphrey.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
@@ -306,6 +307,9 @@
     margin-top: 14px;
     text-align: left;
   }
+  .card { opacity: 0; animation: hh-card-in .5s ease-out forwards; }
+  @keyframes hh-card-in { 0% { opacity:0; transform:translateY(20px) scale(.95); } 100% { opacity:1; transform:translateY(0) scale(1); } }
+  .card .hint { font-size:12px; color:var(--cyan-bright); margin-top:8px; font-weight:600; letter-spacing:.5px; }
 </style>
 </head>
 <body>
@@ -324,6 +328,8 @@
       <div class="stat"><div class="num" id="stat-unlocked">0</div><div class="lbl">Unlocked</div></div>
       <div class="stat"><div class="num" id="stat-total">0</div><div class="lbl">Total Cards</div></div>
       <div class="stat"><div class="num" id="stat-percent">0%</div><div class="lbl">Complete</div></div>
+      <div class="stat"><div class="num" id="stat-skills">0</div><div class="lbl">Skills ⭐</div></div>
+      <div class="stat"><div class="num" id="stat-coins">0</div><div class="lbl">Coins 🪙</div></div>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -355,21 +361,40 @@
       const grid = document.getElementById('grid');
       const unlocked = new Set(readUnlocked());
 
-      // Stats
+      // Zone-to-hint mapping
+      const ZONE_HINTS = {
+        numberlab: 'Play in Number Lab 🔢',
+        wordtower: 'Play in Word Tower 📖',
+        discoverydome: 'Coming soon 🔬',
+        explorershall: 'Play in Diner Lanes 🍔',
+        win: 'Complete any game 🏆'
+      };
+      function hintFor(zones) {
+        var playable = zones.filter(z => ZONE_HINTS[z] && ZONE_HINTS[z].indexOf('Coming') === -1);
+        if (playable.length) return ZONE_HINTS[playable[Math.floor(Math.random() * playable.length)]];
+        return ZONE_HINTS[zones[0]] || 'Keep playing!';
+      }
+
+      // Stats — characters
       document.getElementById('stat-unlocked').textContent = unlocked.size;
       document.getElementById('stat-total').textContent = CHARACTERS.length;
       document.getElementById('stat-percent').textContent =
         Math.round((unlocked.size / CHARACTERS.length) * 100) + '%';
 
-      // Render grid
-      CHARACTERS.forEach(c => {
+      // Stats — journey (from game state)
+      try {
+        var gs = JSON.parse(localStorage.getItem('hero_academy_state_v1') || '{}');
+        document.getElementById('stat-skills').textContent = (gs.skillsMastered || []).length;
+        document.getElementById('stat-coins').textContent = gs.coins || 0;
+      } catch(e) {}
+
+      // Render grid with hints + stagger
+      CHARACTERS.forEach((c, idx) => {
         const isUnlocked = unlocked.has(c.id);
         const card = document.createElement('div');
         card.className = 'card ' + (isUnlocked ? 'unlocked' : 'locked');
         card.style.setProperty('--char-color', c.color);
-
-        // Recently-unlocked: show NEW badge for 24h? Simpler: just show for any unlock.
-        // Skipping the NEW badge to keep it simple; collection is the reward.
+        card.style.animationDelay = (idx * 0.1) + 's';
 
         card.innerHTML = `
           <div class="art">
@@ -379,6 +404,7 @@
           <h3>${isUnlocked ? c.name : '???'}</h3>
           <div class="role">${isUnlocked ? c.archetype : 'Not yet discovered'}</div>
           <div class="bio">${isUnlocked ? c.bio : 'Play more games to meet this hero!'}</div>
+          ${!isUnlocked ? `<div class="hint">${hintFor(c.zones)}</div>` : ''}
           ${isUnlocked && c.members ? `
             <div class="members">
               ${c.members.map(m => `<span class="member" style="border-color:${m.color}99;">${m.emoji} ${m.name}</span>`).join('')}
@@ -428,4 +454,12 @@
     })();
   </script>
 </body>
+
+<script src="js/humphrey.js"></script>
+<script>
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
+    window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'Hero Hall' });
+  }
+</script>
 </html>
