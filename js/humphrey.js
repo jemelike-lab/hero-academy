@@ -352,16 +352,25 @@
 
   function setExpression(expr) {
     if (!state.refs.root) return;
+    if (state.currentExpression === expr) return; // no-op: skip jitter on auto-restore
     state.currentExpression = expr;
     state.refs.root.dataset.expression = expr;
-    // If an expression-specific image exists, swap. Otherwise stays on base.
+    // If an expression-specific image exists, crossfade in. Otherwise keep current.
     const img = state.refs.root.querySelector('.ha-humphrey__img');
     if (!img) return;
     const candidate = `${state.cfg.assetBase}humphrey_${expr}_512.webp`;
-    // Probe without disrupting the displayed base if it doesn't exist
+    // Probe without disrupting the displayed image if it doesn't exist
     const probe = new Image();
-    probe.onload = () => { img.src = candidate; };
-    probe.onerror = () => { /* keep base; expression art not yet generated */ };
+    probe.onload = () => {
+      // 200ms crossfade: fade out (100ms) -> swap src -> fade back in (100ms)
+      img.style.opacity = '0';
+      setTimeout(() => {
+        img.src = candidate;
+        // rAF lets the browser register opacity:0 before transitioning back
+        requestAnimationFrame(() => { img.style.opacity = '1'; });
+      }, 100);
+    };
+    probe.onerror = () => { /* keep current; expression art not yet generated */ };
     probe.src = candidate;
   }
 

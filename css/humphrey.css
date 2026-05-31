@@ -70,6 +70,8 @@
   object-fit: cover;
   /* Pull the face up — MJ shots have whitespace above the head */
   object-position: center 18%;
+  /* 200ms crossfade between expression portraits */
+  transition: opacity 100ms ease;
 }
 
 /* Talking state: subtle bobble + glow */
