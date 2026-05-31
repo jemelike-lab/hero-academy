@@ -262,13 +262,16 @@ function getCurrentWordSkill() {
 function renderTower(masteryCount, streak) {
   var t = document.getElementById('tower');
   t.innerHTML = '';
-  // Ralphie at top when mastered
-  var star = document.createElement('div');
-  star.className = 'wt-tower-top';
-  star.textContent = '⭐';
-  t.appendChild(star);
-  // Bricks (top to bottom visually, but column-reverse makes index 0 = bottom)
-  for(var i = masteryCount - 1; i >= 0; i--) {
+  // column-reverse: first child = bottom, last child = top
+  // Ralphie at bottom (ground level)
+  var r = document.createElement('img');
+  r.className = 'wt-ralphie-climb';
+  r.src = 'assets/ralphie/ralphie_reading.webp';
+  r.alt = 'Ralphie';
+  r.onerror = function(){ this.textContent = '🐢'; this.style.fontSize = '36px'; };
+  t.appendChild(r);
+  // Bricks: i=0 at bottom (first to fill), i=4 at top (last to fill)
+  for(var i = 0; i < masteryCount; i++) {
     var b = document.createElement('div');
     b.className = 'wt-brick';
     if(i < streak) {
@@ -280,13 +283,11 @@ function renderTower(masteryCount, streak) {
     }
     t.appendChild(b);
   }
-  // Ralphie at current level
-  var r = document.createElement('img');
-  r.className = 'wt-ralphie-climb';
-  r.src = 'assets/ralphie/ralphie_reading.webp';
-  r.alt = 'Ralphie';
-  r.onerror = function(){ this.textContent = '🐢'; this.style.fontSize = '36px'; };
-  t.appendChild(r);
+  // Star at top (the goal)
+  var star = document.createElement('div');
+  star.className = 'wt-tower-top';
+  star.textContent = '⭐';
+  t.appendChild(star);
 }
 
 /* ═══════════════════════════════════════════════
