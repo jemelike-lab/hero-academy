@@ -357,7 +357,7 @@
     // If an expression-specific image exists, swap. Otherwise stays on base.
     const img = state.refs.root.querySelector('.ha-humphrey__img');
     if (!img) return;
-    const candidate = `${state.cfg.assetBase}humphrey_${expr}_512.png`;
+    const candidate = `${state.cfg.assetBase}humphrey_${expr}_512.webp`;
     // Probe without disrupting the displayed base if it doesn't exist
     const probe = new Image();
     probe.onload = () => { img.src = candidate; };
