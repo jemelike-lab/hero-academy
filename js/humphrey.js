@@ -214,6 +214,7 @@
     cfg: { ...DEFAULTS },
     mounted: false,
     speaking: false,
+    audioUnlocked: false,
     queue: [],
     lastVariantByEvent: {},
     currentAudio: null,
@@ -661,6 +662,36 @@
     } else {
       mount();
     }
+    setupAudioUnlock();
+  }
+
+  /**
+   * Chrome/Safari autoplay policy requires audio.play() to be initiated
+   * by a user gesture. Async chains (click → fetch TTS → play blob) break
+   * the gesture link. Fix: on first user gesture, play a silent audio
+   * synchronously to "unlock" the document. After that, async play() works.
+   */
+  function setupAudioUnlock() {
+    const unlock = () => {
+      if (state.audioUnlocked) return;
+      const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+      audio.volume = 0;
+      const p = audio.play();
+      if (p && p.then) {
+        p.then(() => {
+          state.audioUnlocked = true;
+          debug('audio unlocked via silent play');
+          try { audio.pause(); audio.src = ''; } catch (e) {}
+        }).catch((err) => {
+          debug('audio unlock failed (may already be unlocked):', err && err.name);
+        });
+      } else {
+        state.audioUnlocked = true;
+      }
+    };
+    ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown'].forEach((ev) => {
+      document.addEventListener(ev, unlock, { once: false, capture: true, passive: true });
+    });
   }
 
   function debug(...args) { if (state.cfg.debug) console.log('[Humphrey]', ...args); }
