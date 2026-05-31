@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v20";
+const CACHE_VERSION = "hero-academy-v21";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -35,7 +35,33 @@ self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then(ks => 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   var url = new URL(e.request.url);
-  if (url.origin === self.location.origin) {
-    e.respondWith(caches.match(e.request).then(c => c || fetch(e.request).then(r => { if (r.ok) { var cl = r.clone(); caches.open(CACHE_VERSION).then(ca => ca.put(e.request, cl)); } return r; }).catch(() => c || new Response("Offline"))));
+  if (url.origin !== self.location.origin) return;
+  var isHTML = e.request.mode === "navigate" ||
+               (e.request.destination === "document") ||
+               url.pathname.endsWith(".html") ||
+               url.pathname === "/" ||
+               url.pathname.endsWith("/");
+  if (isHTML) {
+    // Network-first for HTML so fresh content reaches users immediately
+    e.respondWith(
+      fetch(e.request).then(r => {
+        if (r.ok) {
+          var cl = r.clone();
+          caches.open(CACHE_VERSION).then(ca => ca.put(e.request, cl));
+        }
+        return r;
+      }).catch(() => caches.match(e.request).then(c => c || new Response("Offline", { status: 503 })))
+    );
+  } else {
+    // Cache-first for static assets (CSS/JS/images) — SW version bump invalidates
+    e.respondWith(
+      caches.match(e.request).then(c => c || fetch(e.request).then(r => {
+        if (r.ok) {
+          var cl = r.clone();
+          caches.open(CACHE_VERSION).then(ca => ca.put(e.request, cl));
+        }
+        return r;
+      }).catch(() => c || new Response("Offline", { status: 503 })))
+    );
   }
 });
