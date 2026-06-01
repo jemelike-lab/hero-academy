@@ -76,20 +76,17 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'TTS upstream error' });
     }
 
+    // Buffer the full upstream response so we can set Content-Length.
+    // Streaming without Content-Length causes some Android MP3 decoders to
+    // refuse playback (they can't compute duration). The TTS payload is
+    // small (typically < 50KB for a 1-2s utterance), so buffering is cheap
+    // and the Android compatibility win is significant. See HANDOFF.md §2.
+    const arrayBuf = await upstream.arrayBuffer();
+    const buf = Buffer.from(arrayBuf);
     res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', String(buf.length));
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800'); // cache 1d client, 7d CDN
-
-    // Stream the audio back
-    const reader = upstream.body.getReader();
-    const pump = async () => {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(Buffer.from(value));
-      }
-      res.end();
-    };
-    await pump();
+    res.status(200).end(buf);
   } catch (err) {
     console.error('[humphrey/tts] Error:', err);
     return res.status(500).json({ error: 'Internal error' });

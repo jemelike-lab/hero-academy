@@ -40,6 +40,7 @@
     assetBase: '/assets/humphrey/',
     ttsEndpoint: '/api/humphrey/tts',    // Vercel serverless → ElevenLabs TTS
     fallbackToWebSpeech: true,
+    skipPrerendered: true,             // pre-rendered MP3s don't exist yet; skip 1.5s wait
     debug: false,
   };
 
@@ -218,6 +219,7 @@
     queue: [],
     lastVariantByEvent: {},
     currentAudio: null,
+    audioEl: null,                     // single reusable <audio>; warmed in user gesture
     currentExpression: 'idle',
     persisted: loadPersisted(),
     idleTimer: null,
@@ -529,7 +531,10 @@
 
   /** Audio chain: pre-rendered MP3 → ElevenLabs TTS → Web Speech API → silent */
   function playAudio(utterance) {
-    return tryPrerendered(utterance.audioUrl).then((played) => {
+    const prerendered = state.cfg.skipPrerendered
+      ? Promise.resolve(false)
+      : tryPrerendered(utterance.audioUrl);
+    return prerendered.then((played) => {
       if (played) return true;
       return tryTTS(utterance.text);
     }).then((played) => {
@@ -576,17 +581,49 @@
       .then((blob) => {
         return new Promise((resolve) => {
           const blobUrl = URL.createObjectURL(blob);
-          const audio = new Audio(blobUrl);
-          audio.preload = 'auto';
-          stopAudio();
+          // CRITICAL: reuse the single audio element that was warmed during the
+          // user gesture in setupAudioUnlock. Android Chrome's autoplay policy
+          // tracks media-engagement per element; a brand-new <audio> created
+          // here (off the gesture stack) gets silently rejected. The warmed
+          // element carries its engagement forward across src changes.
+          let audio = state.audioEl;
+          if (!audio) {
+            // Unlock never ran (programmatic say before any gesture). Best
+            // effort: still try, but log loudly so we know this is happening.
+            console.warn('[Humphrey] tryTTS: no warmed audioEl — first play may fail on mobile');
+            audio = new Audio();
+            audio.preload = 'auto';
+            state.audioEl = audio;
+          }
+          // Cancel any current playback on this element before swapping source
+          try { audio.pause(); audio.currentTime = 0; } catch(e) {}
+          // Reset listeners (avoid accumulation across reuse)
+          audio.onended = () => { try { URL.revokeObjectURL(blobUrl); } catch(e){} };
+          audio.onerror = () => {
+            const e = audio.error;
+            console.error('[Humphrey] TTS audio element error:',
+              e ? { code: e.code, message: e.message } : '(no detail)');
+            done(false);
+          };
           state.currentAudio = audio;
+          audio.volume = 1;
+          audio.src = blobUrl;
+          audio.load();  // commit src on Android Chrome before play()
           let settled = false;
           const done = (ok) => { if (settled) return; settled = true; resolve(ok); };
-          audio.addEventListener('error', () => { debug('TTS audio error'); done(false); }, { once: true });
-          audio.addEventListener('ended', () => { try { URL.revokeObjectURL(blobUrl); } catch(e){} }, { once: true });
           const p = audio.play();
           if (p && typeof p.then === 'function') {
-            p.then(() => done(true)).catch((err) => { debug('TTS play rejected:', err); done(false); });
+            p.then(() => {
+              debug('TTS play started ok');
+              done(true);
+            }).catch((err) => {
+              // LOUD: this is the failure mode that's been silent all along.
+              console.error('[Humphrey] TTS play rejected:',
+                err && err.name, err && err.message,
+                '— audioUnlocked=', state.audioUnlocked,
+                'audioElPrimed=', !!state.audioEl);
+              done(false);
+            });
           } else {
             done(true);
           }
@@ -594,7 +631,7 @@
         });
       })
       .catch((err) => {
-        debug('tryTTS failed:', err);
+        console.error('[Humphrey] tryTTS failed:', err && err.message ? err.message : err);
         return false;
       });
   }
@@ -679,27 +716,57 @@
   function setupAudioUnlock() {
     const unlock = () => {
       if (state.audioUnlocked) return;
-      // SYNCHRONOUS unlock: set the flag inside the user-gesture stack BEFORE
-      // play() so any speak() call in the same click handler passes the gate.
+      // SYNCHRONOUS gate: flip the flag immediately inside the gesture stack
+      // so any speak() in the same click handler passes the check at line ~512.
       state.audioUnlocked = true;
       debug('audio unlocked (synchronous flag set in user gesture)');
       try {
-        const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
-        audio.volume = 0;
-        const p = audio.play();
+        // Create ONE reusable <audio> element and warm it synchronously inside
+        // this gesture. Android Chrome's autoplay policy is tracked per
+        // HTMLMediaElement: once an element has been play()'d in-gesture, it
+        // can be re-played later with a different src. We keep this element
+        // and reuse it for every utterance in tryTTS. This is the fix for
+        // "no sound on the tablet" — see HANDOFF.md Issue #1.
+        if (!state.audioEl) {
+          state.audioEl = new Audio();
+          state.audioEl.preload = 'auto';
+        }
+        const a = state.audioEl;
+        const TINY_SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        a.volume = 0;
+        a.src = TINY_SILENCE;
+        a.load();
+        const p = a.play();
         if (p && p.then) {
           p.then(() => {
-            try { audio.pause(); audio.src = ''; } catch (e) {}
-          }).catch(() => {});
+            debug('audio unlock primer played ok — element warmed');
+            try { a.pause(); a.currentTime = 0; a.volume = 1; } catch (e) {}
+          }).catch((err) => {
+            console.warn('[Humphrey] audio unlock primer play rejected:',
+              err && err.name, err && err.message,
+              '— real TTS plays may still work; flag stays set');
+            try { a.volume = 1; } catch (e) {}
+          });
+        } else {
+          try { a.volume = 1; } catch (e) {}
         }
-      } catch (e) { /* flag already set; play attempt best-effort */ }
+      } catch (e) {
+        console.error('[Humphrey] audio unlock threw:', e);
+      }
     };
     ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown'].forEach((ev) => {
       document.addEventListener(ev, unlock, { once: false, capture: true, passive: true });
     });
   }
 
-  function debug(...args) { if (state.cfg.debug) console.log('[Humphrey]', ...args); }
+  function debug(...args) {
+    if (state.cfg.debug) { console.log('[Humphrey]', ...args); return; }
+    try {
+      if (localStorage.getItem('ha_humphrey_debug') === '1') {
+        console.log('[Humphrey]', ...args);
+      }
+    } catch (e) { /* private mode etc. */ }
+  }
 
   // Public surface
   NS.Humphrey = {
