@@ -1,46 +1,47 @@
 /**
- * Hero Academy — Ms. Humphrey Q&A button wiring.
+ * Hero Academy — Ms. Humphrey Q&A button wiring with multi-turn conversation
+ * AND persistent memory (profile + rolling 7-day conversation summaries).
  *
- * Single source of truth for what happens when the user taps the Ms. Humphrey
- * call button (#humphreyBtn). Wires the full Listen → STT → Claude Haiku → TTS
- * loop so she behaves like a real tutor, not a play-prerecorded-line button.
- *
- * Loaded on every page that exposes #humphreyBtn. Auto-wires on DOMContentLoaded.
+ * On tap: opens a conversation. After her TTS reply, mic auto-re-opens.
+ * On convo end: hands the transcript to Memory module which summarizes
+ * server-side and stores the result so next time she remembers.
  *
  * Public API on window.HeroAcademy.QnA:
- *   wireButton()                 -> idempotent; clones the button to drop any
- *                                   prior listeners, then attaches the Q&A handler
- *   setContextProvider(fn)       -> register a () => { activeProblem,
- *                                   activeProblemAnswer } supplier. Lesson pages
- *                                   register their own. Dashboard supplies {}.
+ *   wireButton()                 -> idempotent; clones the button first
+ *   setContextProvider(fn)       -> () => { activeProblem, activeProblemAnswer }
+ *   endConversation(reason?)     -> force-end (also triggers summarize)
  *
- * Dependencies: HeroAcademy.Humphrey (required), .Listener (required for Q&A),
- *               .Chat (required for Q&A). Falls back gracefully when missing.
- *
- * Debug: localStorage.ha_humphrey_debug = '1' enables console + on-screen panel
- * logs (the panel comes from humphrey.js v2).
+ * Dependencies: HeroAcademy.Humphrey (required), .Listener, .Chat, .Memory
  */
 (function () {
   'use strict';
   var NS = window.HeroAcademy = window.HeroAcademy || {};
 
-  var COOLDOWN_MS = 1200;
-  var LISTEN_MAX_MS = 6000;
+  var FIRST_LISTEN_MAX_MS    = 9000;
+  var FOLLOWUP_LISTEN_MAX_MS = 8000;
+  var COOLDOWN_MS            = 800;
+  var CONVO_TIMEOUT_MS       = 60000;
+  var MAX_HISTORY_MESSAGES   = 10;
+  var POST_TTS_GAP_MS        = 350;
 
   var ctxProvider = function () { return {}; };
   var inFlight = false;
   var lastActivation = 0;
 
-  function debugOn() {
-    try { return localStorage.getItem('ha_humphrey_debug') === '1'; }
-    catch (_) { return false; }
-  }
+  var convo = {
+    active: false,
+    history: [],
+    silentCount: 0,
+    lastTurnAt: 0
+  };
 
+  function debugOn() {
+    try { return localStorage.getItem('ha_humphrey_debug') === '1'; } catch (_) { return false; }
+  }
   function debug() {
     if (!debugOn()) return;
     var args = ['[Humphrey QnA]'].concat([].slice.call(arguments));
     try { console.log.apply(console, args); } catch (_) {}
-    // Piggyback on humphrey.js debug panel if present so we get tablet visibility
     try {
       var log = document.getElementById('ha-humphrey-debug-log');
       if (!log) return;
@@ -54,134 +55,266 @@
     } catch (_) {}
   }
 
-  function setContextProvider(fn) {
-    if (typeof fn === 'function') ctxProvider = fn;
-  }
+  function setContextProvider(fn) { if (typeof fn === 'function') ctxProvider = fn; }
+  function modules() { return { H: NS.Humphrey, L: NS.Listener, C: NS.Chat, M: NS.Memory }; }
 
-  function modules() {
-    return {
-      H: NS.Humphrey,
-      L: NS.Listener,
-      C: NS.Chat
-    };
-  }
-
-  /**
-   * Speak a one-off line with overridden text, reusing the 'try-again' catalog
-   * event (encouraging expression). The text param wins over catalog text.
-   */
   function speakLine(text) {
     var H = NS.Humphrey;
     if (!H || typeof H.say !== 'function') return Promise.resolve();
     return H.say('try-again', { kidName: 'Nigel', text: text });
   }
 
+  function isFarewell(transcript) {
+    if (!transcript) return false;
+    var t = String(transcript).toLowerCase().trim();
+    return /\b(bye|goodbye|thank you|thanks|i'?m done|im done|that'?s all|nothing else|stop|nevermind|never mind|see you|cya|cool thanks|got it thanks)\b/.test(t);
+  }
+  function farewellLine() {
+    var lines = [
+      "Okay Nigel, tap me whenever you need me.",
+      "Sounds good. I'll be right here if you have another question.",
+      "All right then, talk to you in a bit.",
+      "Got it. Holler when you need me, Nigel."
+    ];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+  function silentSignoffLine() {
+    var lines = [
+      "I'll let you think. Tap me when you're ready.",
+      "Take your time, Nigel. I'm here when you need me.",
+      "Okay, I'll be right here if you have a question."
+    ];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+
+  /**
+   * End the current conversation. If it had real turns, hand the transcript to
+   * the Memory module which will summarize and store it for future sessions.
+   */
+  function resetConversation(reason) {
+    debug('convo reset:', reason, 'had', convo.history.length, 'msgs');
+    var historyAtEnd = convo.history.slice();
+    convo.active = false;
+    convo.history = [];
+    convo.silentCount = 0;
+    convo.lastTurnAt = 0;
+    // Fire-and-forget summarization. Memory module is tolerant of failures.
+    try {
+      var M = NS.Memory;
+      if (M && typeof M.recordConversationEnd === 'function' && historyAtEnd.length >= 2) {
+        M.recordConversationEnd(historyAtEnd);
+      }
+    } catch (_) {}
+  }
+
+  function endConversation(opts) {
+    opts = opts || {};
+    return Promise.resolve().then(function () { resetConversation(opts.reason || 'explicit'); });
+  }
+
+  function appendHistory(role, content) {
+    if (!content) return;
+    convo.history.push({ role: role, content: content });
+    if (convo.history.length > MAX_HISTORY_MESSAGES) {
+      convo.history = convo.history.slice(-MAX_HISTORY_MESSAGES);
+    }
+  }
+
+  function setPhase(btn, phase) {
+    btn.classList.remove('listening', 'speaking');
+    if (phase) btn.classList.add(phase);
+  }
+
+  // -----------------------------------------------------------------------
+  // Conversation turn
+  // -----------------------------------------------------------------------
+
+  function turn(btn, listenMaxMs) {
+    var m = modules();
+    if (!m.H || !m.L || !m.C) {
+      debug('module missing during turn — abort');
+      setPhase(btn, null);
+      inFlight = false;
+      resetConversation('module-missing');
+      return;
+    }
+
+    setPhase(btn, 'listening');
+    debug('listen start maxMs=' + listenMaxMs + ' history=' + convo.history.length);
+
+    m.L.listen({
+      maxMs: listenMaxMs,
+      onStart: function () { debug('mic on'); },
+      onStop:  function () { debug('mic off'); }
+    }).then(function (rec) {
+      var transcript = (rec && rec.transcript) ? String(rec.transcript).trim() : '';
+      var err = rec && rec.error;
+      var empty = !!(rec && rec.empty);
+      debug('result transcript=' + JSON.stringify(transcript) + ' err=' + err + ' empty=' + empty);
+
+      if (err === 'no-mic') {
+        setPhase(btn, 'speaking');
+        return speakLine("I cannot hear yet, Nigel. Tap allow on the microphone and try me again.")
+          .then(function () {
+            resetConversation('no-mic');
+            setPhase(btn, null);
+            inFlight = false;
+          });
+      }
+      if (err && err !== 'fetch-failed') {
+        debug('listener errored:', err);
+        setPhase(btn, 'speaking');
+        return speakLine("Hmm, my ears glitched. Tap me and try again, Nigel.")
+          .then(function () {
+            resetConversation('listener-' + err);
+            setPhase(btn, null);
+            inFlight = false;
+          });
+      }
+
+      if (!transcript || empty) {
+        convo.silentCount += 1;
+        debug('silence #' + convo.silentCount);
+        if (convo.silentCount >= 2 || convo.history.length === 0) {
+          setPhase(btn, 'speaking');
+          return speakLine(silentSignoffLine())
+            .then(function () {
+              resetConversation('silence');
+              setPhase(btn, null);
+              inFlight = false;
+            });
+        }
+        setPhase(btn, 'speaking');
+        return speakLine("Still there, Nigel? Take your time.")
+          .then(function () {
+            convo.lastTurnAt = Date.now();
+            setTimeout(function () {
+              if (!convo.active) { setPhase(btn, null); inFlight = false; return; }
+              turn(btn, FOLLOWUP_LISTEN_MAX_MS);
+            }, POST_TTS_GAP_MS);
+          });
+      }
+
+      convo.silentCount = 0;
+
+      if (isFarewell(transcript)) {
+        debug('farewell detected');
+        appendHistory('user', transcript);  // keep it for the summary
+        setPhase(btn, 'speaking');
+        return speakLine(farewellLine())
+          .then(function () {
+            resetConversation('farewell');
+            setPhase(btn, null);
+            inFlight = false;
+          });
+      }
+
+      // Build context with memory + active problem
+      var ctx = {};
+      try { ctx = ctxProvider() || {}; } catch (_) {}
+      ctx.kidName = 'Nigel';
+      ctx.grade = '2nd grade';
+      ctx.history = convo.history.slice();
+
+      // Attach profile + recentSummaries from Memory module if ready
+      var memoryReady = m.M && typeof m.M.getContext === 'function'
+        ? m.M.getContext()
+        : Promise.resolve({ profile: null, recentSummaries: [] });
+
+      appendHistory('user', transcript);
+
+      setPhase(btn, 'speaking');
+      debug('Claude ←', transcript, '(', convo.history.length, 'msgs in history)');
+
+      return memoryReady.then(function (mem) {
+        if (mem) {
+          ctx.profile = mem.profile;
+          ctx.recentSummaries = mem.recentSummaries;
+          debug('memory attached: profile=' + !!mem.profile + ' summaries=' + (mem.recentSummaries ? mem.recentSummaries.length : 0));
+        }
+        return m.C.ask(transcript, ctx);
+      }).then(function (result) {
+        var answer = (result && result.answer) || "Hmm, let me think about that one some more.";
+        debug('Claude →', answer.slice(0, 60), 'redirected=', result && result.redirected, 'err=', result && result.error);
+        appendHistory('assistant', answer);
+        convo.lastTurnAt = Date.now();
+
+        return speakLine(answer).then(function () {
+          if (!convo.active) {
+            setPhase(btn, null);
+            inFlight = false;
+            return;
+          }
+          setTimeout(function () {
+            if (!convo.active) { setPhase(btn, null); inFlight = false; return; }
+            turn(btn, FOLLOWUP_LISTEN_MAX_MS);
+          }, POST_TTS_GAP_MS);
+        });
+      });
+    }).catch(function (err) {
+      debug('turn threw:', err && err.message);
+      setPhase(btn, 'speaking');
+      speakLine("Something went sideways, Nigel. Tap me to try again.").catch(function () {})
+        .then(function () {
+          resetConversation('exception');
+          setPhase(btn, null);
+          inFlight = false;
+        });
+    });
+  }
+
   function handleClick(btn) {
     if (inFlight) { debug('click ignored: in flight'); return; }
     var now = Date.now();
-    if (now - lastActivation < COOLDOWN_MS) {
-      debug('click ignored: cooldown', COOLDOWN_MS - (now - lastActivation), 'ms left');
-      return;
-    }
+    if (now - lastActivation < COOLDOWN_MS) { debug('click ignored: cooldown'); return; }
     lastActivation = now;
-    inFlight = true;
+
+    var staleConvo = convo.active && (now - convo.lastTurnAt > CONVO_TIMEOUT_MS);
+    if (!convo.active || staleConvo) {
+      resetConversation(staleConvo ? 'timeout-new-tap' : 'first-tap');
+      convo.active = true;
+    }
+    convo.lastTurnAt = now;
 
     var m = modules();
-    if (!m.H) {
-      debug('Humphrey missing — abort');
-      inFlight = false;
-      return;
-    }
-
-    var hasListener = m.L && typeof m.L.listen === 'function';
-    var hasChat     = m.C && typeof m.C.ask    === 'function';
-
-    btn.classList.add('listening');
-
-    // No mic + no Claude? Fall back to a friendly greeting line.
-    if (!hasListener || !hasChat) {
-      debug('listener=' + hasListener + ' chat=' + hasChat + ' — fallback line');
-      btn.classList.remove('listening');
-      btn.classList.add('speaking');
-      speakLine('Hi Nigel — I am Ms. Humphrey. Ask me a question and I will answer.')
+    if (!m.H) { debug('Humphrey missing'); resetConversation('no-humphrey'); return; }
+    var hasFullChain = m.L && typeof m.L.listen === 'function' &&
+                       m.C && typeof m.C.ask === 'function';
+    if (!hasFullChain) {
+      debug('partial chain: listener=' + !!m.L + ' chat=' + !!m.C);
+      setPhase(btn, 'speaking');
+      inFlight = true;
+      speakLine("Hi Nigel — I am Ms. Humphrey. Ask me anything once I am fully hooked up.")
         .catch(function () {})
         .then(function () {
-          setTimeout(function () {
-            btn.classList.remove('speaking');
-            inFlight = false;
-          }, 300);
+          setPhase(btn, null);
+          resetConversation('partial-chain');
+          inFlight = false;
         });
       return;
     }
 
-    runQnA(btn, m);
-  }
-
-  function runQnA(btn, m) {
-    debug('mic-on — listening up to', LISTEN_MAX_MS, 'ms');
-    m.L.listen({
-      maxMs: LISTEN_MAX_MS,
-      onStart: function () { debug('mic actually started'); },
-      onStop:  function () { debug('mic stopped'); }
-    }).then(function (rec) {
-      btn.classList.remove('listening');
-      debug('listen result: transcript=' + JSON.stringify((rec && rec.transcript) || '') +
-            ' err=' + (rec && rec.error) +
-            ' empty=' + (rec && rec.empty));
-
-      if (rec && rec.error === 'no-mic') {
-        btn.classList.add('speaking');
-        return speakLine('I cannot hear yet, Nigel. Tap allow on the microphone and try me again.');
-      }
-      if (!rec || rec.error || rec.empty || !rec.transcript || !rec.transcript.trim()) {
-        btn.classList.add('speaking');
-        return speakLine('I did not catch that, Nigel. Tap my button and ask again.');
-      }
-
-      // We heard something. Hand it to Claude.
-      var transcript = rec.transcript.trim();
-      var ctx = {};
-      try { ctx = ctxProvider() || {}; } catch (_) {}
-      ctx.kidName = 'Nigel';
-      ctx.grade   = '2nd grade';
-      btn.classList.add('speaking'); // stays through the brief Claude wait + TTS
-      debug('Claude ← ', transcript, 'ctx=', JSON.stringify(ctx));
-      return m.C.ask(transcript, ctx).then(function (result) {
-        debug('Claude → ', (result && result.answer) || '(no answer)',
-              'redirected=', result && result.redirected,
-              'err=', result && result.error);
-        var answer = (result && result.answer) ||
-          "Hmm — let me think about that one some more, Nigel. Try me again in a second.";
-        return speakLine(answer);
-      });
-    }).catch(function (err) {
-      debug('handler threw:', err && err.message);
-      btn.classList.add('speaking');
-      return speakLine('Something went sideways, Nigel. Try me again.').catch(function () {});
-    }).then(function () {
-      setTimeout(function () {
-        btn.classList.remove('listening', 'speaking');
-        inFlight = false;
-      }, 300);
-    });
+    inFlight = true;
+    turn(btn, FIRST_LISTEN_MAX_MS);
   }
 
   function wireButton() {
     var btn = document.getElementById('humphreyBtn');
-    if (!btn) { debug('no #humphreyBtn on this page'); return false; }
-    if (btn.dataset.qnaWired === 'true') { debug('already wired — skipping'); return true; }
-    // Clone the button to strip ANY prior listeners (e.g. inline handlers from
-    // a previous deploy, or number-lab.js setupHumphrey). The clone preserves
-    // markup + attributes, but loses addEventListener-attached handlers.
+    if (!btn) { debug('no #humphreyBtn'); return false; }
+    if (btn.dataset.qnaWired === 'true') { debug('already wired'); return true; }
     var fresh = btn.cloneNode(true);
     btn.parentNode.replaceChild(fresh, btn);
     fresh.dataset.qnaWired = 'true';
     fresh.addEventListener('click', function () { handleClick(fresh); });
-    debug('wired (cloned to strip any prior listeners)');
+    debug('wired (cloned to strip prior listeners)');
     return true;
   }
 
-  // Auto-wire as soon as the DOM is parsed
+  // End convo on page unload so the convo gets summarized + stored
+  window.addEventListener('beforeunload', function () {
+    if (convo.active && convo.history.length >= 2) resetConversation('unload');
+  }, { passive: true });
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', wireButton, { once: true });
   } else {
@@ -190,6 +323,8 @@
 
   NS.QnA = {
     wireButton: wireButton,
-    setContextProvider: setContextProvider
+    setContextProvider: setContextProvider,
+    endConversation: endConversation,
+    _state: convo
   };
 })();

@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "name": "Nigel",
+  "age": 7,
+  "birthday": "April 24",
+  "grade": "2nd grade",
+  "family": {
+    "mother": "Bianca",
+    "father": "Josh",
+    "siblings": [],
+    "cousins": ["Skylar"],
+    "best_friend": "Gabriel",
+    "other_friends": ["Lexi", "Zylo"]
+  },
+  "home": {
+    "city": "Upper Marlboro, Maryland",
+    "type": "house",
+    "neighbor": "Larry"
+  },
+  "faith": {
+    "religion": "Christian",
+    "notes": "Loves to pray before he eats."
+  },
+  "heritage_food": [
+    "cassava leaf (Nigerian, his favorite)",
+    "rice and beans",
+    "jollof rice"
+  ],
+  "loves": [
+    "Spider-Man",
+    "Mario",
+    "Superman",
+    "Transformers",
+    "Toy Story",
+    "action figures"
+  ],
+  "hobbies": [
+    "plays soccer on a team",
+    "learning the guitar",
+    "learning the piano"
+  ],
+  "academic_strengths": [
+    "reading",
+    "writing"
+  ],
+  "academic_struggles": [
+    "certain math problems — be patient and never rush him"
+  ],
+  "personality": "Slightly shy but also bold. Slightly sensitive but also focused.",
+  "school": "homeschooled",
+  "routine": "Wakes up, has breakfast, then starts his classes.",
+  "wants_to_be_when_grown": ["a business person", "a builder"],
+  "recent_milestones": [
+    "Recently lost a tooth. The tooth fairy left him a very generous gift, and he bought some action figures and a race car with it. He still kept some money back."
+  ],
+  "playmates": ["his cousins (mostly Skylar)", "Gabriel"],
+  "do_not_bring_up_unprompted": [],
+  "humor_easter_egg": {
+    "phrase": "six seven",
+    "note": "Inside joke with his family. If a light moment calls for it, you can say 'six seven' and it always makes him laugh. Don't overuse it — keep it special."
+  }
+}

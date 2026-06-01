@@ -47,6 +47,9 @@
       kidName: ctx.kidName || 'Nigel',
       grade: ctx.grade || '2nd grade'
     };
+    if (Array.isArray(ctx.history) && ctx.history.length) body.history = ctx.history;
+    if (ctx.profile && typeof ctx.profile === 'object') body.profile = ctx.profile;
+    if (Array.isArray(ctx.recentSummaries) && ctx.recentSummaries.length) body.recentSummaries = ctx.recentSummaries;
     debug('ask:', body);
     return fetch('/api/humphrey/chat', {
       method: 'POST',

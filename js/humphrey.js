@@ -287,7 +287,11 @@
     state.refs.muteBtn = root.querySelector('.ha-humphrey__mute');
 
     // Wire up controls
-    state.refs.portrait.addEventListener('click', onPortraitClick);
+    // Portrait stays as passive presence: face, expression, speech bubble.
+    // The big #humphreyBtn is the single "call her" affordance (wired by
+    // js/humphrey-qna.js). We deliberately do NOT bind a click handler here
+    // so the two UIs stop battling each other.
+    // (Was: state.refs.portrait.addEventListener('click', onPortraitClick);)
     state.refs.muteBtn.addEventListener('click', toggleMute);
 
     // Reflect initial mute state
