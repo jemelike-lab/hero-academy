@@ -94,6 +94,12 @@
       return new Promise(function (resolve) {
         recorder.onstop = function () {
           recording = false;
+          // 1.5 — signal stop so the listening pulse on the portrait clears.
+          try {
+            if (NS.Humphrey && typeof NS.Humphrey.emit === 'function') {
+              NS.Humphrey.emit('stopped-listening');
+            }
+          } catch (_) {}
           if (typeof onStop === 'function') { try { onStop(); } catch (_) {} }
 
           var blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
@@ -131,6 +137,14 @@
         try {
           recorder.start();
           recording = true;
+          // 1.5 — signal the listening state to Humphrey so the corner
+          // portrait can pulse while the mic is hot. Try/catch is defensive:
+          // Humphrey.emit may not exist on older bundles in cache.
+          try {
+            if (NS.Humphrey && typeof NS.Humphrey.emit === 'function') {
+              NS.Humphrey.emit('started-listening');
+            }
+          } catch (_) {}
           if (typeof onStart === 'function') { try { onStart(); } catch (_) {} }
           debug('recording started, maxMs=' + maxMs);
         } catch (e) {

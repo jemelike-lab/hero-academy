@@ -182,6 +182,39 @@
 
 .ha-humphrey[hidden] { display: none !important; }
 
+/* --- 1.5 Listening pulse ---------------------------------------------------
+   When Listener.listen() is hot, Humphrey adds .ha-humphrey--listening to root
+   and the portrait gets a cyan halo pulse. Closes the visibility loop for
+   Nigel: he can SEE that the mic is hearing him while he speaks.
+   ----------------------------------------------------------------------------- */
+
+.ha-humphrey--listening .ha-humphrey__portrait {
+  /* Cyan tied to brand --cyan #14b8d4 (with rgba fallbacks) */
+  animation: ha-humphrey-listen 1.3s ease-in-out infinite;
+  border-color: rgba(20, 184, 212, 0.85);
+}
+@keyframes ha-humphrey-listen {
+  0%, 100% {
+    box-shadow:
+      0 8px 24px rgba(70, 50, 20, 0.18),
+      0 0 0 3px  rgba(20, 184, 212, 0.45),
+      0 0 0 10px rgba(20, 184, 212, 0.18),
+      0 0 0 18px rgba(20, 184, 212, 0.00);
+  }
+  50% {
+    box-shadow:
+      0 8px 24px rgba(70, 50, 20, 0.18),
+      0 0 0 5px  rgba(20, 184, 212, 0.55),
+      0 0 0 14px rgba(20, 184, 212, 0.25),
+      0 0 0 26px rgba(20, 184, 212, 0.00);
+  }
+}
+/* Listening pulse defers to the talking animation if they ever both fire
+   (shouldn't, since the mic closes before she speaks — but safety first). */
+.ha-humphrey[data-speaking="true"].ha-humphrey--listening .ha-humphrey__portrait {
+  animation: ha-humphrey-talk 0.42s ease-in-out infinite alternate;
+}
+
 /* --- Responsive ------------------------------------------------------------ */
 
 @media (max-width: 480px) {
@@ -209,6 +242,13 @@
   .ha-humphrey__bubble,
   .ha-humphrey__mute { transition: none !important; }
   .ha-humphrey[data-speaking="true"] .ha-humphrey__portrait { animation: none; }
+  .ha-humphrey--listening .ha-humphrey__portrait {
+    animation: none;
+    /* Still show a visible cue — just static, not pulsing. */
+    box-shadow:
+      0 8px 24px rgba(70, 50, 20, 0.18),
+      0 0 0 4px rgba(20, 184, 212, 0.5);
+  }
 }
 
 /* --- Dark mode awareness (in case style.css ever adds it) ---------------- */

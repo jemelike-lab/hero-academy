@@ -42,6 +42,11 @@
     fallbackToWebSpeech: true,
     skipPrerendered: true,             // pre-rendered MP3s don't exist yet; skip 1.5s wait
     debug: false,
+    // 1.3 — Auto-welcome: each page passes its own event key. After the first
+    // user gesture unlocks audio, Humphrey fires this event once per day per
+    // page (gated by ha_welcomed_<event>_<YYYY-MM-DD>). Set to null to skip.
+    welcomeEvent: null,
+    kidName: 'Nigel',
   };
 
   const STORAGE_KEY = 'ha_humphrey_v1';
@@ -55,129 +60,431 @@
   // Keep lines short — kid is 7, this is a sidebar not a lecture.
 
   const CATALOG = {
+    // -----------------------------------------------------------------------
+    // Welcomes — one per page. Fired by the audio-unlock hook on first gesture,
+    // gated by a daily flag (ha_welcomed_<event>_<YYYY-MM-DD>) so they don't
+    // replay within the same day. Each has 10+ variants so repeat days feel fresh.
+    // -----------------------------------------------------------------------
+    'welcome-home': {
+      expression: 'smile',
+      lines: [
+        "Hi {kidName}! There you are. Ready to learn something good?",
+        "Hello, hello! Welcome back. What feels right today?",
+        "Good to see you, my friend. Pick a zone whenever you are ready.",
+        "{kidName}! Come in, come in. Your training awaits.",
+        "Hi there. Big day or small day, both are fine with me.",
+        "Welcome back. I was hoping you would stop by.",
+        "There is my favorite student. Let us see what today brings.",
+        "Hey {kidName}. Quick warm up or a real session, your call.",
+        "Hello! Take a look around. Everything is open for you.",
+        "Good day to be curious, {kidName}. Where to first?",
+        "Welcome in. I have a feeling today is going to be a good one.",
+        "Hi there. Come on, let us pick something fun.",
+      ],
+    },
+    'welcome-cauldron': {
+      expression: 'smile',
+      lines: [
+        "Welcome to the Cauldron Cafe, {kidName}. The customers are waiting!",
+        "Ah, the Cauldron Cafe, my favorite place for math. Apron on?",
+        "Hi {kidName}! Let us see who is hungry today.",
+        "Into the kitchen we go. Numbers and orders, here we come.",
+        "Cauldron Cafe! Time to count, stir, and serve.",
+        "Hello {kidName}. Today's specials are math problems. Let us cook.",
+        "Welcome back to the cafe. The customers love your work.",
+        "Apron on, {kidName}. Math chef coming through!",
+        "Here we are, the Cauldron Cafe. Ready to take some orders?",
+        "Hi friend. Numbers smell good in here, do they not?",
+      ],
+    },
+    'welcome-diner': {
+      expression: 'smile',
+      lines: [
+        "Welcome to Diner Lanes, {kidName}! Roll a strike and learn the map.",
+        "Diner Lanes! Bowling and geography, my kind of combo.",
+        "Hi {kidName}! Pick a state, knock down some pins.",
+        "Here we go, Diner Lanes. America is waiting.",
+        "Welcome back to the lanes. Aim well, my friend.",
+        "Hello {kidName}! Which state shall we visit first today?",
+        "Diner Lanes! Pins and places, here we come.",
+        "Roll it true, {kidName}. The fifty states are watching.",
+        "Welcome in. Let us see what customer walks up next.",
+        "Hi friend. Bowling shoes on, brain switched on, let us go.",
+      ],
+    },
+    'welcome-word-tower': {
+      expression: 'encouraging',
+      lines: [
+        "Word Tower! Let us climb it one word at a time, {kidName}.",
+        "Welcome to Word Tower. Eight words today. Take your time.",
+        "Hi {kidName}! Reading practice. I will be listening carefully.",
+        "Word Tower it is. Big breath, clear voice.",
+        "Here we go. Words to climb, sounds to catch.",
+        "Welcome back, {kidName}. Let us hear that great reading voice.",
+        "Word Tower! I love listening to you read.",
+        "Hi friend! New words today. We have got this together.",
+        "Climbing time. One word, one breath, one step.",
+        "Welcome in. Read like you are telling me a story.",
+      ],
+    },
+    'welcome-story-time': {
+      expression: 'smile',
+      lines: [
+        "Story Time! I wrote you a story today, {kidName}.",
+        "Welcome to Story Time. I have a fresh one ready.",
+        "Hi {kidName}! I will read first, then you read it back to me.",
+        "Story Time it is. Cozy up. Words ahead.",
+        "Here we go. A story made just for you.",
+        "Welcome back, {kidName}. Let us see what story finds us today.",
+        "Story Time! Three sentences, one big adventure.",
+        "Hi friend. I think you will like this one.",
+        "Settle in. I have a story I think you will love.",
+        "Welcome. Listen first, then read. Easy as that.",
+      ],
+    },
+    'welcome-hero-hall': {
+      expression: 'cheering',
+      lines: [
+        "Welcome to Hero Hall, {kidName}! Look who is here.",
+        "Hero Hall! Your Squad is waiting.",
+        "Hi {kidName}! All your friends in one place.",
+        "Welcome back to the Hall. Quite a crew you have gathered.",
+        "Here we are, Hero Hall. Say hi to everyone.",
+        "Hello, {kidName}! The Squad has been asking about you.",
+        "Hero Hall! Each one earned their spot, including you.",
+        "Welcome in. This place feels like home.",
+        "Look at this lineup, {kidName}. You did this.",
+        "Welcome, friend. Your heroes are glad you came.",
+      ],
+    },
+    // -----------------------------------------------------------------------
+    // Generic welcome — kept as fallback if a page does not specify its own.
+    // -----------------------------------------------------------------------
     'welcome': {
       expression: 'smile',
       lines: [
         "Hi {kidName}! Ready to learn something new today?",
-        "There you are, {kidName}! Let's get started.",
+        "There you are, {kidName}! Let us get started.",
         "Welcome back, {kidName}! I missed you.",
+        "Hello, {kidName}. Lovely to see you.",
+        "Hi friend! Come on in.",
       ],
     },
     'goodbye': {
       expression: 'smile',
       lines: [
         "Great work today, {kidName}. See you tomorrow!",
-        "You did wonderfully. Until next time!",
-        "Bye for now, {kidName}. Be proud of yourself!",
+        "You did wonderfully. Until next time.",
+        "Bye for now, {kidName}. Be proud of yourself.",
+        "Goodbye, my friend. Rest those clever eyes.",
+        "All done. See you soon, {kidName}.",
+        "What a session. Have a beautiful day.",
+        "Bye, {kidName}. Tell your family I said hi.",
+        "See you tomorrow. Sweet dreams if it is late.",
+        "Good work today. Go play.",
+        "Off you go. You earned the break.",
+        "Bye, friend. Same time tomorrow?",
+        "See you next time. I will be here.",
       ],
     },
     'zone-enter': {
       expression: 'encouraging',
       lines: [
-        "Welcome to {zone}! Let's see what's waiting for us.",
+        "Welcome to {zone}! Let us see what is waiting for us.",
         "Oh, {zone}! One of my favorites.",
         "Here we are at {zone}. Time to explore.",
+        "{zone}, here we go.",
+        "Welcome in. {zone} has good things in store.",
       ],
     },
     'zone-locked': {
       expression: 'concerned',
       lines: [
-        "That one's still locked. Let's keep practicing the others first!",
+        "That one is still locked. Let us keep practicing the others first!",
         "Not quite ready for that one yet. Soon!",
+        "Locked for now, {kidName}. Keep building.",
       ],
     },
     'level-start': {
       expression: 'encouraging',
       lines: [
-        "Okay {kidName}, today we're working on {topic}. You've got this.",
-        "Let's practice {topic}. Take your time.",
-        "Ready? Today's lesson: {topic}. Deep breath.",
+        "Okay {kidName}, today we are working on {topic}. You have got this.",
+        "Let us practice {topic}. Take your time.",
+        "Ready? Today's lesson is {topic}. Deep breath.",
+        "{topic} today, {kidName}. We will go step by step.",
+        "Here we go, {topic}. I am right here with you.",
       ],
     },
+    // -----------------------------------------------------------------------
+    // Correctness feedback — these fire ~6 times per session, hence 12+ each.
+    // 'correct-answer' is the generic; -math and -reading are flavored for
+    // their zones. Call sites can pick whichever fits; missing keys fall back
+    // to 'correct-answer' via _default.
+    // -----------------------------------------------------------------------
     'correct-answer': {
       expression: 'cheering',
       lines: [
-        "Yes! Exactly right!",
+        "Yes! Exactly right.",
         "Beautiful work, {kidName}!",
-        "That's it. You're getting this.",
+        "That is it. You are getting this.",
         "Nice thinking!",
-        "Perfect!",
+        "Perfect.",
+        "Yes, that is the one.",
+        "Right on the nose.",
+        "Got it! Lovely.",
+        "Excellent, {kidName}.",
+        "Yes, you saw it.",
+        "Spot on.",
+        "There it is!",
+        "Bang, that is right.",
+        "Mm-hmm, exactly.",
+        "Look at you go!",
+      ],
+    },
+    'correct-answer-math': {
+      expression: 'cheering',
+      lines: [
+        "Yes! That is the right number.",
+        "Perfect math, {kidName}.",
+        "You counted it just right.",
+        "Yes, that is exactly the answer.",
+        "Nice work, the numbers add up.",
+        "That is the one. Beautiful.",
+        "Yes! Your math is sharp today.",
+        "Spot on, {kidName}.",
+        "Mm-hmm, that is correct.",
+        "Right answer, {kidName}. Lovely.",
+        "Yes, you worked that out perfectly.",
+        "There it is. Math hero.",
+      ],
+    },
+    'correct-answer-reading': {
+      expression: 'cheering',
+      lines: [
+        "Yes! Beautiful reading.",
+        "Perfect, {kidName}. I heard every word.",
+        "That was crystal clear.",
+        "Yes, exactly right. Nice voice.",
+        "You read that wonderfully.",
+        "Got it. Lovely reading.",
+        "Spot on, {kidName}.",
+        "Yes! Clean and clear.",
+        "Mm-hmm, that was the right sound.",
+        "Lovely. Your voice was so clear.",
+        "Yes, you nailed it.",
+        "Excellent reading, my friend.",
       ],
     },
     'wrong-answer': {
       expression: 'encouraging',
       lines: [
-        "Not quite — but good try. Let's look again.",
-        "Close! Let's slow down and try one more time.",
-        "That's a fair guess. Want another go?",
-        "Almost. Take another look — you'll see it.",
+        "Not quite, but good try. Let us look again.",
+        "Close! Let us slow down and try one more time.",
+        "That is a fair guess. Want another go?",
+        "Almost. Take another look, you will see it.",
+        "Not yet. Try once more.",
+        "Hmm, not this time. Easy fix though.",
+        "Close one. Look again carefully.",
+        "Not yet, but I see you thinking.",
+        "Almost there, {kidName}.",
+        "Tricky one. Look one more time.",
+      ],
+    },
+    'wrong-answer-math': {
+      expression: 'encouraging',
+      lines: [
+        "Not quite. Count one more time, {kidName}.",
+        "Close! The numbers are nearly there.",
+        "Almost. Look at the problem again carefully.",
+        "Hmm, not this number. Try once more.",
+        "Not yet. Slow down and recount.",
+        "Tricky one. Take it step by step.",
+        "Easy miss, {kidName}. Look again.",
+        "Not yet. The right answer is hiding nearby.",
+        "Close. One more careful look.",
+        "Almost, but not quite. Try once more.",
+      ],
+    },
+    'wrong-answer-reading': {
+      expression: 'encouraging',
+      lines: [
+        "Not quite, but I heard you trying. Let us try again.",
+        "Close! Slow it down and try one more time.",
+        "Almost. Listen to the sounds again with me.",
+        "Not yet. Take a breath and try the word again.",
+        "Hmm, missed a sound. No worries, try once more.",
+        "Tricky word. Let us go slow.",
+        "Not yet, {kidName}. Easy fix.",
+        "Close. One more careful try.",
+        "Almost there. Sound it out one more time.",
+        "Not quite, but you are close.",
       ],
     },
     'streak-3': {
       expression: 'cheering',
       lines: [
-        "Three in a row! You're on fire!",
-        "Look at you — three right in a row!",
+        "Three in a row! You are on fire!",
+        "Look at you, three right in a row!",
+        "Three! Keep that going, {kidName}.",
+        "Three correct! That is a streak.",
+        "Three for three. Wonderful.",
       ],
     },
     'streak-5': {
       expression: 'cheering',
       lines: [
         "Five in a row, {kidName}! Wow!",
-        "Five! That's a real streak now.",
+        "Five! That is a real streak now.",
+        "Five correct! I am so proud.",
+        "Five for five. Amazing focus.",
+        "Five in a row. Look at that brain!",
       ],
     },
     'streak-10': {
       expression: 'surprised',
       lines: [
-        "TEN in a row?! {kidName}, you're amazing!",
-        "Ten in a row! I'm so proud of you.",
+        "TEN in a row?! {kidName}, you are amazing!",
+        "Ten in a row! I am so proud of you.",
+        "Ten! That is incredible, {kidName}.",
+        "Ten in a row. Are you even real?",
+        "Ten! What a streak, my friend.",
       ],
     },
     'milestone-reached': {
       expression: 'cheering',
       lines: [
-        "That's a milestone, {kidName}! Look at that progress.",
+        "That is a milestone, {kidName}! Look at that progress.",
         "You just hit a milestone. Pause and feel good about that.",
+        "Milestone, {kidName}. Big deal.",
+        "Right there, a real milestone.",
       ],
     },
     'mastery-achieved': {
       expression: 'cheering',
       lines: [
-        "You've mastered {topic}! That's a big deal.",
-        "{topic} — mastered! On to the next one when you're ready.",
-        "I'm putting {topic} in the 'you got it' pile. Excellent.",
+        "You have mastered {topic}! That is a big deal, {kidName}.",
+        "{topic}, mastered! On to the next when you are ready.",
+        "I am putting {topic} in the 'you got it' pile. Excellent.",
+        "Look at that. {topic}, locked in.",
+        "{topic} is yours now, {kidName}. Wonderful work.",
+        "That is mastery, my friend. {topic}, done.",
+        "{topic}: officially in your toolkit.",
+        "Big one, {kidName}. You have truly got {topic}.",
+        "Mastered it. {topic} is part of you now.",
+        "Yes! {topic}, checked off the list.",
+        "That is how it is done. {topic} mastered.",
+        "{topic} is now something you know. Beautifully done.",
       ],
     },
     'character-unlocked': {
       expression: 'surprised',
       lines: [
-        "Oh! Look who showed up — {character}!",
+        "Oh! Look who showed up, {character}!",
         "{character} just joined the Squad! Go say hi in Hero Hall.",
         "A new friend! {character} wants to meet you.",
+        "{character} is here, {kidName}. New teammate.",
+        "Look at that, {character} unlocked.",
       ],
     },
     'idle-too-long': {
       expression: 'encouraging',
       lines: [
-        "Hey {kidName} — still with me?",
-        "Take your time. I'm here whenever you're ready.",
-        "Need a quick break? That's okay.",
+        "Hey {kidName}, still with me?",
+        "Take your time. I am here whenever you are ready.",
+        "Need a quick break? That is okay.",
+        "Thinking is good. Let me know when you are set.",
+        "I am right here, {kidName}. No rush.",
+        "Want some help, or are you working it out?",
+        "Still thinking? That is fine.",
+        "Catching your breath? Take all the time you need.",
+        "Hey friend. I am here when you want me.",
+        "All good? Just say the word.",
+      ],
+    },
+    'idle-too-long-math': {
+      expression: 'encouraging',
+      lines: [
+        "Hey {kidName}, looking at that problem hard?",
+        "Take your time with the numbers, my friend.",
+        "Want help with this one, or want to keep working?",
+        "Thinking carefully is the right move. No rush.",
+        "I am here if you want me to walk through it.",
+        "Math takes patience. You are doing fine.",
+        "Still working on it? Good. Slow is okay.",
+        "Want a hint, {kidName}, or shall we keep going?",
+        "Tricky one, huh? Tap me if you want help.",
+        "Take all the time you need, friend.",
+      ],
+    },
+    'idle-too-long-reading': {
+      expression: 'encouraging',
+      lines: [
+        "Hey {kidName}, ready to read when you are?",
+        "Take your time. Find the word, then read it out.",
+        "Want me to read it first? Just say so.",
+        "I am listening whenever you are ready.",
+        "No rush at all. Breathe and try when ready.",
+        "Sound it out in your head first if you want.",
+        "Still warming up? That is okay.",
+        "Want help with this one, or shall I wait?",
+        "Take your time, my friend. I will not move.",
+        "Whenever you are ready, I am listening.",
       ],
     },
     'try-again': {
       expression: 'encouraging',
       lines: [
         "Want to try that one again? No rush.",
-        "Let's give it another shot.",
-        "One more try — I believe in you.",
+        "Let us give it another shot.",
+        "One more try. I believe in you.",
+        "Take your time. Try it again when you are ready.",
+        "Easy does it. Another go?",
+        "No rush at all. Breathe and try again.",
+        "Slow down and try it once more.",
+        "Reset. Have another go, my friend.",
+        "Try it again. Fresh eyes.",
+        "One more pass. You have got this.",
+        "Take it slow, {kidName}. Once more.",
+        "Try again. It will come.",
+      ],
+    },
+    'try-again-math': {
+      expression: 'encouraging',
+      lines: [
+        "Want to count it again? Take your time.",
+        "Let us look at the numbers one more time.",
+        "One more try, {kidName}. Slow and steady.",
+        "Take a breath and count again.",
+        "Try it once more. The answer is close.",
+        "Reset. Look at the problem fresh.",
+        "Count it on your fingers if you need to.",
+        "One more pass. You can do this, {kidName}.",
+        "Try again. Slow down for it.",
+        "Take it slow. The answer will show up.",
+      ],
+    },
+    'try-again-reading': {
+      expression: 'encouraging',
+      lines: [
+        "Want to read it again? Take your time.",
+        "Let us sound it out together one more time.",
+        "One more try, {kidName}. Clear voice.",
+        "Try the word again. Slow it down.",
+        "Take a breath and read it once more.",
+        "Reset. Look at the letters fresh.",
+        "Sound out each part, then put them together.",
+        "Try again. Your voice is doing great.",
+        "One more try. You are very close.",
+        "Read it once more. I am listening.",
       ],
     },
     'time-for-break': {
       expression: 'smile',
       lines: [
-        "You've worked hard. Let's take a break.",
+        "You have worked hard. Let us take a break.",
         "Good time for water and a stretch.",
+        "Break time, {kidName}. You earned it.",
+        "Let us pause. Eyes need rest.",
       ],
     },
     'week-summary': {
@@ -189,9 +496,10 @@
     'homework-assigned': {
       expression: 'encouraging',
       lines: [
-        "Hi {kidName}! Today's homework is {topic}. You've got this!",
-        "Ready for today's homework, {kidName}? Let's tackle {topic}.",
-        "Homework time, {kidName}! We're working on {topic} today.",
+        "Hi {kidName}! Today's homework is {topic}. You have got this!",
+        "Ready for today's homework, {kidName}? Let us tackle {topic}.",
+        "Homework time, {kidName}! We are working on {topic} today.",
+        "Today's task is {topic}. Let us knock it out together.",
       ],
     },
     'homework-done': {
@@ -199,7 +507,8 @@
       lines: [
         "You did it, {kidName}! Today's homework is finished!",
         "All done, {kidName}! Great work on your homework!",
-        "Homework complete, {kidName}! I'm so proud of you.",
+        "Homework complete, {kidName}! I am so proud of you.",
+        "Done and dusted, {kidName}. Beautiful work today.",
       ],
     },
     // Fallback used if an unknown event is fired
@@ -300,6 +609,14 @@
     state.mounted = true;
     emit('mounted');
     debug('Mounted. Position:', cfg.position);
+    // 1.5 — Visible listening pulse: toggle CSS class on the root when the
+    // Listener module reports the mic is hot. Listener emits via the bus.
+    on('started-listening', function () {
+      if (state.refs.root) state.refs.root.classList.add('ha-humphrey--listening');
+    });
+    on('stopped-listening', function () {
+      if (state.refs.root) state.refs.root.classList.remove('ha-humphrey--listening');
+    });
     // Drain any items that were queued before mount finished (e.g. zone-enter
     // fired from the page's inline init script before DOMContentLoaded). Without
     // this, those items sit in queue forever and pop out on the user's first
@@ -736,6 +1053,32 @@
    * the gesture link. Fix: on first user gesture, play a silent audio
    * synchronously to "unlock" the document. After that, async play() works.
    */
+  /**
+   * 1.3 — Auto-welcome on first gesture, gated by a daily flag.
+   * Returns silently if no welcomeEvent is configured, if already welcomed
+   * today, or if localStorage is unavailable. Slight setTimeout so the
+   * welcome plays cleanly after the audio primer has resolved.
+   */
+  function maybeAutoWelcome() {
+    var ev = state.cfg.welcomeEvent;
+    if (!ev) return;
+    var today;
+    try { today = new Date().toISOString().slice(0, 10); }
+    catch (_) { today = ''; }
+    var flagKey = 'ha_welcomed_' + ev + '_' + today;
+    var already = false;
+    try { already = localStorage.getItem(flagKey) === '1'; } catch (_) {}
+    if (already) { debug('autoWelcome skipped (already today):', ev); return; }
+    try { localStorage.setItem(flagKey, '1'); } catch (_) {}
+    debug('autoWelcome firing:', ev);
+    // 250ms gives the audio primer a beat to resolve so the welcome plays
+    // through the warmed audio element instead of fighting the gesture frame.
+    setTimeout(function () {
+      try { say(ev, { kidName: state.cfg.kidName || 'friend' }); }
+      catch (e) { debug('autoWelcome say err', e); }
+    }, 250);
+  }
+
   function setupAudioUnlock() {
     const unlock = (ev) => {
       panelLog('gesture ' + (ev && ev.type) + ' (unlocked=' + state.audioUnlocked + ')');
@@ -744,6 +1087,8 @@
       // so any speak() in the same click handler passes the check at line ~512.
       state.audioUnlocked = true;
       debug('audio unlocked (synchronous flag set in user gesture)');
+      // 1.3 — Auto-welcome on first gesture, once per day per page.
+      try { maybeAutoWelcome(); } catch (e) { debug('autoWelcome err', e); }
       try {
         // Create ONE reusable <audio> element and warm it synchronously inside
         // this gesture. Android Chrome's autoplay policy is tracked per
@@ -888,6 +1233,7 @@
     stopIdleWatcher,
     on,
     off,
+    emit,        // 1.5 — exposed so Listener can signal the listening state
     unmount,
     // Inspection helpers (handy in devtools)
     _state: state,

@@ -110,7 +110,15 @@
 
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
+      // No welcomeEvent — js/word-tower-reading.js boot() already fires its
+      // own instructive welcome ("I'll show you a word, you read it..."),
+      // which is what we want here. Catalog welcome would duplicate.
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        kidName: 'Nigel',
+      });
     }
   </script>
   <script src="js/sw-register.js"></script>

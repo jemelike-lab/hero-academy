@@ -133,7 +133,15 @@
 
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
+      // No welcomeEvent — Story Time's first say() reads the personalized
+      // passage intro ("I wrote you a story today..."), which serves as the
+      // welcome. Catalog welcome would duplicate.
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        kidName: 'Nigel',
+      });
     }
   </script>
   <script src="js/sw-register.js"></script>

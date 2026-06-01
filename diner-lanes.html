@@ -925,8 +925,14 @@ new Phaser.Game(config);
 <script src="js/humphrey.js"></script>
 <script>
   if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-    window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
-    window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'the Diner Lanes' });
+    window.HeroAcademy.Humphrey.init({
+      position: 'bottom-left',
+      audioEnabled: true,
+      debug: false,
+      welcomeEvent: 'welcome-diner',
+      kidName: 'Nigel',
+    });
+    // Welcome fires automatically on first user gesture (gated daily).
   }
 </script>
 </body>

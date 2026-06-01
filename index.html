@@ -107,8 +107,11 @@
         position: 'bottom-left',
         audioEnabled: true,
         debug: false,
+        welcomeEvent: 'welcome-home',
+        kidName: 'Nigel',
       });
-      window.HeroAcademy.Humphrey.say('welcome', { kidName: 'Nigel' });
+      // Welcome line is now fired automatically on first user gesture
+      // (gated by ha_welcomed_welcome-home_<date>). No direct say() needed.
       // The Ms. Humphrey button is wired by js/humphrey-qna.js (auto-runs on
       // DOMContentLoaded). On the dashboard there's no active problem, so the
       // default empty context provider is fine — Claude answers open-ended
