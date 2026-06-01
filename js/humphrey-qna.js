@@ -67,7 +67,18 @@
   function isFarewell(transcript) {
     if (!transcript) return false;
     var t = String(transcript).toLowerCase().trim();
-    return /\b(bye|goodbye|thank you|thanks|i'?m done|im done|that'?s all|nothing else|stop|nevermind|never mind|see you|cya|cool thanks|got it thanks)\b/.test(t);
+    return /\b(bye|goodbye|good ?bye|thank you|thanks|i'?m done|im done|that'?s all|nothing else|stop|nevermind|never mind|see you|cya|cool thanks|got it thanks|talk (?:to you )?(?:later|soon|tomorrow)|catch you later|take care|gotta go|gotta run|i gotta go)\b/.test(t);
+  }
+
+  /**
+   * Did Ms. Humphrey just sign off? Conservative — only matches strong
+   * conversation-closing language, not mid-explanation "let me know" types.
+   * Triggers convo end so the mic doesn't re-open into awkward silence.
+   */
+  function humphreyIsSigningOff(text) {
+    if (!text) return false;
+    var t = String(text).toLowerCase();
+    return /\b(talk to you (?:later|soon|tomorrow)|talk (?:later|soon)|see you (?:later|next time|soon|tomorrow)|until next time|until then|bye for now|good ?bye|catch you later|take care|have a (?:great|good|wonderful|nice) (?:day|afternoon|morning|evening|night|rest of your)|i'?ll see you (?:later|next time|soon|tomorrow)|sleep well|enjoy your (?:day|afternoon|evening))\b/.test(t);
   }
   function farewellLine() {
     var lines = [
@@ -241,6 +252,15 @@
 
         return speakLine(answer).then(function () {
           if (!convo.active) {
+            setPhase(btn, null);
+            inFlight = false;
+            return;
+          }
+          // If Ms. Humphrey just said a clear sign-off, end the conversation
+          // gracefully — don't re-open the mic into awkward silence.
+          if (humphreyIsSigningOff(answer)) {
+            debug('humphrey signed off — ending convo, no re-listen');
+            resetConversation('humphrey-farewell');
             setPhase(btn, null);
             inFlight = false;
             return;
