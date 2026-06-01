@@ -163,6 +163,11 @@
 
   NS.Listener = {
     listen: listen,
+    stop: function () {
+      try {
+        if (recorder && recorder.state === 'recording') recorder.stop();
+      } catch (_) {}
+    },
     ensureMicPermission: ensureMicPermission,
     hasMicPermission: hasMicPermission,
     intentOf: intentOf
