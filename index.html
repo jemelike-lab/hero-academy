@@ -105,6 +105,15 @@
         debug: false,
       });
       window.HeroAcademy.Humphrey.say('welcome', { kidName: 'Nigel' });
+
+      var humphreyBtn = document.getElementById('humphreyBtn');
+      if (humphreyBtn) {
+        humphreyBtn.addEventListener('click', function () {
+          humphreyBtn.classList.add('speaking');
+          window.HeroAcademy.Humphrey.say('zone-enter', { zone: 'Hero Academy', kidName: 'Nigel' });
+          setTimeout(function () { humphreyBtn.classList.remove('speaking'); }, 2200);
+        });
+      }
     }
   </script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}</script>
