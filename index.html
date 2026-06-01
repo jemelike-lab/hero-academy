@@ -97,6 +97,9 @@
   </div>
   <script src="js/app.js"></script>
   <script src="js/humphrey.js"></script>
+  <script src="js/humphrey-listener.js"></script>
+  <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-qna.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
       window.HeroAcademy.Humphrey.init({
@@ -105,15 +108,10 @@
         debug: false,
       });
       window.HeroAcademy.Humphrey.say('welcome', { kidName: 'Nigel' });
-
-      var humphreyBtn = document.getElementById('humphreyBtn');
-      if (humphreyBtn) {
-        humphreyBtn.addEventListener('click', function () {
-          humphreyBtn.classList.add('speaking');
-          window.HeroAcademy.Humphrey.say('zone-enter', { zone: 'Hero Academy', kidName: 'Nigel' });
-          setTimeout(function () { humphreyBtn.classList.remove('speaking'); }, 2200);
-        });
-      }
+      // The Ms. Humphrey button is wired by js/humphrey-qna.js (auto-runs on
+      // DOMContentLoaded). On the dashboard there's no active problem, so the
+      // default empty context provider is fine — Claude answers open-ended
+      // questions about anything Nigel asks.
     }
   </script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}</script>

@@ -68,10 +68,23 @@
   <script src="js/humphrey.js"></script>
   <script src="js/humphrey-listener.js"></script>
   <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-qna.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
       window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
       window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'the Number Lab' });
+    }
+    // Hand Claude the active problem so Q&A answers are grounded in what Nigel
+    // is currently looking at. number-lab.js defines `session.currentProblem`.
+    if (window.HeroAcademy && window.HeroAcademy.QnA) {
+      window.HeroAcademy.QnA.setContextProvider(function () {
+        var s = (typeof session !== 'undefined') ? session : null;
+        if (!s || !s.currentProblem) return {};
+        return {
+          activeProblem: s.currentProblem.question || '',
+          activeProblemAnswer: s.currentProblem.answer
+        };
+      });
     }
   </script>
 </body>

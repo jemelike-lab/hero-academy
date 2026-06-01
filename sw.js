@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v25";
+const CACHE_VERSION = "hero-academy-v26";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -27,6 +27,7 @@ const CORE = [
   "./js/humphrey.js",
   "./js/humphrey-listener.js",
   "./js/humphrey-chat.js",
+  "./js/humphrey-qna.js",
   "./assets/humphrey/humphrey_base_256.webp",
   "./assets/humphrey/humphrey_base_256.png",
   "./assets/humphrey/humphrey_base_512.webp",
