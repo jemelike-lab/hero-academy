@@ -1,0 +1,368 @@
+/* ============================================================================
+   Hero Academy — Story Lab
+   MadLibs-style writing zone. Designed to feel inviting for a 7-year-old.
+   ============================================================================ */
+
+.sl-main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px;
+  padding-bottom: 120px;     /* breathing room above the Humphrey corner */
+}
+
+.sl-stage {
+  background: rgba(20, 20, 40, 0.55);
+  border-radius: 24px;
+  padding: 24px;
+  border: 2px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  min-height: 60vh;
+  animation: sl-stage-in 280ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+@keyframes sl-stage-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Screen 1: Template picker ------------------------------------------- */
+
+.sl-picker-header { text-align: center; margin-bottom: 18px; }
+.sl-picker-title {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-size: clamp(1.4rem, 4vw, 2rem);
+  color: var(--gold, #ffd147);
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+.sl-picker-sub {
+  font-size: 1rem;
+  color: rgba(245, 232, 200, 0.85);
+  margin: 0;
+}
+
+.sl-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.sl-template-card {
+  background: linear-gradient(150deg, rgba(168, 85, 247, 0.18), rgba(70, 30, 130, 0.4));
+  border: 2px solid rgba(168, 85, 247, 0.45);
+  border-radius: 18px;
+  padding: 16px 12px;
+  cursor: pointer;
+  text-align: center;
+  font-family: 'Nunito', sans-serif;
+  color: #fff;
+  transition: transform 160ms cubic-bezier(0.2, 0.7, 0.3, 1),
+              box-shadow 160ms ease, border-color 160ms ease;
+}
+.sl-template-card:hover, .sl-template-card:focus-visible {
+  transform: translateY(-3px) scale(1.02);
+  border-color: var(--gold, #ffd147);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.35);
+  outline: none;
+}
+.sl-template-card:active { transform: translateY(0) scale(0.98); }
+
+.sl-tpl-emoji { font-size: 38px; line-height: 1; margin-bottom: 6px; }
+.sl-tpl-title {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+.sl-tpl-meta {
+  font-size: 0.78rem;
+  color: rgba(245, 232, 200, 0.7);
+}
+
+.sl-library-link {
+  display: block;
+  margin: 20px auto 0;
+  background: transparent;
+  color: var(--cyan, #14b8d4);
+  border: 2px dashed rgba(20, 184, 212, 0.55);
+  border-radius: 14px;
+  padding: 10px 18px;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 160ms ease;
+}
+.sl-library-link:hover { background: rgba(20, 184, 212, 0.12); }
+
+/* --- Screen 2: Slot filling --------------------------------------------- */
+
+.sl-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sl-slot-title {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--gold, #ffd147);
+  flex: 1;
+}
+
+.sl-back {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+.sl-back:hover { background: rgba(255, 255, 255, 0.15); }
+.sl-back--bottom { display: block; margin: 20px auto 0; }
+
+.sl-progress {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+.sl-progress-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background 220ms ease, transform 220ms ease;
+}
+.sl-progress-dot.filled  { background: var(--gold, #ffd147); }
+.sl-progress-dot.current { background: var(--cyan, #14b8d4); transform: scale(1.4); }
+
+.sl-slot-step {
+  text-align: center;
+  font-size: 0.85rem;
+  color: rgba(245, 232, 200, 0.7);
+  margin-bottom: 14px;
+}
+
+.sl-slot-prompt-wrap {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  text-align: center;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+.sl-slot-kindline {
+  font-size: 1rem;
+  color: rgba(245, 232, 200, 0.85);
+  margin-bottom: 4px;
+}
+.sl-slot-kindline strong { color: var(--cyan, #14b8d4); }
+.sl-slot-prompt {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #fff;
+  margin: 0;
+}
+
+.sl-word-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.sl-word-btn {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 10px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  font-size: 0.98rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 140ms cubic-bezier(0.2, 0.7, 0.3, 1),
+              border-color 140ms ease, background 140ms ease;
+  word-wrap: break-word;
+}
+.sl-word-btn:hover, .sl-word-btn:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--gold, #ffd147);
+  background: rgba(255, 209, 71, 0.10);
+  outline: none;
+}
+.sl-word-btn:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.sl-word-btn--picked {
+  border-color: var(--cyan, #14b8d4) !important;
+  background: rgba(20, 184, 212, 0.25) !important;
+  box-shadow: 0 0 0 4px rgba(20, 184, 212, 0.25);
+  animation: sl-pick-pulse 0.5s ease-out;
+}
+@keyframes sl-pick-pulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.sl-word-btn:disabled { cursor: default; opacity: 0.5; }
+
+/* --- Screen 3: Completed story ------------------------------------------ */
+
+.sl-story-header { text-align: center; margin-bottom: 18px; }
+.sl-story-eyebrow {
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  color: var(--gold, #ffd147);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.sl-story-title {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
+  margin: 0;
+  color: #fff;
+}
+
+.sl-story-body {
+  background: rgba(255, 252, 235, 0.96);
+  color: #2a2418;
+  font-family: 'Nunito', sans-serif;
+  font-size: clamp(1.05rem, 2.6vw, 1.25rem);
+  line-height: 1.6;
+  padding: 22px 24px;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.sl-story-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.sl-action {
+  flex: 1 1 130px;
+  max-width: 240px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 140ms cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 140ms ease, opacity 140ms ease;
+}
+.sl-action:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.sl-action:disabled { cursor: default; opacity: 0.55; }
+
+.sl-action--primary {
+  background: linear-gradient(150deg, var(--gold, #ffd147), var(--orange, #ff8b3d));
+  color: #2a2418;
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 6px 18px rgba(255, 139, 61, 0.4);
+}
+.sl-action--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255, 139, 61, 0.55); }
+
+.sl-action--secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.sl-action--secondary:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* --- Screen 4: Library --------------------------------------------------- */
+
+.sl-library-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sl-library-title {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--gold, #ffd147);
+  margin: 0;
+  flex: 1;
+}
+.sl-library-empty {
+  text-align: center;
+  color: rgba(245, 232, 200, 0.7);
+  padding: 30px 16px;
+}
+.sl-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sl-lib-item {
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid rgba(168, 85, 247, 0.30);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+.sl-lib-item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sl-lib-item-emoji { font-size: 24px; }
+.sl-lib-item-title {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+  color: var(--gold, #ffd147);
+  flex: 1;
+}
+.sl-lib-item-date {
+  font-size: 0.8rem;
+  color: rgba(245, 232, 200, 0.6);
+}
+.sl-lib-item-body {
+  background: rgba(255, 252, 235, 0.96);
+  color: #2a2418;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem;
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.sl-lib-item-actions { text-align: right; }
+
+/* --- Confetti ----------------------------------------------------------- */
+
+@keyframes sl-confetti-fall {
+  0%   { transform: translate(0, -50vh) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--drift), 80vh) rotate(var(--rot)); opacity: 0; }
+}
+
+/* --- Mobile tightening --------------------------------------------------- */
+
+@media (max-width: 480px) {
+  .sl-main { padding: 10px; padding-bottom: 110px; }
+  .sl-stage { padding: 16px; border-radius: 18px; }
+  .sl-template-grid { grid-template-columns: repeat(2, 1fr); }
+  .sl-word-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* --- Reduced motion ----------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-stage, .sl-template-card, .sl-word-btn,
+  .sl-action, .sl-progress-dot, .sl-word-btn--picked {
+    animation: none !important;
+    transition: none !important;
+  }
+}
