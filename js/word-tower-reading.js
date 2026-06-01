@@ -113,7 +113,7 @@
     opts = opts || {};
     var H = NS.Humphrey;
     if (!H || typeof H.say !== 'function') return Promise.resolve();
-    return H.say(opts.event || 'try-again', {
+    return H.say(opts.event || 'try-again-reading', {
       kidName: 'Nigel',
       text: text
     });
@@ -208,7 +208,7 @@
       : (first >= Math.ceil(total * 0.75)
           ? "Wonderful job, Nigel! You read so many of those on the first try. We can practice the tricky ones again next time."
           : "Good work, Nigel. Some of those were tricky and you stuck with it. That is what real readers do.");
-    say(line, { event: 'correct-answer' });
+    say(line, { event: 'correct-answer-reading' });
     burstConfetti();
   }
 
@@ -318,7 +318,7 @@
     setMicState('passed');
     setStatus(json.praise_line || 'Yes!', 'pass');
     burstConfetti();
-    say(json.praise_line || ('Yes! That is right, Nigel.'), { event: 'correct-answer' });
+    say(json.praise_line || ('Yes! That is right, Nigel.'), { event: 'correct-answer-reading' });
     setTimeout(function () {
       session.index += 1;
       session.inFlight = false;
@@ -340,7 +340,7 @@
       var moveOnLine = "That is a tricky one. Let us come back to it next time, Nigel. " +
                        "The word was " + w.word + ".";
       setStatus(moveOnLine, 'hint');
-      say(moveOnLine, { event: 'try-again' });
+      say(moveOnLine, { event: 'try-again-reading' });
       setTimeout(function () {
         session.index += 1;
         session.inFlight = false;
@@ -353,7 +353,7 @@
     setMicState('failed');
     var line = json.correction_line || ('Almost. Listen: ' + w.word + '. Say it with me.');
     setStatus(line, 'fail');
-    say(line + ' ' + w.word + '. ' + w.word + '.', { event: 'try-again' }).then(function () {
+    say(line + ' ' + w.word + '. ' + w.word + '.', { event: 'try-again-reading' }).then(function () {
       $('wt-tryagain-btn').hidden = false;
       session.inFlight = false;
     });

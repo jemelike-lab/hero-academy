@@ -73,7 +73,7 @@
     opts = opts || {};
     var H = NS.Humphrey;
     if (!H || typeof H.say !== 'function') return Promise.resolve();
-    return H.say(opts.event || 'try-again', { kidName: 'Nigel', text: text });
+    return H.say(opts.event || 'try-again-reading', { kidName: 'Nigel', text: text });
   }
 
   // ---- Confetti -------------------------------------------------------
@@ -316,7 +316,7 @@
 
     setMicState('passed');
     setStatus(json.praiseLine || 'Beautiful!', 'pass');
-    say(json.praiseLine || 'Yes! Beautiful reading.', { event: 'correct-answer' });
+    say(json.praiseLine || 'Yes! Beautiful reading.', { event: 'correct-answer-reading' });
 
     setTimeout(function () {
       session.currentSentence += 1;
@@ -365,7 +365,7 @@
       var moveOnLine = "That sentence was a tricky one — we will see it again soon. The sentence was: " + sentence;
       setMicState('ready');
       setStatus(moveOnLine, 'hint');
-      say(moveOnLine + ' Let us keep going.', { event: 'try-again' });
+      say(moveOnLine + ' Let us keep going.', { event: 'try-again-reading' });
       session.stats.sentencesRead += 1;
       setTimeout(function () {
         session.currentSentence += 1;
@@ -389,7 +389,7 @@
     setMicState('failed');
     var correction = json.correctionLine || ('Let us try the whole sentence again, Nigel.');
     setStatus(correction, 'fail');
-    say(correction + ' Listen one more time: ' + sentence + ' Now you try.', { event: 'try-again' })
+    say(correction + ' Listen one more time: ' + sentence + ' Now you try.', { event: 'try-again-reading' })
       .then(function () {
         $('st-tryagain-btn').hidden = false;
         session.inFlight = false;
@@ -453,7 +453,7 @@
     setMicState('passed');
     setStatus(json.feedbackLine || 'Yes!', 'pass');
     burstConfetti();
-    say(json.feedbackLine || 'Yes, perfect, Nigel!', { event: 'correct-answer' });
+    say(json.feedbackLine || 'Yes, perfect, Nigel!', { event: 'correct-answer-reading' });
     session.stats.passagesCompleted += 1;
     setTimeout(advancePassageOrEnd, ADVANCE_DELAY_MS + 600);
   }
@@ -464,14 +464,14 @@
       setMicState('ready');
       setStatus(json.feedbackLine || 'That was a tricky one. Let us keep going.', 'hint');
       say((json.feedbackLine || 'That was a tricky one') + ' Let us read another story.',
-          { event: 'try-again' });
+          { event: 'try-again-reading' });
       session.stats.passagesCompleted += 1;
       setTimeout(advancePassageOrEnd, ADVANCE_DELAY_MS + 800);
       return;
     }
     setMicState('failed');
     setStatus(json.feedbackLine || 'Take another look at the story and try again.', 'fail');
-    say(json.feedbackLine || 'Take another look at the story and try again.', { event: 'try-again' })
+    say(json.feedbackLine || 'Take another look at the story and try again.', { event: 'try-again-reading' })
       .then(function () {
         $('st-tryagain-btn').hidden = false;
         session.inFlight = false;
@@ -506,7 +506,7 @@
     var line = s.comprehensionPassed === s.passagesCompleted && s.struggledWords.length === 0
       ? "You read every story beautifully, Nigel, and you understood every one. I am so proud."
       : "Wonderful reading, Nigel. We will pick up right where we left off next time.";
-    say(line, { event: 'correct-answer' });
+    say(line, { event: 'correct-answer-reading' });
     burstConfetti();
   }
 

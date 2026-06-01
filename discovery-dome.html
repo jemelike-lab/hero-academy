@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#0a0b2e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/number-lab.css">
+  <link rel="stylesheet" href="css/humphrey.css">
+  <title>Discovery Dome · Hero Academy</title>
+</head>
+<body class="zone-body zone-number-lab">
+  <div class="sky" aria-hidden="true"><div class="stars stars-1"></div><div class="stars stars-2"></div><div class="clouds"><div class="cloud cloud-1"></div><div class="cloud cloud-2"></div></div></div>
+  <header class="zone-header">
+    <button class="back-btn" onclick="window.location.href='index.html'" aria-label="Back to map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    </button>
+    <div class="zone-header-title">
+      <p class="zone-header-eyebrow">🔬 DISCOVERY DOME</p>
+      <h1 class="zone-header-skill" id="currentSkillName">Science</h1>
+    </div>
+    <div class="zone-header-stats">
+      <div class="mini-stat" title="Card in this session">
+        <span class="mini-stat-icon">📋</span>
+        <span class="mini-stat-value" id="problemNum">1</span>
+      </div>
+    </div>
+  </header>
+  <main class="lab-main">
+    <!-- Discovery Dome doesn't use the worked-example card; jumps straight in. -->
+    <section class="example-card" id="exampleCard" hidden></section>
+
+    <section class="problem-card" id="problemCard" hidden>
+      <div class="mastery-dots" id="masteryDots"></div>
+      <div class="lab-ralphie-wrap">
+        <img src="assets/ralphie/ralphie_magnifying.webp" alt="" class="lab-ralphie" id="labRalphie">
+        <div class="lab-speech" id="labSpeech" hidden>
+          <span class="lab-speech-text" id="labSpeechText"></span>
+        </div>
+      </div>
+      <div class="problem-display">
+        <p class="problem-label">FACT <span id="cardLabel">CARD</span></p>
+        <!-- discovery-dome.js renders title + emoji + fact + question inside this element -->
+        <div class="problem-question" id="problemQuestion"></div>
+      </div>
+      <div class="answer-choices" id="answerChoices"></div>
+      <div class="feedback" id="feedback" hidden></div>
+      <!-- Hint UI exists for parity with number-lab; Discovery Dome's
+           scaffolding mechanism uses Ms. Humphrey rather than a hint button,
+           so we leave it disabled by default. -->
+      <button class="hint-btn" id="hintBtn" style="display:none"><span class="hint-icon">💡</span><span>Need a hint?</span></button>
+      <div class="hint-display" id="hintDisplay" hidden><p class="hint-text" id="hintText"></p></div>
+    </section>
+
+    <section class="mastery-card" id="masteryCard" hidden>
+      <div class="mastery-burst">
+        <svg viewBox="0 0 200 200" class="burst-svg-large" aria-hidden="true">
+          <path d="M100,10 L115,55 L160,40 L130,80 L175,90 L130,105 L160,150 L115,135 L100,180 L85,135 L40,150 L70,105 L25,90 L70,80 L40,40 L85,55 Z" fill="#ffd147"/>
+        </svg>
+        <div class="mastery-pow">POW!</div>
+      </div>
+      <h2 class="mastery-title">GREAT SESSION!</h2>
+      <p class="mastery-skill-name" id="masterySkillName">You learned something new today.</p>
+      <div class="mastery-rewards">
+        <div class="mastery-reward"><span class="mastery-reward-icon">🪙</span><span class="mastery-reward-value">+5</span><span class="mastery-reward-label">coins</span></div>
+        <div class="mastery-reward"><span class="mastery-reward-icon">⭐</span><span class="mastery-reward-value">+1</span><span class="mastery-reward-label">badge</span></div>
+      </div>
+      <img src="assets/ralphie/ralphie_trophy.webp" alt="" class="mastery-ralphie">
+      <button class="mastery-next" id="masteryNext">ANOTHER ROUND!</button>
+      <button class="mastery-rest" id="masteryRest">TAKE A BREAK</button>
+    </section>
+  </main>
+
+  <button class="humphrey-btn" id="humphreyBtn" aria-label="Talk to Miss Humphrey">
+    <span class="humphrey-pulse"></span>
+    <span class="humphrey-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span>
+    <span class="humphrey-label">Ms. Humphrey</span>
+  </button>
+
+  <!-- Data + session controller -->
+  <script src="data/science-cards.js"></script>
+  <script src="js/discovery-dome.js"></script>
+
+  <!-- Ms. Humphrey passive presence (corner portrait + speech bubble + Q&A) -->
+  <script src="js/humphrey.js"></script>
+  <script src="js/humphrey-listener.js"></script>
+  <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-memory.js"></script>
+  <script src="js/humphrey-qna.js"></script>
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      // No welcomeEvent — discovery-dome.js fires Humphrey.say(fact) the
+      // moment the first card lands, which serves as the welcome. Same
+      // pattern as Word Tower and Story Time.
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        kidName: 'Nigel',
+      });
+    }
+    // Hand Claude the active science card so Q&A answers can be grounded in
+    // the fact Nigel is currently looking at, rather than a generic answer.
+    if (window.HeroAcademy && window.HeroAcademy.QnA && window.HeroAcademy.DiscoveryDome) {
+      window.HeroAcademy.QnA.setContextProvider(function () {
+        var dd = window.HeroAcademy.DiscoveryDome;
+        var s = dd && typeof dd._session === 'function' ? dd._session() : null;
+        if (!s || !s.current) return {};
+        return {
+          activeProblem: s.current.title + ' — ' + s.current.fact + ' Question: ' + s.current.question,
+          activeProblemAnswer: s.current.choices[s.current.answer],
+        };
+      });
+    }
+  </script>
+  <script src="js/sw-register.js"></script>
+</body>
+</html>

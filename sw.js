@@ -1,12 +1,15 @@
-const CACHE_VERSION = "hero-academy-v33";
+const CACHE_VERSION = "hero-academy-v34";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
+  "./discovery-dome.html",
   "./js/characters.js",
   "./hero-hall.html",
   "./diner-lanes.html",
   "./css/style.css", "./css/number-lab.css",
   "./js/app.js", "./js/math-skills.js", "./js/number-lab.js",
+  "./js/discovery-dome.js",
+  "./data/science-cards.js",
   "./js/sw-register.js",
   "./manifest.webmanifest",
   "./assets/ralphie/ralphie_default.webp",
