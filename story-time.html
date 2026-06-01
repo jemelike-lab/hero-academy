@@ -136,12 +136,6 @@
       window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
     }
   </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function () {});
-      });
-    }
-  </script>
+  <script src="js/sw-register.js"></script>
 </body>
 </html>
