@@ -511,13 +511,18 @@
 
       const displayTimer = setTimeout(finish, utterance.duration);
 
-      if (!state.cfg.audioEnabled || isMuted() || !state.audioUnlocked) return;
+      panelLog('speak gate: audioEnabled=' + state.cfg.audioEnabled +
+               ' muted=' + isMuted() + ' unlocked=' + state.audioUnlocked);
+      if (!state.cfg.audioEnabled || isMuted() || !state.audioUnlocked) {
+        panelLog('SKIP audio (gate failed)');
+        return;
+      }
 
       playAudio(utterance).then((played) => {
-        if (!played) return;        // text-only display already running
+        if (!played) { panelLog('audio chain returned false (silent fallthrough)'); return; }
         // If audio finishes earlier than display duration, leave the bubble up.
         // If audio runs longer, extend display until audio ends.
-      }).catch(() => { /* ignore — fallthrough silent */ });
+      }).catch((err) => { panelLog('playAudio threw: ' + (err && err.message)); });
     });
   }
 
@@ -568,17 +573,20 @@
   /** Hit the Vercel TTS proxy (POST text → ElevenLabs → audio/mpeg) */
   function tryTTS(text) {
     const endpoint = state.cfg.ttsEndpoint;
-    if (!endpoint || !text) return Promise.resolve(false);
+    if (!endpoint || !text) { panelLog('TTS skip: no endpoint or text'); return Promise.resolve(false); }
+    panelLog('TTS fetch "' + text.slice(0, 30) + '"');
     return fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     })
       .then((resp) => {
+        panelLog('TTS resp ' + resp.status + ' ct=' + resp.headers.get('content-type'));
         if (!resp.ok) throw new Error('TTS ' + resp.status);
         return resp.blob();
       })
       .then((blob) => {
+        panelLog('TTS blob ' + blob.size + 'B');
         return new Promise((resolve) => {
           const blobUrl = URL.createObjectURL(blob);
           // CRITICAL: reuse the single audio element that was warmed during the
@@ -591,6 +599,7 @@
             // Unlock never ran (programmatic say before any gesture). Best
             // effort: still try, but log loudly so we know this is happening.
             console.warn('[Humphrey] tryTTS: no warmed audioEl — first play may fail on mobile');
+            panelLog('NO WARMED ELEM (gesture never fired before say) — making cold one');
             audio = new Audio();
             audio.preload = 'auto';
             state.audioEl = audio;
@@ -598,23 +607,26 @@
           // Cancel any current playback on this element before swapping source
           try { audio.pause(); audio.currentTime = 0; } catch(e) {}
           // Reset listeners (avoid accumulation across reuse)
-          audio.onended = () => { try { URL.revokeObjectURL(blobUrl); } catch(e){} };
+          audio.onended = () => { panelLog('TTS ended naturally'); try { URL.revokeObjectURL(blobUrl); } catch(e){} };
           audio.onerror = () => {
             const e = audio.error;
             console.error('[Humphrey] TTS audio element error:',
               e ? { code: e.code, message: e.message } : '(no detail)');
+            panelLog('ELEM ERR ' + (e ? ('code=' + e.code + ' ' + e.message) : '(no detail)'));
             done(false);
           };
           state.currentAudio = audio;
           audio.volume = 1;
           audio.src = blobUrl;
           audio.load();  // commit src on Android Chrome before play()
+          panelLog('audio.load called, calling play() — rs=' + audio.readyState);
           let settled = false;
           const done = (ok) => { if (settled) return; settled = true; resolve(ok); };
           const p = audio.play();
           if (p && typeof p.then === 'function') {
             p.then(() => {
               debug('TTS play started ok');
+              panelLog('PLAY ✓ playing');
               done(true);
             }).catch((err) => {
               // LOUD: this is the failure mode that's been silent all along.
@@ -622,16 +634,20 @@
                 err && err.name, err && err.message,
                 '— audioUnlocked=', state.audioUnlocked,
                 'audioElPrimed=', !!state.audioEl);
+              panelLog('PLAY ✗ ' + (err && err.name) + ': ' + (err && err.message) +
+                       ' unlocked=' + state.audioUnlocked + ' primed=' + !!state.audioEl);
               done(false);
             });
           } else {
+            panelLog('play() returned no promise');
             done(true);
           }
-          setTimeout(() => done(false), 8000);
+          setTimeout(() => { if (!settled) panelLog('TTS timeout 8s'); done(false); }, 8000);
         });
       })
       .catch((err) => {
         console.error('[Humphrey] tryTTS failed:', err && err.message ? err.message : err);
+        panelLog('TTS FETCH FAIL ' + (err && err.message ? err.message : err));
         return false;
       });
   }
@@ -700,11 +716,14 @@
   function init(opts = {}) {
     configure(opts);
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', mount, { once: true });
+      document.addEventListener('DOMContentLoaded', () => { mount(); ensureDebugPanel(); panelLog('init: mounted'); }, { once: true });
     } else {
       mount();
+      ensureDebugPanel();
+      panelLog('init: mounted (immediate)');
     }
     setupAudioUnlock();
+    panelLog('init: setupAudioUnlock done; waiting for gesture');
   }
 
   /**
@@ -714,7 +733,8 @@
    * synchronously to "unlock" the document. After that, async play() works.
    */
   function setupAudioUnlock() {
-    const unlock = () => {
+    const unlock = (ev) => {
+      panelLog('gesture ' + (ev && ev.type) + ' (unlocked=' + state.audioUnlocked + ')');
       if (state.audioUnlocked) return;
       // SYNCHRONOUS gate: flip the flag immediately inside the gesture stack
       // so any speak() in the same click handler passes the check at line ~512.
@@ -740,18 +760,22 @@
         if (p && p.then) {
           p.then(() => {
             debug('audio unlock primer played ok — element warmed');
+            panelLog('PRIMER ✓ element warmed');
             try { a.pause(); a.currentTime = 0; a.volume = 1; } catch (e) {}
           }).catch((err) => {
             console.warn('[Humphrey] audio unlock primer play rejected:',
               err && err.name, err && err.message,
               '— real TTS plays may still work; flag stays set');
+            panelLog('PRIMER ✗ ' + (err && err.name) + ' ' + (err && err.message));
             try { a.volume = 1; } catch (e) {}
           });
         } else {
+          panelLog('PRIMER: no promise (sync)');
           try { a.volume = 1; } catch (e) {}
         }
       } catch (e) {
         console.error('[Humphrey] audio unlock threw:', e);
+        panelLog('UNLOCK THREW ' + (e && e.message));
       }
     };
     ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown'].forEach((ev) => {
@@ -759,11 +783,88 @@
     });
   }
 
+  // On-screen debug panel. Enabled when localStorage.ha_humphrey_debug === '1'.
+  // Lets us diagnose audio failures on devices where we can't open devtools
+  // (Android tablets without USB cable, locked-down kiosks, etc).
+  function isDebugOn() {
+    if (state.cfg.debug) return true;
+    try { return localStorage.getItem('ha_humphrey_debug') === '1'; }
+    catch (e) { return false; }
+  }
+  function ensureDebugPanel() {
+    if (!isDebugOn()) return null;
+    if (state.refs.debugPanel) return state.refs.debugPanel;
+    const p = document.createElement('div');
+    p.id = 'ha-humphrey-debug';
+    p.style.cssText = [
+      'position:fixed','top:0','left:0','right:0','z-index:2147483647',
+      'background:rgba(0,0,0,0.92)','color:#0f0','font:11px/1.35 ui-monospace,Menlo,Consolas,monospace',
+      'padding:6px 8px','max-height:50vh','overflow-y:auto','white-space:pre-wrap',
+      'border-bottom:2px solid #0f0','pointer-events:auto'
+    ].join(';');
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;color:#fff;font-weight:bold;border-bottom:1px solid #0f0;padding-bottom:4px;margin-bottom:4px';
+    hdr.innerHTML = '<span>Humphrey debug · tap to copy · long-press to clear</span><span id="ha-humphrey-debug-state" style="color:#0f0;font-weight:normal">…</span>';
+    const log = document.createElement('div');
+    log.id = 'ha-humphrey-debug-log';
+    p.appendChild(hdr);
+    p.appendChild(log);
+    // Tap to copy entire log to clipboard
+    let pressTimer = null;
+    p.addEventListener('touchstart', () => {
+      pressTimer = setTimeout(() => { log.innerHTML = ''; pressTimer = null; }, 800);
+    }, { passive: true });
+    p.addEventListener('touchend', () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null;
+        const txt = log.innerText;
+        try { navigator.clipboard?.writeText(txt); } catch(e){}
+        hdr.querySelector('#ha-humphrey-debug-state').textContent = 'COPIED ' + txt.length + 'B';
+        setTimeout(() => refreshDebugState(), 1500);
+      }
+    });
+    document.body.appendChild(p);
+    state.refs.debugPanel = p;
+    state.refs.debugLog = log;
+    state.refs.debugState = hdr.querySelector('#ha-humphrey-debug-state');
+    refreshDebugState();
+    return p;
+  }
+  function refreshDebugState() {
+    if (!state.refs.debugState) return;
+    const a = state.audioEl;
+    const parts = [
+      'unlocked=' + state.audioUnlocked,
+      'el=' + (a ? 'Y' : 'N'),
+      a ? ('rs=' + a.readyState + ' p=' + a.paused) : '',
+      'spk=' + state.speaking,
+      'q=' + state.queue.length
+    ].filter(Boolean);
+    state.refs.debugState.textContent = parts.join(' ');
+  }
+  function panelLog(line) {
+    if (!isDebugOn()) return;
+    try {
+      ensureDebugPanel();
+      const log = state.refs.debugLog;
+      if (!log) return;
+      const t = new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' +
+                String(Date.now() % 1000).padStart(3, '0');
+      const div = document.createElement('div');
+      div.textContent = t + ' ' + line;
+      log.appendChild(div);
+      // Cap to last 60 lines
+      while (log.childNodes.length > 60) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+      refreshDebugState();
+    } catch (e) { /* don't let debug code break the page */ }
+  }
+
   function debug(...args) {
-    if (state.cfg.debug) { console.log('[Humphrey]', ...args); return; }
+    if (state.cfg.debug) { console.log('[Humphrey]', ...args); panelLog(args.map(String).join(' ')); return; }
     try {
       if (localStorage.getItem('ha_humphrey_debug') === '1') {
         console.log('[Humphrey]', ...args);
+        panelLog(args.map(String).join(' '));
       }
     } catch (e) { /* private mode etc. */ }
   }
