@@ -166,6 +166,23 @@
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
   }
 
+  /**
+   * Add a hand-written summary entry (used by non-Q&A flows like the Word
+   * Tower read-aloud session). Bypasses the summarize endpoint — caller
+   * supplies the already-composed sentence(s).
+   */
+  function addCustomSummary(text) {
+    if (!text || typeof text !== 'string') return null;
+    var trimmed = text.trim().slice(0, 600);
+    if (!trimmed) return null;
+    var entry = { at: new Date().toISOString(), summary: trimmed };
+    var all = getStoredSummaries();
+    all.push(entry);
+    setStoredSummaries(all);
+    debug('custom summary added:', trimmed.slice(0, 80));
+    return entry;
+  }
+
   // Kick off profile fetch immediately so it's ready before the first tap
   fetchProfile();
 
@@ -175,6 +192,7 @@
     getRecentSummaries: getRecentSummaries,
     getContext: getContext,
     recordConversationEnd: recordConversationEnd,
+    addCustomSummary: addCustomSummary,
     clearSummaries: clearSummaries
   };
 })();
