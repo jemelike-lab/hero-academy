@@ -214,6 +214,14 @@
     }
     session.cardsCompleted += 1;
     markCardSeen(session.current.id);
+    if (NS.Telemetry) {
+      NS.Telemetry.recordAttempt(
+        true,
+        session.current && (session.current.title + ' — ' + session.current.question),
+        session.current && session.current.choices[session.current.answer],
+        btn && btn.textContent
+      );
+    }
 
     // Humphrey celebrates — reading-flavored variant works well for fact
     // recall ("Beautiful reading" not really fitting; use generic correct-answer
@@ -238,6 +246,14 @@
 
     if (session.strikesOnCard === 1) {
       // First strike — gentle nudge, re-enable the non-wrong buttons
+      if (NS.Telemetry) {
+        NS.Telemetry.recordAttempt(
+          false,
+          session.current && (session.current.title + ' — ' + session.current.question),
+          session.current && session.current.choices[session.current.answer],
+          btn && btn.textContent
+        );
+      }
       if (H) H.say('wrong-answer-reading', { kidName: 'Nigel' });
       fb.className = 'feedback tryAgain';
       fb.innerHTML = '<span class="feedback-emoji">🤔</span>Take another look — you can find it.';

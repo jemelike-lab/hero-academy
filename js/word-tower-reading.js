@@ -309,6 +309,9 @@
 
   function handlePass(w, json) {
     recordWordResult(w.word, true, null);
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.recordAttempt(true, w.word, w.word, w.word);
+    }
     session.results.push({
       word: w.word,
       passed: true,
@@ -330,6 +333,9 @@
     recordWordResult(w.word, false, json.slip || 'miss');
     if (session.attemptsThisWord >= 2) {
       // Second miss — gentle move-on, mark for spaced repetition
+      if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+        window.HeroAcademy.Telemetry.recordAttempt(false, w.word, w.word, (json && json.slip) || 'miss');
+      }
       session.results.push({
         word: w.word,
         passed: false,

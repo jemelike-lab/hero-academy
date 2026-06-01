@@ -1,0 +1,133 @@
+/* Hero Academy \u2014 Today's Mission card */
+
+#todayMissionCard { margin: 0 16px 20px 16px; }
+
+.tm-card {
+  background: linear-gradient(140deg, rgba(255,209,71,0.16) 0%, rgba(255,139,61,0.10) 60%, rgba(236,72,153,0.10) 100%);
+  border: 1px solid rgba(255,209,71,0.45);
+  border-radius: 18px;
+  padding: 18px 18px 16px 18px;
+  box-shadow: 0 6px 18px rgba(255, 139, 61, 0.12);
+}
+
+.tm-card--complete {
+  background: linear-gradient(140deg, rgba(46,194,126,0.18) 0%, rgba(20,184,212,0.10) 100%);
+  border-color: rgba(46,194,126,0.45);
+}
+
+.tm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tm-eyebrow {
+  font-family: var(--font-display, 'Fredoka', sans-serif);
+  font-weight: 700;
+  font-size: 17px;
+  color: #1f2937;
+  letter-spacing: -0.01em;
+}
+
+.tm-total {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.tm-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 12px;
+  padding: 11px 12px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  text-align: left;
+}
+
+.tm-step:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); background: #ffffff; }
+.tm-step:active { transform: translateY(0); }
+
+.tm-step--done {
+  background: rgba(46,194,126,0.10);
+  border-color: rgba(46,194,126,0.30);
+}
+.tm-step--done .tm-step-title { color: #1e7d4f; }
+
+.tm-step-icon {
+  font-size: 22px;
+  line-height: 1;
+  width: 30px;
+  flex-shrink: 0;
+  text-align: center;
+  margin-top: 2px;
+}
+
+.tm-step-body { flex: 1; min-width: 0; }
+
+.tm-step-title {
+  font-family: var(--font-display, 'Fredoka', sans-serif);
+  font-weight: 600;
+  font-size: 15px;
+  color: #1f2937;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tm-step-time {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(0,0,0,0.04);
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.tm-step-blurb {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.tm-hint {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #475569;
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  #todayMissionCard { margin: 0 12px 16px 12px; }
+  .tm-card { padding: 16px 14px; }
+  .tm-step { padding: 10px; }
+  .tm-step-icon { font-size: 20px; width: 26px; }
+  .tm-step-title { font-size: 14px; }
+  .tm-step-blurb { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-step { transition: none; }
+}

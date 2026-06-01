@@ -14,6 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/humphrey.css">
+  <link rel="stylesheet" href="css/today-mission.css">
   <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
   <title>Hero Academy · Nigel</title>
 </head>
@@ -46,6 +47,7 @@
         <div class="speech-bubble" id="speechBubble"><span class="speech-text">Welcome back!</span><span class="speech-tail"></span></div>
       </div>
     </section>
+    <section id="todayMissionCard" class="today-mission" hidden aria-label="Today's Mission"></section>
     <section class="daily-banner" aria-label="Today's challenge">
       <div class="daily-icon">⭐</div>
       <div class="daily-content"><p class="daily-label">TODAY'S CHALLENGE</p><p class="daily-text" id="dailyText">Complete 3 training zones to unlock a reward!</p></div>
@@ -96,6 +98,13 @@
     </div>
   </div>
   <script src="js/app.js"></script>
+  <script src="js/telemetry.js"></script>
+  <script src="js/today-mission.js"></script>
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.TodayMission) {
+      window.HeroAcademy.TodayMission.init();
+    }
+  </script>
   <script src="js/humphrey.js"></script>
   <script src="js/humphrey-listener.js"></script>
   <script src="js/humphrey-chat.js"></script>
