@@ -173,12 +173,14 @@ async function sb({ SB_URL, SB_KEY, path, headers }) {
 async function pullWeek({ SB_URL, SB_KEY, since }) {
   const childFilter = `child_id=eq.${NIGEL_ID}`;
 
-  const [sessions, attempts, topicMastery, charUnlocks, topics] = await Promise.all([
+  const [sessions, attempts, topicMastery, charUnlocks, topics, fridayQuiz] = await Promise.all([
     sb({ SB_URL, SB_KEY, path: `ha_sessions?${childFilter}&started_at=gte.${since}&order=started_at.asc&limit=500` }),
     sb({ SB_URL, SB_KEY, path: `ha_attempts?${childFilter}&attempted_at=gte.${since}&order=attempted_at.asc&limit=2000` }),
     sb({ SB_URL, SB_KEY, path: `ha_topic_mastery?${childFilter}&limit=200` }),
     sb({ SB_URL, SB_KEY, path: `ha_character_unlocks?${childFilter}&first_unlocked_at=gte.${since}&order=first_unlocked_at.asc&limit=50` }),
     sb({ SB_URL, SB_KEY, path: `ha_topics?select=id,title,subject,zone_id&limit=200` }),
+    // Most recent Friday cumulative-quiz result within the past 7 days, if any.
+    sb({ SB_URL, SB_KEY, path: `ha_friday_quiz_results?${childFilter}&taken_at=gte.${since}&order=taken_at.desc&limit=1` }).catch(() => []),
   ]);
 
   const topicMap = {};
@@ -242,6 +244,7 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
     masteredThisWeek,
     struggles,
     newCharacters: charUnlocks.map((c) => c.character_id),
+    fridayQuiz: Array.isArray(fridayQuiz) && fridayQuiz.length > 0 ? fridayQuiz[0] : null,
     summary: {
       sessions_total: sessions.length,
       total_minutes: Math.round(totalSeconds / 60),
@@ -260,6 +263,17 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
 async function draftBriefing({ ANTHROPIC_KEY, data }) {
   // Build a compact, factual summary for Haiku.  Haiku is the writer; the
   // structured numbers come from us.
+  const fq = data.fridayQuiz;
+  const fridayQuizFact = fq ? {
+    taken_at: fq.taken_at,
+    items_total: fq.items_total,
+    items_correct: fq.items_correct,
+    retention_pct: fq.items_total > 0
+      ? Math.round((100 * fq.items_correct) / fq.items_total) : null,
+    per_zone_breakdown: fq.per_zone_breakdown || null,
+    weak_areas: fq.weak_areas || null,
+  } : null;
+
   const factSheet = JSON.stringify({
     week_ending: new Date().toISOString().slice(0, 10),
     summary: data.summary,
@@ -273,6 +287,7 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
     mastered_this_week: data.masteredThisWeek.map((m) => ({ title: m.title, subject: m.subject })),
     struggles: data.struggles.map((s) => ({ title: s.title, accuracy: s.accuracy })),
     new_characters_unlocked: data.newCharacters,
+    friday_quiz: fridayQuizFact,
   }, null, 2);
 
   const systemPrompt = [
@@ -286,10 +301,16 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
     '  - A low-engagement week means he opened the app less, not that he skipped meetings.',
     '  - Never use language like "we didn\u2019t meet", "missed our session", "reconnect", or "reschedule". Frame any quiet stretch as a gentle nudge to open the app again.',
     '',
+    'About retention data:',
+    '  - If `friday_quiz` is present in the data, it is the AUTHORITATIVE retention number for the week.',
+    '  - Phrase the result naturally, e.g. "Nigel retained 8 of 10 things from this week" or "his Friday brain-check landed at 80%".',
+    '  - If `friday_quiz.weak_areas` is non-empty, name them in the struggles section.',
+    '  - If `friday_quiz` is null, just don\u2019t mention retention \u2014 don\u2019t make up a number.',
+    '',
     'Voice and structure:',
     '  - Warm but specific. Lead with one real win from the week.',
     '  - 4 short sections, in this order:',
-    '      1. \"What went well this week\"  (2\u20133 sentences \u2014 cite a real number)',
+    '      1. \"What went well this week\"  (2\u20133 sentences \u2014 cite a real number; if friday_quiz exists, the retention pct is a great number to lead with)',
     '      2. \"Where he struggled\"        (1\u20132 sentences \u2014 specific topic, not vague)',
     '      3. \"Suggested 5-minute weekend boost\"  (one concrete activity Bianca/Josh can do)',
     '      4. \"Looking ahead\"             (one sentence about next week\u2019s focus)',

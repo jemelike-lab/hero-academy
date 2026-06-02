@@ -70,6 +70,32 @@
   }
 
   /**
+   * Returns up to N Friday-quiz items. Server-side this auto-enrolls
+   * any recent strugglers (past 7 days, not mastered) so they flow into
+   * the SRS engine, then returns due-first items in the same shape as
+   * loadDue. Used by review.html when ?mode=friday.
+   */
+  function loadFridayQuiz(limit) {
+    var t = tele();
+    if (!t) { log('Telemetry not loaded yet'); return Promise.resolve([]); }
+    return t.rpc('ha_get_friday_quiz_items', {
+      p_child_id: t.childId(),
+      p_limit: typeof limit === 'number' ? limit : 10,
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (rows) {
+        return Array.isArray(rows) ? rows : [];
+      })
+      .catch(function (e) {
+        log('loadFridayQuiz failed:', e && e.message || e);
+        return [];
+      });
+  }
+
+  /**
    * Records a review outcome. Quality is clamped to {0, 3, 5}.
    * Returns the new SRS state: { new_interval_days, new_ease_factor,
    * new_due_at, new_repetitions } or null on error.
@@ -201,6 +227,7 @@
   NS.SRS = {
     loadDue: loadDue,
     countDue: countDue,
+    loadFridayQuiz: loadFridayQuiz,
     recordReview: recordReview,
     recordFridayQuiz: recordFridayQuiz,
     normalizeItem: normalizeItem,

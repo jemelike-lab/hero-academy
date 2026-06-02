@@ -69,6 +69,14 @@
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
+/* Friday quiz variant — different color treatment for distinctness */
+.daily-practice--friday {
+  background: linear-gradient(135deg, rgba(255, 209, 71, 0.22), rgba(255, 139, 61, 0.28));
+  border-color: rgba(255, 139, 61, 0.6);
+}
+.daily-practice--friday .daily-practice-eyebrow { color: #ffb648; }
+.daily-practice--friday .daily-practice-count { color: #ffb648; }
+
 /* ------------ Review page shell ------------------------------------- */
 .review-hud {
   position: relative;

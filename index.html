@@ -118,17 +118,32 @@
       window.HeroAcademy.TodayMission.init();
     }
     // Daily Practice tile — populate from SRS queue count.
+    // On Fridays, swap to "Friday Quiz" framing + ?mode=friday route.
     if (window.HeroAcademy && window.HeroAcademy.SRS) {
-      window.HeroAcademy.SRS.countDue().then(function (n) {
+      var isFriday = new Date().getDay() === 5;
+      var loader = isFriday
+        ? window.HeroAcademy.SRS.loadFridayQuiz(10).then(function (items) { return items.length; })
+        : window.HeroAcademy.SRS.countDue();
+      loader.then(function (n) {
         var tile = document.getElementById('dailyPracticeTile');
         if (!tile) return;
         if (n > 0) {
           var label = document.getElementById('dailyPracticeCount');
           var sub = document.getElementById('dailyPracticeSub');
+          var title = document.getElementById('dailyPracticeTitle');
+          var eyebrow = tile.querySelector('.daily-practice-eyebrow');
           if (label) label.textContent = String(n);
-          if (sub) sub.textContent = n === 1
-            ? '1 question to lock in.'
-            : n + ' quick questions to lock things in.';
+          if (isFriday) {
+            tile.href = 'review.html?mode=friday';
+            if (eyebrow) eyebrow.textContent = 'FRIDAY QUIZ';
+            if (title) title.textContent = "This week's brain check!";
+            if (sub) sub.textContent = n + ' questions covering everything you practiced.';
+            tile.classList.add('daily-practice--friday');
+          } else {
+            if (sub) sub.textContent = n === 1
+              ? '1 question to lock in.'
+              : n + ' quick questions to lock things in.';
+          }
           tile.hidden = false;
         }
       });

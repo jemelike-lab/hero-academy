@@ -60,8 +60,11 @@
       show('reviewEmpty');
       return;
     }
-    // For now both modes load due items only. Friday will expand in next lane.
-    NS.SRS.loadDue(10).then(function (items) {
+    // Route by mode: daily uses due items, friday uses cumulative quiz set
+    var loader = state.mode === 'friday'
+      ? NS.SRS.loadFridayQuiz(10)
+      : NS.SRS.loadDue(10);
+    loader.then(function (items) {
       state.items = (items || []).filter(function (it) {
         return NS.SRS.normalizeItem(it) != null;
       });
