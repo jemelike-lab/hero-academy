@@ -563,7 +563,7 @@
     root.innerHTML = `
       <div class="ha-humphrey__bubble" role="status">
         <figure class="ha-humphrey__bubble-figure" hidden>
-          <img class="ha-humphrey__bubble-img" alt="" decoding="async" loading="lazy">
+          <img class="ha-humphrey__bubble-img" alt="" decoding="async">
           <figcaption class="ha-humphrey__bubble-caption"></figcaption>
         </figure>
         <p class="ha-humphrey__text"></p>
@@ -875,21 +875,26 @@
 
   function showBubble(text, imageUrl, imageCaption) {
     state.refs.bubbleText.textContent = text;
+    // Make the bubble visible BEFORE setting img.src. If the parent figure is
+    // display:none when src is assigned, browsers skip the network fetch
+    // entirely and the image never renders even after the parent becomes
+    // visible. Set visible first, then assign src.
+    state.refs.bubble.dataset.visible = 'true';
     if (state.refs.bubbleFigure && state.refs.bubbleImg) {
       if (imageUrl) {
-        state.refs.bubbleImg.src = imageUrl;
-        state.refs.bubbleImg.alt = imageCaption || '';
         if (state.refs.bubbleCaption) {
           state.refs.bubbleCaption.textContent = imageCaption || '';
           state.refs.bubbleCaption.hidden = !imageCaption;
         }
         state.refs.bubbleFigure.hidden = false;
+        // Assign src last, after parent is display:flex.
+        state.refs.bubbleImg.alt = imageCaption || '';
+        state.refs.bubbleImg.src = imageUrl;
       } else {
         state.refs.bubbleFigure.hidden = true;
         state.refs.bubbleImg.removeAttribute('src');
       }
     }
-    state.refs.bubble.dataset.visible = 'true';
   }
   function hideBubble() {
     state.refs.bubble.dataset.visible = 'false';
