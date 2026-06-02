@@ -179,6 +179,45 @@ function buildPersonalBlock(profile) {
   return bits.join(' ');
 }
 
+// Single-shot Haiku call. Pulled out so draftEpisode() can retry.
+async function callHaiku(ANTHROPIC_KEY, system, user) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: HAIKU_MODEL,
+      max_tokens: 600,
+      system,
+      messages: [{ role: 'user', content: user }],
+    }),
+  });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`anthropic ${r.status}: ${body.slice(0, 300)}`);
+  }
+  const json = await r.json();
+  const text = (json.content || [])
+    .filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  const fenced = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  // Primary attempt — strict JSON
+  try {
+    const parsed = JSON.parse(fenced);
+    const s = String(parsed.story || '').trim();
+    if (s) return s;
+  } catch (e) { /* fall through to salvage */ }
+  // Salvage attempt — extract a story field via regex even if JSON broke
+  // (e.g. unescaped quote in the middle). Find "story": " ... " heuristically.
+  const m = fenced.match(/"story"\s*:\s*"([\s\S]+?)(?:"\s*\}\s*$|"\s*$)/);
+  if (m && m[1] && m[1].trim().length >= 30) {
+    return m[1].replace(/\\"/g, '"').trim();
+  }
+  throw new Error('haiku not JSON: ' + fenced.slice(0, 200));
+}
+
 async function draftEpisode({ ANTHROPIC_KEY, char, episCfg }) {
   const personal = buildPersonalBlock(PROFILE);
 
@@ -209,6 +248,7 @@ async function draftEpisode({ ANTHROPIC_KEY, char, episCfg }) {
     '  - Tie the moment to the character\'s archetype and flavor (gears for Carlo, skies for Aurora, webs for Webly, etc.).',
     '  - No exclamation points stacked together. One per sentence max.',
     '  - No "I" speaking as Ms. Humphrey — just narrate the scene. The text will be read aloud by Ms. Humphrey, so it should be the story she\'s telling, not her commenting on it.',
+    '  - CRITICAL JSON SAFETY: Do not use literal double-quote characters anywhere inside the story value — they will break JSON parsing. For any dialogue or quoted phrase, use SINGLE quotes only (e.g. \'Wow, Nigel!\' he said). No straight or curly double quotes inside the story text.',
     '',
     'OUTPUT: Strict JSON only, no preamble, no fences:',
     '{ "story": "..." }',
@@ -216,34 +256,13 @@ async function draftEpisode({ ANTHROPIC_KEY, char, episCfg }) {
 
   const user = 'Write the story now. Return JSON only.';
 
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: HAIKU_MODEL,
-      max_tokens: 600,
-      system,
-      messages: [{ role: 'user', content: user }],
-    }),
-  });
-  if (!r.ok) {
-    const body = await r.text().catch(() => '');
-    throw new Error(`anthropic ${r.status}: ${body.slice(0, 300)}`);
+  // Retry once on parse failure — most failures are stochastic (Haiku
+  // occasionally embeds an unescaped quote in the middle of dialogue).
+  try {
+    return await callHaiku(ANTHROPIC_KEY, system, user);
+  } catch (e) {
+    return await callHaiku(ANTHROPIC_KEY, system, user);
   }
-  const json = await r.json();
-  const text = (json.content || [])
-    .filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
-  const fenced = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-  let parsed;
-  try { parsed = JSON.parse(fenced); }
-  catch (e) { throw new Error('haiku not JSON: ' + fenced.slice(0, 200)); }
-  const story = String(parsed.story || '').trim();
-  if (!story) throw new Error('empty story field');
-  return story;
 }
 
 // ---------------------------------------------------------------------------
