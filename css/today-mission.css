@@ -3,11 +3,11 @@
 #todayMissionCard { margin: 0 16px 20px 16px; }
 
 .tm-card {
-  background: linear-gradient(140deg, rgba(255,209,71,0.16) 0%, rgba(255,139,61,0.10) 60%, rgba(236,72,153,0.10) 100%);
-  border: 1px solid rgba(255,209,71,0.45);
+  background: linear-gradient(140deg, rgba(255,209,71,0.28) 0%, rgba(255,139,61,0.20) 60%, rgba(236,72,153,0.18) 100%);
+  border: 1px solid rgba(255,209,71,0.55);
   border-radius: 18px;
   padding: 18px 18px 16px 18px;
-  box-shadow: 0 6px 18px rgba(255, 139, 61, 0.12);
+  box-shadow: 0 6px 18px rgba(255, 139, 61, 0.18);
 }
 
 .tm-card--complete {
@@ -27,8 +27,9 @@
   font-family: var(--font-display, 'Fredoka', sans-serif);
   font-weight: 700;
   font-size: 17px;
-  color: #1f2937;
+  color: #ffd147;
   letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .tm-total {
@@ -115,7 +116,7 @@
   margin-top: 12px;
   text-align: center;
   font-size: 12px;
-  color: #475569;
+  color: rgba(255, 255, 255, 0.75);
   font-style: italic;
 }
 

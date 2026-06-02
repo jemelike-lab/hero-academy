@@ -153,7 +153,62 @@
           return;
         }
 
+        // ---- VAD: silence-based auto-stop ---------------------------------
+        // Adds Web Audio analyser. After a minimum recording window, if RMS
+        // stays below threshold for N consecutive ms, stop the recorder.
+        // This means kids can read at their own pace; Ms. Humphrey only
+        // "decides he's done" after sustained silence, not on a hard timeout.
+        // The maxMs ceiling still applies as a safety backup.
+        var vad = opts.vad || {};
+        var vadEnabled    = vad.enabled !== false; // default ON
+        var vadMinMs      = vad.minRecordMs || 2500;  // floor before silence-stop applies
+        var vadSilenceMs  = vad.silenceEndMs || 1500; // silence duration that triggers stop
+        var vadThreshold  = vad.rmsThreshold || 0.018; // RMS below this is "silent"
+
+        var vadInterval = null;
+        var vadAC = null;
+        function teardownVad() {
+          if (vadInterval) { clearInterval(vadInterval); vadInterval = null; }
+          if (vadAC) { try { vadAC.close(); } catch (_) {} vadAC = null; }
+        }
+
+        if (vadEnabled && typeof (window.AudioContext || window.webkitAudioContext) !== 'undefined') {
+          try {
+            vadAC = new (window.AudioContext || window.webkitAudioContext)();
+            var vadSrc = vadAC.createMediaStreamSource(stream);
+            var vadAnalyser = vadAC.createAnalyser();
+            vadAnalyser.fftSize = 1024;
+            vadAnalyser.smoothingTimeConstant = 0.4;
+            vadSrc.connect(vadAnalyser);
+            var vadBuf = new Float32Array(vadAnalyser.fftSize);
+            var vadStartTs = Date.now();
+            var vadLastLoudTs = vadStartTs;
+            vadInterval = setInterval(function () {
+              if (!recorder || recorder.state !== 'recording') { teardownVad(); return; }
+              try { vadAnalyser.getFloatTimeDomainData(vadBuf); } catch (_) { teardownVad(); return; }
+              var sumSq = 0;
+              for (var i = 0; i < vadBuf.length; i++) sumSq += vadBuf[i] * vadBuf[i];
+              var rms = Math.sqrt(sumSq / vadBuf.length);
+              var now = Date.now();
+              if (rms > vadThreshold) vadLastLoudTs = now;
+              var elapsed = now - vadStartTs;
+              var silentFor = now - vadLastLoudTs;
+              if (elapsed >= vadMinMs && silentFor >= vadSilenceMs) {
+                debug('VAD: silence ' + silentFor + 'ms after ' + elapsed + 'ms — auto-stop');
+                teardownVad();
+                try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (_) {}
+              }
+            }, 120);
+            debug('VAD armed: minMs=' + vadMinMs + ' silenceMs=' + vadSilenceMs + ' rms=' + vadThreshold);
+          } catch (vadErr) {
+            debug('VAD setup failed:', vadErr && vadErr.message);
+            teardownVad();
+          }
+        }
+
+        // Hard ceiling — still applies as backup.
         setTimeout(function () {
+          teardownVad();
           try {
             if (recorder && recorder.state === 'recording') recorder.stop();
           } catch (_) {}

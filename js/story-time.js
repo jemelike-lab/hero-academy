@@ -261,6 +261,14 @@
         session.inFlight = false;
         return;
       }
+      // Empty / near-empty transcript: don't waste an "attempt" on it.
+      // Just re-prompt and let the kid try again.
+      if (!transcript || (rec && rec.empty) || transcript.length < 3) {
+        setStatus("I didn't quite catch that — try once more, a bit louder?", 'hint');
+        setMicState('ready');
+        session.inFlight = false;
+        return;
+      }
       if (session.phase === 'reading') return assessSentence(transcript);
       if (session.phase === 'comprehension') return assessComprehension(transcript);
     }).catch(function (e) {
