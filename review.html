@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#0a0b2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hero Academy">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/humphrey.css">
+  <link rel="stylesheet" href="css/review.css">
+  <title>Review · Hero Academy</title>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <div class="stars stars-1"></div><div class="stars stars-2"></div><div class="stars stars-3"></div>
+  </div>
+
+  <header class="review-hud">
+    <a href="index.html" class="review-back" aria-label="Back home">←</a>
+    <div class="review-title-wrap">
+      <span class="review-eyebrow" id="reviewEyebrow">DAILY PRACTICE</span>
+      <span class="review-progress" id="reviewProgress">Item 1 of 5</span>
+    </div>
+    <div class="review-streak"><span aria-hidden="true">⚡</span><span id="reviewStreak">0</span></div>
+  </header>
+
+  <main class="review-main" role="main">
+    <section class="review-loading" id="reviewLoading">
+      <div class="review-spinner"></div>
+      <p>Getting your practice ready, Nigel...</p>
+    </section>
+
+    <section class="review-empty" id="reviewEmpty" hidden>
+      <div class="review-empty-emoji">🎉</div>
+      <h2>All caught up!</h2>
+      <p>Nothing to review today. Come back tomorrow — or jump into a training zone!</p>
+      <a href="index.html" class="review-cta-btn">BACK HOME</a>
+    </section>
+
+    <section class="review-card" id="reviewCard" hidden>
+      <div class="review-kind-tag" id="reviewKindTag">MATH</div>
+      <h2 class="review-question" id="reviewQuestion"></h2>
+      <p class="review-help" id="reviewHelp" hidden></p>
+      <div class="review-choices" id="reviewChoices" role="list"></div>
+      <div class="review-feedback" id="reviewFeedback" hidden></div>
+      <button class="review-next-btn" id="reviewNextBtn" hidden>NEXT →</button>
+    </section>
+
+    <section class="review-done" id="reviewDone" hidden>
+      <div class="review-done-burst">⭐</div>
+      <h2 id="reviewDoneTitle">Great work, Nigel!</h2>
+      <p class="review-done-score" id="reviewDoneScore"></p>
+      <p class="review-done-msg" id="reviewDoneMsg"></p>
+      <a href="index.html" class="review-cta-btn">BACK HOME</a>
+    </section>
+  </main>
+
+  <script src="js/telemetry.js"></script>
+  <script src="js/srs.js"></script>
+  <script src="js/humphrey.js"></script>
+  <script src="js/humphrey-listener.js"></script>
+  <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-memory.js"></script>
+  <script src="js/humphrey-qna.js"></script>
+  <script src="js/review-page.js"></script>
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        kidName: 'Nigel',
+      });
+    }
+    if (window.HeroAcademy && window.HeroAcademy.ReviewPage) {
+      window.HeroAcademy.ReviewPage.init();
+    }
+  </script>
+  <script src="js/sw-register.js"></script>
+</body>
+</html>

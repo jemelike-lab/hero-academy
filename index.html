@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/humphrey.css">
   <link rel="stylesheet" href="css/today-mission.css">
+  <link rel="stylesheet" href="css/review.css">
   <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
   <title>Hero Academy · Nigel</title>
 </head>
@@ -48,6 +49,17 @@
       </div>
     </section>
     <section id="todayMissionCard" class="today-mission" hidden aria-label="Today's Mission"></section>
+    <a href="review.html" class="daily-practice" id="dailyPracticeTile" hidden aria-label="Start Daily Practice">
+      <div class="daily-practice-row">
+        <span class="daily-practice-emoji" aria-hidden="true">🧠</span>
+        <div class="daily-practice-body">
+          <p class="daily-practice-eyebrow">DAILY PRACTICE</p>
+          <p class="daily-practice-title" id="dailyPracticeTitle">Memory boost ready!</p>
+          <p class="daily-practice-sub" id="dailyPracticeSub">A few quick questions to lock things in.</p>
+        </div>
+        <div class="daily-practice-count" id="dailyPracticeCount">·</div>
+      </div>
+    </a>
     <section class="daily-banner" aria-label="Today's challenge">
       <div class="daily-icon">⭐</div>
       <div class="daily-content"><p class="daily-label">TODAY'S CHALLENGE</p><p class="daily-text" id="dailyText">Complete 3 training zones to unlock a reward!</p></div>
@@ -99,10 +111,27 @@
   </div>
   <script src="js/app.js"></script>
   <script src="js/telemetry.js"></script>
+  <script src="js/srs.js"></script>
   <script src="js/today-mission.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.TodayMission) {
       window.HeroAcademy.TodayMission.init();
+    }
+    // Daily Practice tile — populate from SRS queue count.
+    if (window.HeroAcademy && window.HeroAcademy.SRS) {
+      window.HeroAcademy.SRS.countDue().then(function (n) {
+        var tile = document.getElementById('dailyPracticeTile');
+        if (!tile) return;
+        if (n > 0) {
+          var label = document.getElementById('dailyPracticeCount');
+          var sub = document.getElementById('dailyPracticeSub');
+          if (label) label.textContent = String(n);
+          if (sub) sub.textContent = n === 1
+            ? '1 question to lock in.'
+            : n + ' quick questions to lock things in.';
+          tile.hidden = false;
+        }
+      });
     }
   </script>
   <script src="js/humphrey.js"></script>
