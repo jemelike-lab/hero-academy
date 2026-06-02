@@ -221,6 +221,13 @@
         session.current && session.current.choices[session.current.answer],
         btn && btn.textContent
       );
+      // Mirror to per-card content bank so server-side seen_count + mastery
+      // tracking advances. Static-fallback cards skip this branch.
+      if (session.current && session.current.id && typeof NS.Telemetry.rpc === 'function') {
+        NS.Telemetry.rpc('ha_mark_discovery_attempt', {
+          p_item_id: session.current.id, p_correct: true
+        }).catch(function () {});
+      }
     }
 
     // Humphrey celebrates — reading-flavored variant works well for fact
@@ -253,6 +260,12 @@
           session.current && session.current.choices[session.current.answer],
           btn && btn.textContent
         );
+        // Mirror miss to content bank — resets the 5-correct streak.
+        if (session.current && session.current.id && typeof NS.Telemetry.rpc === 'function') {
+          NS.Telemetry.rpc('ha_mark_discovery_attempt', {
+            p_item_id: session.current.id, p_correct: false
+          }).catch(function () {});
+        }
       }
       if (H) H.say('wrong-answer-reading', { kidName: 'Nigel' });
       fb.className = 'feedback tryAgain';
@@ -359,15 +372,26 @@
     if (nextBtn) {
       nextBtn.textContent = 'ANOTHER ROUND!';
       nextBtn.onclick = function () {
-        // Fresh session — pick new cards, reset counters
+        // Fresh session — try server first, fall back to static pick
         session = newSession();
-        session.queue = pickSessionCards();
-        if (session.queue.length === 0) {
-          showAllSeen();
-          return;
-        }
-        session.index = 0;
-        showCard(session.queue[0]);
+        loadServerQueue().then(function (q) {
+          session.queue = (q && q.length > 0) ? q : pickSessionCards();
+          if (session.queue.length === 0) {
+            showAllSeen();
+            return;
+          }
+          session.index = 0;
+          showCard(session.queue[0]);
+          maybeTopUpDiscoveryPool();
+        }).catch(function () {
+          session.queue = pickSessionCards();
+          if (session.queue.length === 0) {
+            showAllSeen();
+            return;
+          }
+          session.index = 0;
+          showCard(session.queue[0]);
+        });
       };
     }
     if (restBtn) {
@@ -456,14 +480,90 @@
       return;
     }
     session = newSession();
-    session.queue = pickSessionCards();
-    if (session.queue.length === 0) {
-      showAllSeen();
-      return;
-    }
-    showCard(session.queue[0]);
-    setupHumphreyIdleWatcher();
-    wireHumphreyButton();
+
+    // Try the Supabase content bank first; fall back to static pick on any
+    // failure or empty pool. The kid never waits — we render a holding
+    // placeholder for ~250ms while the server resolves.
+    loadServerQueue().then(function (q) {
+      session.queue = (q && q.length > 0) ? q : pickSessionCards();
+      if (session.queue.length === 0) {
+        showAllSeen();
+        return;
+      }
+      showCard(session.queue[0]);
+      setupHumphreyIdleWatcher();
+      wireHumphreyButton();
+      maybeTopUpDiscoveryPool();
+    }).catch(function () {
+      session.queue = pickSessionCards();
+      if (session.queue.length === 0) {
+        showAllSeen();
+        return;
+      }
+      showCard(session.queue[0]);
+      setupHumphreyIdleWatcher();
+      wireHumphreyButton();
+    });
+  }
+
+  // --- Server content bank --------------------------------------------------
+
+  // Map a server-shape row into the client-shape card the rest of the file
+  // expects. Server uses answer_index (0-3); existing client cards use answer.
+  function mapServerCard(row) {
+    return {
+      id: row.id,
+      topic: row.topic,
+      emoji: row.emoji || '',
+      title: row.title || '',
+      fact: row.fact || '',
+      question: row.question || '',
+      choices: Array.isArray(row.choices) ? row.choices.slice() : [],
+      answer: Number.isInteger(row.answer_index) ? row.answer_index : 0,
+      standard: row.standard || '',
+      _server: true,
+    };
+  }
+
+  function loadServerQueue() {
+    var T = NS.Telemetry;
+    if (!T || typeof T.rpc !== 'function') return Promise.resolve(null);
+    return T.rpc('ha_get_discovery_cards', {
+      p_child_id: T.childId(),
+      p_n: 6,
+      p_topic: null
+    }).then(function (r) {
+      if (!r || !r.ok) return null;
+      return r.json();
+    }).then(function (rows) {
+      if (!Array.isArray(rows) || rows.length === 0) return null;
+      return rows.map(mapServerCard);
+    });
+  }
+
+  function maybeTopUpDiscoveryPool() {
+    var T = NS.Telemetry;
+    if (!T || typeof T.rpc !== 'function') return;
+    T.rpc('ha_discovery_pool_status', {
+      p_child_id: T.childId(),
+      p_topic: null
+    }).then(function (r) {
+      if (!r || !r.ok) return null;
+      return r.json();
+    }).then(function (rows) {
+      var s = Array.isArray(rows) ? rows[0] : rows;
+      if (!s) return;
+      if ((s.unseen || 0) >= 12) return;
+      fetch('/api/humphrey/generate-discovery-cards', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          child_id: T.childId(),
+          target_count: 10
+        }),
+        keepalive: true
+      }).catch(function () {});
+    }).catch(function () {});
   }
 
   function wireHumphreyButton() {
