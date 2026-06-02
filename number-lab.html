@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/number-lab.css">
   <link rel="stylesheet" href="css/humphrey.css">
+  <link rel="stylesheet" href="css/canvas.css">
   <title>Number Lab · Hero Academy</title>
 </head>
 <body class="zone-body zone-number-lab">
@@ -46,6 +47,10 @@
       <div class="feedback" id="feedback" hidden></div>
       <button class="hint-btn" id="hintBtn"><span class="hint-icon">💡</span><span>Need a hint?</span></button>
       <div class="hint-display" id="hintDisplay" hidden><p class="hint-text" id="hintText"></p></div>
+      <div class="zone-canvas-section">
+        <button type="button" id="canvasToggle" class="zone-canvas-toggle" aria-pressed="false">🖍️  Sketch / Show whiteboard</button>
+        <div id="canvasHost" class="zone-canvas-host"></div>
+      </div>
     </section>
     <section class="mastery-card" id="masteryCard" hidden>
       <div class="mastery-burst"><svg viewBox="0 0 200 200" class="burst-svg-large" aria-hidden="true"><path d="M100,10 L115,55 L160,40 L130,80 L175,90 L130,105 L160,150 L115,135 L100,180 L85,135 L40,150 L70,105 L25,90 L70,80 L40,40 L85,55 Z" fill="#ffd147"/></svg><div class="mastery-pow">POW!</div></div>
@@ -64,6 +69,26 @@
   </button>
   <script src="js/math-skills.js"></script>
   <script src="js/number-lab.js"></script>
+  <script src="js/canvas.js"></script>
+  <script src="js/canvas-skills.js"></script>
+  <script>
+    // Wire the whiteboard toggle: lazy-mount the canvas the first time Nigel
+    // opens it (cheap enough to keep mounted afterwards).
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('canvasToggle');
+      var host = document.getElementById('canvasHost');
+      if (!btn || !host) return;
+      btn.addEventListener('click', function () {
+        var open = host.classList.toggle('is-open');
+        btn.classList.toggle('is-active', open);
+        btn.setAttribute('aria-pressed', open ? 'true' : 'false');
+        btn.textContent = open ? '✖  Close whiteboard' : '🖍️  Sketch / Show whiteboard';
+        if (open && window.HeroAcademy && window.HeroAcademy.Canvas && !window.HeroAcademy.Canvas.isMounted()) {
+          window.HeroAcademy.Canvas.mount(host);
+        }
+      });
+    });
+  </script>
 
   <script src="js/humphrey.js"></script>
   <script src="js/humphrey-listener.js"></script>

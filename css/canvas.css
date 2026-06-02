@@ -1,0 +1,129 @@
+/* =====================================================================
+   Hero Academy — drawing canvas (Build #6 Lane A)
+   ===================================================================== */
+
+.ha-canvas {
+  display: flex;
+  flex-direction: column;
+  background: #fffaf0;
+  border: 2px solid rgba(255, 209, 71, 0.5);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-family: Fredoka, system-ui, sans-serif;
+  max-width: 100%;
+}
+
+.ha-canvas-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background:
+    linear-gradient(rgba(255, 209, 71, 0.04) 1px, transparent 1px) 0 0 / 100% 24px,
+    linear-gradient(90deg, rgba(255, 139, 61, 0.04) 1px, transparent 1px) 0 0 / 24px 100%,
+    #fffdf3;
+}
+.ha-canvas-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.ha-canvas-layer--humphrey { pointer-events: none; z-index: 1; }
+.ha-canvas-layer--nigel    { z-index: 2; cursor: crosshair; }
+
+/* ---- Toolbar ---- */
+.ha-canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #2a1858 0%, #1a1138 100%);
+  border-top: 2px solid rgba(255, 209, 71, 0.5);
+}
+
+.ha-canvas-colors {
+  display: flex;
+  gap: 6px;
+  margin-right: auto;
+}
+.ha-canvas-color {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  background: var(--c);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.ha-canvas-color:hover { transform: translateY(-2px); }
+.ha-canvas-color.is-active {
+  border-color: #ffd147;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px rgba(255, 209, 71, 0.4);
+}
+
+.ha-canvas-tool {
+  appearance: none;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.ha-canvas-tool:hover { background: rgba(255, 255, 255, 0.18); }
+.ha-canvas-tool--eraser { font-size: 18px; padding: 0 8px; }
+.ha-canvas-tool.is-active {
+  background: rgba(255, 209, 71, 0.3);
+  border-color: #ffd147;
+}
+
+/* ---- Inline mount inside zones ---- */
+.zone-canvas-section {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.zone-canvas-toggle {
+  align-self: flex-start;
+  appearance: none;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #14b8d4, #0ea5e9);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-family: Fredoka, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(20, 184, 212, 0.4);
+}
+.zone-canvas-toggle:hover { transform: translateY(-1px); }
+.zone-canvas-toggle.is-active {
+  background: linear-gradient(135deg, #ec4899, #f43f5e);
+  box-shadow: 0 6px 16px rgba(236, 72, 153, 0.45);
+}
+
+.zone-canvas-host { display: none; }
+.zone-canvas-host.is-open { display: block; animation: ha-canvas-pop 280ms ease both; }
+
+@keyframes ha-canvas-pop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Mobile / narrow viewports ---- */
+@media (max-width: 480px) {
+  .ha-canvas-stage { aspect-ratio: 4 / 3; }
+  .ha-canvas-color { width: 28px; height: 28px; }
+  .ha-canvas-tool { font-size: 0.82rem; height: 30px; padding: 0 10px; }
+}

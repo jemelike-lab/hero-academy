@@ -315,6 +315,10 @@
         '<h2 class="sl-story-title">' + tpl.emoji + ' ' + escapeHTML(tpl.title) + '</h2>' +
       '</div>' +
       '<div class="sl-story-body" id="sl-story-body">' + escapeHTML(text) + '</div>' +
+      '<div class="zone-canvas-section">' +
+        '<p style="margin:8px 0 0;color:#555;font-family:Fredoka,system-ui,sans-serif;font-size:0.95rem;">🎨  Draw a picture for your story — it will save with it.</p>' +
+        '<div id="sl-canvas-host" class="zone-canvas-host is-open"></div>' +
+      '</div>' +
       '<div class="sl-story-actions">' +
         '<button class="sl-action sl-action--primary" id="sl-read">🔊  READ TO ME!</button>' +
         '<button class="sl-action sl-action--secondary" id="sl-save">💾  SAVE</button>' +
@@ -326,6 +330,14 @@
     $('sl-save').onclick = saveStory;
     $('sl-another').onclick = showPicker;
     $('sl-story-home').onclick = function () { window.location.href = 'index.html'; };
+
+    // Mount the drawing canvas so Nigel can illustrate his story.
+    if (NS.Canvas && typeof NS.Canvas.mount === 'function') {
+      setTimeout(function () {
+        var host = document.getElementById('sl-canvas-host');
+        if (host && !NS.Canvas.isMounted()) NS.Canvas.mount(host);
+      }, 50);
+    }
 
     // Ms. Humphrey kicks off by reading the story automatically — that's the
     // payoff moment. User can re-tap READ TO ME to hear it again.
@@ -367,6 +379,12 @@
     var tpl = session.template;
     if (!tpl || !session.completedText) return;
     var saved = safeJSON(STORAGE_STORIES, []);
+    var drawing = null;
+    try {
+      if (NS.Canvas && NS.Canvas.isMounted()) {
+        drawing = NS.Canvas.getDataURL();
+      }
+    } catch (e) { /* keep going — drawing is optional */ }
     var story = {
       id: 'story-' + Date.now(),
       templateId: tpl.id,
@@ -374,6 +392,7 @@
       emoji: tpl.emoji,
       slots: Object.assign({}, session.slotValues),
       text: session.completedText,
+      drawing: drawing,
       createdAt: new Date().toISOString(),
     };
     saved.push(story);
