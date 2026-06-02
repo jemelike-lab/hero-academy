@@ -41,8 +41,8 @@
   // Supabase adaptive content bank — when the unseen pool drops below this,
   // fire the generator endpoint (fire-and-forget) so the next session has
   // fresh items waiting. Server short-circuits if pool is already healthy.
-  var TOPUP_THRESHOLD     = 15;
-  var TOPUP_BATCH_SIZE    = 15;
+  var TOPUP_THRESHOLD = 30;
+  var TOPUP_BATCH_SIZE = 25;
   // ---------------------------------------------------------------------
 
   var session = {
@@ -219,7 +219,18 @@
     // Character progression — may surface an episode unlock.
     if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
       setTimeout(function () {
-        NS.Characters.recordSessionComplete('wordtower').catch(function () {});
+        // Compute first-try + longest streak from session.results
+        var firstTry = 0, curStreak = 0, longest = 0;
+        for (var i = 0; i < session.results.length; i++) {
+          var ok = session.results[i].passed && session.results[i].attempts === 1;
+          if (ok) { firstTry++; curStreak++; if (curStreak > longest) longest = curStreak; }
+          else curStreak = 0;
+        }
+        NS.Characters.recordSessionComplete('wordtower', {
+          items_attempted: session.results.length,
+          items_correct_first_try: firstTry,
+          longest_streak: longest,
+        }).catch(function () {});
       }, 1500);
     }
   }

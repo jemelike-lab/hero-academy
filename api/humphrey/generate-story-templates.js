@@ -23,8 +23,18 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const HAIKU_MODEL    = 'claude-haiku-4-5';
-const MIN_UNSEEN     = 6;
-const DEFAULT_TARGET = 6;
+const MIN_UNSEEN     = 15;
+const DEFAULT_TARGET = 12;
+
+// Difficulty band descriptors (1-4) — used to nudge Haiku.
+const DIFFICULTY_BANDS = [
+  '__placeholder_0__',
+  'easy: 3 slots, 3 short sentences, simple vocabulary',
+  'medium: 4 slots, 4 sentences, standard vocabulary — current default',
+  'hard: 5 slots, 5 sentences with richer vocabulary',
+  'expert: 5 slots, 5 sentences with stretch vocabulary and clause structure',
+];
+
 
 // The grade-2-vocab categories — slot.kind MUST be one of these or the
 // existing static word-picker can't find a vocab list to show.
@@ -66,6 +76,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'sufficient', inserted: 0, unseen, threshold: MIN_UNSEEN });
   }
 
+  // ---- Read current difficulty level (1-4, default 2) -----------------
+  let difficulty = 2;
+  try {
+    const lvl = await sbRpc({ SB_URL, SB_KEY, fn: 'ha_get_difficulty',
+                              body: { p_child_id: child_id, p_zone: 'storylab' } });
+    difficulty = (typeof lvl === 'number') ? lvl : (Array.isArray(lvl) && lvl[0]) || 2;
+  } catch (_) {}
+  if (Number.isInteger(body.target_difficulty)) difficulty = body.target_difficulty;
+
   // ---- (2) Build avoid-titles list --------------------------------------
   let avoidTitles = [], avoidThemes = [];
   try {
@@ -79,7 +98,7 @@ export default async function handler(req, res) {
   // ---- (3) Call Haiku ---------------------------------------------------
   let items;
   try {
-    items = await draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes });
+    items = await draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes, difficulty });
   } catch (e) {
     return res.status(502).json({ error: 'haiku draft failed', detail: errStr(e) });
   }
@@ -147,7 +166,7 @@ export default async function handler(req, res) {
       theme: theme || 'general',
       slots_json: cleanSlots,
       text_template: text,
-      difficulty: 1,
+      difficulty: difficulty,
       source: 'haiku-' + new Date().toISOString().slice(0, 10),
     });
   }
@@ -205,7 +224,7 @@ function buildPersonalizationBlock(profile) {
   return lines.join('\n');
 }
 
-async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes }) {
+async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes, difficulty }) {
   const personalization = buildPersonalizationBlock(PROFILE);
 
   const system = [
@@ -260,6 +279,8 @@ async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidTheme
     '  - No scary content, no death, no disturbing themes. Keep it warm and silly.',
     '  - Light faith reference is fine (praying before a meal). Never make faith the focus.',
     '  - Substituting random words from each kind should still produce a coherent, silly story.',
+    '',
+    `DIFFICULTY: ${DIFFICULTY_BANDS[Math.max(1, Math.min(4, difficulty || 2))]}. Calibrate accordingly.`,
     '',
     'OUTPUT FORMAT — strict JSON only, no markdown fences, no preamble:',
     '{ "items": [',

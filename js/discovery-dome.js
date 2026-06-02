@@ -210,7 +210,11 @@
 
     if (session.strikesOnCard === 0) {
       session.correctThisSession += 1;
+      session.currentStreak += 1;
+      if (session.currentStreak > session.longestStreakEver) session.longestStreakEver = session.currentStreak;
       bumpTopicStats(session.current.topic, true);
+    } else {
+      session.currentStreak = 0;
     }
     session.cardsCompleted += 1;
     markCardSeen(session.current.id);
@@ -252,6 +256,7 @@
     var fb = $('feedback');
 
     if (session.strikesOnCard === 1) {
+      session.currentStreak = 0;  // wrong answer resets the streak
       // First strike — gentle nudge, re-enable the non-wrong buttons
       if (NS.Telemetry) {
         NS.Telemetry.recordAttempt(
@@ -403,7 +408,7 @@
     // Fire character-progression check — may surface an episode unlock.
     if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
       setTimeout(function () {
-        NS.Characters.recordSessionComplete('discoverydome').catch(function () {});
+        NS.Characters.recordSessionComplete('discoverydome',{items_attempted:session.queue.length,items_correct_first_try:session.correctThisSession,longest_streak:session.longestStreakEver}).catch(function () {});
       }, 1500);
     }
   }
@@ -475,7 +480,9 @@
       index: 0,
       current: null,
       strikesOnCard: 0,
-      correctThisSession: 0,
+      correctThisSession: 0,    // first-try correct count
+      currentStreak: 0,         // running first-try streak
+      longestStreakEver: 0,     // peak streak this session
       cardsCompleted: 0,
       startedAt: Date.now(),
     };
@@ -560,7 +567,7 @@
     }).then(function (rows) {
       var s = Array.isArray(rows) ? rows[0] : rows;
       if (!s) return;
-      if ((s.unseen || 0) >= 12) return;
+      if ((s.unseen || 0) >= 30) return;
       fetch('/api/humphrey/generate-discovery-cards', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

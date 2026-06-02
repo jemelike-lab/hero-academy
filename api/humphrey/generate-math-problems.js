@@ -23,8 +23,18 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const HAIKU_MODEL    = 'claude-haiku-4-5';
-const MIN_UNSEEN     = 15;
-const DEFAULT_TARGET = 15;
+const MIN_UNSEEN     = 30;
+const DEFAULT_TARGET = 25;
+
+// Difficulty band descriptors (1-4) — used to nudge Haiku.
+const DIFFICULTY_BANDS = [
+  '__placeholder_0__',
+  'easy: simplest problems with smallest numbers in the skill range',
+  'medium: typical problems for the skill — current default',
+  'hard: longer word problems with extra context details',
+  'expert: stretch problems — multi-step (two operations) when the skill allows',
+];
+
 
 // Cold-start: load Nigel's profile from the repo. Vercel functions get the
 // repo bundle, so data/nigel-profile.json is available at runtime.
@@ -139,6 +149,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'sufficient', inserted: 0, unseen, threshold: MIN_UNSEEN });
   }
 
+  // ---- Read current difficulty level (1-4, default 2) -----------------
+  let difficulty = 2;
+  try {
+    const lvl = await sbRpc({ SB_URL, SB_KEY, fn: 'ha_get_difficulty',
+                              body: { p_child_id: child_id, p_zone: 'numberlab' } });
+    difficulty = (typeof lvl === 'number') ? lvl : (Array.isArray(lvl) && lvl[0]) || 2;
+  } catch (_) {}
+  if (Number.isInteger(body.target_difficulty)) difficulty = body.target_difficulty;
+
   // ---- (2) Build avoid + struggle lists ----------------------------------
   let avoidPrompts = [], struggles = [];
   try {
@@ -159,7 +178,7 @@ export default async function handler(req, res) {
   // ---- (3) Call Haiku ----------------------------------------------------
   let items;
   try {
-    items = await draftBatch({ ANTHROPIC_KEY, cfg, skill_id, target_count, avoidPrompts, struggles });
+    items = await draftBatch({ ANTHROPIC_KEY, cfg, skill_id, target_count, avoidPrompts, struggles, difficulty });
   } catch (e) {
     return res.status(502).json({ error: 'haiku draft failed', detail: errStr(e) });
   }
@@ -198,7 +217,7 @@ export default async function handler(req, res) {
       answer,
       distractors,
       theme:      trim(it.theme, 40),
-      difficulty: 1,
+      difficulty: difficulty,
       source:     'haiku-' + new Date().toISOString().slice(0, 10),
     });
   }
@@ -260,7 +279,7 @@ function buildPersonalizationBlock(profile) {
   return lines.join('\n');
 }
 
-async function draftBatch({ ANTHROPIC_KEY, cfg, skill_id, target_count, avoidPrompts, struggles }) {
+async function draftBatch({ ANTHROPIC_KEY, cfg, skill_id, target_count, avoidPrompts, struggles, difficulty }) {
   const personalization = buildPersonalizationBlock(PROFILE);
 
   const system = [
@@ -284,6 +303,8 @@ async function draftBatch({ ANTHROPIC_KEY, cfg, skill_id, target_count, avoidPro
     '  - Keep all distractors within a believable range (0-99).',
     '',
     'If "recent struggle problems" are given, model up to 2 of your new problems on the SAME operation pattern (different numbers and theme) so Nigel gets retrieval practice.',
+    '',
+    `DIFFICULTY: ${DIFFICULTY_BANDS[Math.max(1, Math.min(4, difficulty || 2))]}. Calibrate accordingly.`,
     '',
     'OUTPUT FORMAT — strict JSON only, no markdown fences, no preamble, no commentary:',
     '{ "items": [ { "prompt": "...", "answer": N, "distractors": [N,N,N], "theme": "short-tag" } ] }',

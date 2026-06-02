@@ -586,12 +586,68 @@
       .replace(/"/g, '&quot;').replace(/\'/g, '&#39;');
   }
 
+
+  // -------- Difficulty signal recording + badge ---------------------------
+  // Posts a session signal to the server which auto-evaluates the new level
+  // and returns the change direction ('up' | 'down' | 'same'). On a level
+  // change, Ms. Humphrey reads a short narration so Nigel knows the
+  // difficulty just shifted.
+  async function recordDifficultySignal(zoneId, signal) {
+    const T = tel();
+    if (!T || typeof T.rpc !== 'function') return null;
+    const attempted = Math.max(0, parseInt(signal.items_attempted || 0, 10));
+    const firstTry  = Math.max(0, parseInt(signal.items_correct_first_try || 0, 10));
+    const streak    = Math.max(0, parseInt(signal.longest_streak || 0, 10));
+    if (attempted === 0 && zoneId !== 'storylab') return null; // nothing to eval
+
+    let r, rows;
+    try {
+      r = await T.rpc('ha_record_session_signal', {
+        p_child_id: childId(),
+        p_zone: zoneId,
+        p_items_attempted: attempted,
+        p_items_correct_first_try: firstTry,
+        p_longest_streak: streak,
+      });
+      if (!r || !r.ok) return null;
+      rows = await r.json();
+    } catch (e) { return null; }
+    const result = Array.isArray(rows) ? rows[0] : rows;
+    if (!result || !result.change_direction || result.change_direction === 'same') return result;
+
+    // Level changed — surface a Ms. Humphrey narration after a short pause
+    // so the existing celebration scene has its moment first.
+    setTimeout(function () {
+      const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+      if (!H || typeof H.say !== 'function') return;
+      const lvl = result.new_level;
+      const dir = result.change_direction;
+      const text = dir === 'up'
+        ? "Wow, Nigel, you are so good at this. I am going to give you something a little trickier next time."
+        : "Let me give you a little more practice with the basics, Nigel. We will build it up again together.";
+      H.say(dir === 'up' ? 'streak-5' : 'try-again-math', {
+        kidName: 'Nigel',
+        text: text,
+        expression: dir === 'up' ? 'cheering' : 'encouraging',
+        duration: 7500,
+      });
+    }, 3500);
+
+    return result;
+  }
   // -------- Public: recordSessionComplete --------------------------------
   // Each zone calls this when a session ends. It bumps milestones, then
   // checks every character\'s criteria. New unlocks fire a celebration in
   // sequence (awaited so we don\'t stack overlays).
-  async function recordSessionComplete(zoneId) {
+  async function recordSessionComplete(zoneId, signal) {
     if (!zoneId) return [];
+
+    // 0. Difficulty evaluation (only when signal data is provided).
+    // We do this first so the level-change badge fires before the episode
+    // celebration overlay if both happen in the same call.
+    if (signal && typeof signal === 'object') {
+      try { await recordDifficultySignal(zoneId, signal); } catch (e) {}
+    }
 
     // 1. Bump milestones
     const m = readMilestones();
@@ -650,6 +706,7 @@
     STORAGE_KEY,
     // Episode progression
     recordSessionComplete,
+    recordDifficultySignal,
     getProgress,
     fetchEpisodeStory,
     playEpisodeCelebration,

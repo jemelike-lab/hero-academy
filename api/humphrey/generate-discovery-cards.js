@@ -26,8 +26,18 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const HAIKU_MODEL    = 'claude-haiku-4-5';
-const MIN_UNSEEN     = 12;
-const DEFAULT_TARGET = 10;
+const MIN_UNSEEN     = 30;
+const DEFAULT_TARGET = 20;
+
+// Difficulty band descriptors (1-4) — used to nudge Haiku.
+const DIFFICULTY_BANDS = [
+  '__placeholder_0__',
+  'easy: simplest concrete facts, NGSS K-1 standards preferred',
+  'medium: standard 2nd-grade NGSS facts — current default',
+  'hard: NGSS 3-4 standards, slightly more nuanced questions',
+  'expert: NGSS 4-5 standards, multi-step reasoning questions',
+];
+
 
 let PROFILE = {};
 try {
@@ -77,6 +87,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ status: 'sufficient', inserted: 0, unseen, threshold: MIN_UNSEEN });
   }
 
+  // ---- Read current difficulty level (1-4, default 2) -----------------
+  let difficulty = 2;
+  try {
+    const lvl = await sbRpc({ SB_URL, SB_KEY, fn: 'ha_get_difficulty',
+                              body: { p_child_id: child_id, p_zone: 'discoverydome' } });
+    difficulty = (typeof lvl === 'number') ? lvl : (Array.isArray(lvl) && lvl[0]) || 2;
+  } catch (_) {}
+  if (Number.isInteger(body.target_difficulty)) difficulty = body.target_difficulty;
+
   // ---- (2) Build avoid-titles list --------------------------------------
   let avoidTitles = [];
   try {
@@ -90,7 +109,7 @@ export default async function handler(req, res) {
   // ---- (3) Call Haiku ---------------------------------------------------
   let items;
   try {
-    items = await draftBatch({ ANTHROPIC_KEY, topic, target_count, avoidTitles });
+    items = await draftBatch({ ANTHROPIC_KEY, topic, target_count, avoidTitles, difficulty });
   } catch (e) {
     return res.status(502).json({ error: 'haiku draft failed', detail: errStr(e) });
   }
@@ -131,7 +150,7 @@ export default async function handler(req, res) {
       choices,
       answer_index: ai,
       standard,
-      difficulty: 1,
+      difficulty: difficulty,
       source: 'haiku-' + new Date().toISOString().slice(0, 10),
     });
   }
@@ -180,7 +199,7 @@ function buildInterestsHook(profile) {
   return bits.join(' ');
 }
 
-async function draftBatch({ ANTHROPIC_KEY, topic, target_count, avoidTitles }) {
+async function draftBatch({ ANTHROPIC_KEY, topic, target_count, avoidTitles, difficulty }) {
   const interests = buildInterestsHook(PROFILE);
 
   const topicLine = topic
@@ -220,6 +239,8 @@ async function draftBatch({ ANTHROPIC_KEY, topic, target_count, avoidTitles }) {
     '',
     'Nigel\u2019s interest profile:',
     interests || '(unknown — write neutral cards)',
+    '',
+    `DIFFICULTY: ${DIFFICULTY_BANDS[Math.max(1, Math.min(4, difficulty || 2))]}. Calibrate accordingly.`,
     '',
     'OUTPUT FORMAT — strict JSON only, no markdown fences, no preamble:',
     '{ "items": [ { "topic": "...", "emoji": "...", "title": "...", "fact": "...", "question": "...", "choices": ["...","...","...","..."], "answer_index": N, "standard": "..." } ] }',

@@ -26,9 +26,31 @@
  * gets cheap 200 responses, not Haiku calls.
  */
 
+import { readFileSync } from 'fs';
+import path from 'path';
+
 const HAIKU_MODEL    = 'claude-haiku-4-5';
-const MIN_UNSEEN     = 15;   // below this, top up
-const DEFAULT_TARGET = 15;   // batch size when topping up
+const MIN_UNSEEN     = 30;   // below this, top up — aggressive to keep "never twice" true
+const DEFAULT_TARGET = 25;   // batch size when topping up
+
+// Profile load at cold-start (used to flavor hints + example sentences with
+// Nigel's family / friends / interests where natural).
+let PROFILE = {};
+try {
+  PROFILE = JSON.parse(readFileSync(
+    path.join(process.cwd(), 'data', 'nigel-profile.json'), 'utf-8'
+  ));
+} catch (e) { /* leave empty */ }
+
+// Difficulty band descriptors for Word Tower (1-4)
+const DIFFICULTY_BANDS = [
+  '__placeholder_0__',
+  'easy: stick to the simplest, most concrete words in the level',
+  'medium: typical words at the level — current default',
+  'hard: less-common words at the level, longer vocab, trickier hints',
+  'expert: stretch vocabulary, words that span two patterns or syllables',
+];
+
 
 // Per-level config. Adding a new level = new entry here + (optional) a seed
 // migration. The client only needs to send level_id.
@@ -83,6 +105,16 @@ export default async function handler(req, res) {
     });
   }
 
+  // ---- Read current difficulty level (1-4, default 2) -----------------
+  let difficulty = 2;
+  try {
+    const lvl = await sbRpc({ SB_URL, SB_KEY, fn: 'ha_get_difficulty',
+                              body: { p_child_id: child_id, p_zone: 'wordtower' } });
+    difficulty = (typeof lvl === 'number') ? lvl : (Array.isArray(lvl) && lvl[0]) || 2;
+  } catch (_) {}
+  // Body override for testing
+  if (Number.isInteger(body.target_difficulty)) difficulty = body.target_difficulty;
+
   // ---- (2) Build avoid + struggle lists ----------------------------------
   let avoid = [], struggles = [];
   try {
@@ -101,7 +133,7 @@ export default async function handler(req, res) {
   // ---- (3) Call Haiku ----------------------------------------------------
   let items;
   try {
-    items = await draftBatch({ ANTHROPIC_KEY, cfg, level_id, target_count, avoid, struggles });
+    items = await draftBatch({ ANTHROPIC_KEY, cfg, level_id, target_count, avoid, struggles, difficulty });
   } catch (e) {
     return res.status(502).json({ error: 'haiku draft failed', detail: errStr(e) });
   }
@@ -169,7 +201,24 @@ export default async function handler(req, res) {
 // Haiku prompt
 // ---------------------------------------------------------------------------
 
-async function draftBatch({ ANTHROPIC_KEY, cfg, level_id, target_count, avoid, struggles }) {
+// Build a personalization block — used to nudge Haiku to put Nigel's family,
+// friends, and interests into example sentences naturally (not every sentence).
+function buildPersonalizationBlock(profile) {
+  if (!profile || Object.keys(profile).length === 0) return '(no profile)';
+  const fam = profile.family || {};
+  const bits = [];
+  bits.push(`Kid: ${profile.name || 'Nigel'} (age ${profile.age || 7}).`);
+  if (Array.isArray(fam.cousins) && fam.cousins.length) bits.push(`Cousins: ${fam.cousins.join(', ')}.`);
+  if (fam.best_friend) bits.push(`Best friend: ${fam.best_friend}.`);
+  if (Array.isArray(fam.other_friends) && fam.other_friends.length) bits.push(`Friends: ${fam.other_friends.join(', ')}.`);
+  if (Array.isArray(profile.loves) && profile.loves.length) bits.push(`Loves: ${profile.loves.join(', ')}.`);
+  if (Array.isArray(profile.hobbies) && profile.hobbies.length) bits.push(`Hobbies: ${profile.hobbies.join(', ')}.`);
+  if (Array.isArray(profile.heritage_food) && profile.heritage_food.length) bits.push(`Family foods: ${profile.heritage_food.join(', ')}.`);
+  return bits.join(' ');
+}
+
+async function draftBatch({ ANTHROPIC_KEY, cfg, level_id, target_count, avoid, struggles, difficulty }) {
+  const personalization = buildPersonalizationBlock(PROFILE);
   const system = [
     'You are a 2nd-grade reading curriculum specialist. Your job is to generate a small batch of decodable phonics words for Nigel, age 7, in 2nd grade in Maryland.',
     '',
@@ -189,6 +238,18 @@ async function draftBatch({ ANTHROPIC_KEY, cfg, level_id, target_count, avoid, s
     'If retrieval-practice words are given, include up to 2 words that share a phonics feature with one of those struggle words.',
     '',
     'Distribute items roughly evenly across the requested patterns.',
+    '',
+    'PERSONALIZATION (apply to hints and example sentences — NOT to the words themselves):',
+    'Where it fits naturally, fold in details from Nigel\'s real life so reading feels personal. Examples:',
+    '  - For words like "shoot", "climb", "jump": reference Spider-Man, Mario, or soccer',
+    '  - For "share", "play", "laugh": use "with Skylar", "with Gabriel", or "with Lexi"',
+    '  - For food words: jollof rice, mango, cassava leaf are great anchors',
+    'No more than ~30% of items should use a personal reference — the rest should be neutral / general. Never let personalization stretch the word into a non-decodable example.',
+    '',
+    'Nigel\'s profile:',
+    personalization,
+    '',
+    `DIFFICULTY: ${DIFFICULTY_BANDS[Math.max(1, Math.min(4, difficulty || 2))]}. Match the word complexity to this band.`,
     '',
     'OUTPUT FORMAT — strict JSON only, no markdown fences, no preamble, no commentary:',
     '{ "items": [ { "word": "...", "pattern": "...", "hint": "...", "image_emoji": "...", "sentence": "..." } ] }',

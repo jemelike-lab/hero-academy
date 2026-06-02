@@ -153,7 +153,7 @@
       .then(function (rows) {
         var s = Array.isArray(rows) ? rows[0] : rows;
         if (!s) return;
-        if ((s.unseen || 0) >= 6) return;
+        if ((s.unseen || 0) >= 15) return;
         fetch('/api/humphrey/generate-story-templates', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -324,7 +324,7 @@
     // Character progression — may unlock the next episode in an arc.
     if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
       setTimeout(function () {
-        NS.Characters.recordSessionComplete('storylab').catch(function () {});
+        NS.Characters.recordSessionComplete('storylab',{items_attempted:1,items_correct_first_try:1,longest_streak:1}).catch(function () {});
       }, 2000);
     }
   }
