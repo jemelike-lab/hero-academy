@@ -532,7 +532,7 @@
     currentExpression: 'idle',
     persisted: loadPersisted(),
     idleTimer: null,
-    refs: { root: null, portrait: null, bubble: null, bubbleText: null, muteBtn: null },
+    refs: { root: null, portrait: null, bubble: null, bubbleText: null, bubbleFigure: null, bubbleImg: null, bubbleCaption: null, muteBtn: null },
     listeners: {},
   };
 
@@ -562,6 +562,10 @@
     root.dataset.speaking = 'false';
     root.innerHTML = `
       <div class="ha-humphrey__bubble" role="status">
+        <figure class="ha-humphrey__bubble-figure" hidden>
+          <img class="ha-humphrey__bubble-img" alt="" decoding="async" loading="lazy">
+          <figcaption class="ha-humphrey__bubble-caption"></figcaption>
+        </figure>
         <p class="ha-humphrey__text"></p>
       </div>
       <div class="ha-humphrey__portrait-wrap">
@@ -593,6 +597,9 @@
     state.refs.portrait = root.querySelector('.ha-humphrey__portrait');
     state.refs.bubble = root.querySelector('.ha-humphrey__bubble');
     state.refs.bubbleText = root.querySelector('.ha-humphrey__text');
+    state.refs.bubbleFigure = root.querySelector('.ha-humphrey__bubble-figure');
+    state.refs.bubbleImg = root.querySelector('.ha-humphrey__bubble-img');
+    state.refs.bubbleCaption = root.querySelector('.ha-humphrey__bubble-caption');
     state.refs.muteBtn = root.querySelector('.ha-humphrey__mute');
 
     // Wire up controls
@@ -627,7 +634,7 @@
   function unmount() {
     if (!state.mounted) return;
     state.refs.root?.remove();
-    state.refs = { root: null, portrait: null, bubble: null, bubbleText: null, muteBtn: null };
+    state.refs = { root: null, portrait: null, bubble: null, bubbleText: null, bubbleFigure: null, bubbleImg: null, bubbleCaption: null, muteBtn: null };
     state.mounted = false;
     stopAudio();
     emit('unmounted');
@@ -652,6 +659,9 @@
     if (!state.cfg.enabled) return Promise.resolve({ skipped: 'disabled' });
 
     const utterance = resolveUtterance(event, context);
+    // Carry through an optional visual-aid query so the speech bubble can
+    // surface a Wikipedia thumbnail alongside her words.
+    if (context && context.image) utterance.image = context.image;
     debug('say()', event, '→', utterance.text);
 
     if (context.priority === 'high') {
@@ -804,8 +814,10 @@
     if (state.speaking || state.queue.length === 0 || !state.mounted) return;
     const utterance = state.queue.shift();
     state.speaking = true;
+    state.currentUtterance = utterance;
     speak(utterance).then(() => {
       state.speaking = false;
+      state.currentUtterance = null;
       utterance._resolve?.({
         event: utterance.event,
         text: utterance.text,
@@ -822,6 +834,20 @@
       showBubble(utterance.text);
       state.refs.root.dataset.speaking = 'true';
       emit('started-speaking', utterance);
+
+      // Visual aid: if the utterance carries an `image` query, fetch async
+      // and slip the image into the bubble when it lands — without delaying
+      // the text or audio. If she stops speaking before it returns, drop it.
+      let visualToken = utterance;
+      if (utterance.image) {
+        fetchVisualAid(utterance.image).then((hit) => {
+          if (!hit) return;
+          // Only attach if she's still speaking this same utterance.
+          if (state.currentUtterance !== visualToken) return;
+          if (state.refs.bubble.dataset.visible !== 'true') return;
+          showBubble(utterance.text, hit.url, hit.caption);
+        });
+      }
 
       const finish = () => {
         hideBubble();
@@ -847,12 +873,51 @@
     });
   }
 
-  function showBubble(text) {
+  function showBubble(text, imageUrl, imageCaption) {
     state.refs.bubbleText.textContent = text;
+    if (state.refs.bubbleFigure && state.refs.bubbleImg) {
+      if (imageUrl) {
+        state.refs.bubbleImg.src = imageUrl;
+        state.refs.bubbleImg.alt = imageCaption || '';
+        if (state.refs.bubbleCaption) {
+          state.refs.bubbleCaption.textContent = imageCaption || '';
+          state.refs.bubbleCaption.hidden = !imageCaption;
+        }
+        state.refs.bubbleFigure.hidden = false;
+      } else {
+        state.refs.bubbleFigure.hidden = true;
+        state.refs.bubbleImg.removeAttribute('src');
+      }
+    }
     state.refs.bubble.dataset.visible = 'true';
   }
   function hideBubble() {
     state.refs.bubble.dataset.visible = 'false';
+    if (state.refs.bubbleFigure) state.refs.bubbleFigure.hidden = true;
+    if (state.refs.bubbleImg) state.refs.bubbleImg.removeAttribute('src');
+  }
+
+  // -------------------------------------------------------------------------
+  // Image search — async fetch with a small client-side cache.
+  // Called when an utterance was raised with `image: 'some query'`.
+  // -------------------------------------------------------------------------
+  const imageCache = new Map(); // q -> { url, caption } | null
+
+  function fetchVisualAid(query) {
+    if (!query || typeof query !== 'string') return Promise.resolve(null);
+    const key = query.trim().toLowerCase();
+    if (!key) return Promise.resolve(null);
+    if (imageCache.has(key)) return Promise.resolve(imageCache.get(key));
+    return fetch('/api/humphrey/image-search?q=' + encodeURIComponent(query), {
+      headers: { Accept: 'application/json' },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const hit = (j && j.url) ? { url: j.url, caption: j.caption || '' } : null;
+        imageCache.set(key, hit);
+        return hit;
+      })
+      .catch(() => { imageCache.set(key, null); return null; });
   }
 
   /** Audio chain: pre-rendered MP3 → ElevenLabs TTS → Web Speech API → silent */

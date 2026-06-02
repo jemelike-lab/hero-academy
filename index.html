@@ -137,7 +137,8 @@
             tile.href = 'review.html?mode=friday';
             if (eyebrow) eyebrow.textContent = 'FRIDAY QUIZ';
             if (title) title.textContent = "This week's brain check!";
-            if (sub) sub.textContent = n + ' questions covering everything you practiced.';
+            if (sub) sub.textContent = (n === 1 ? '1 question' : n + ' questions')
+              + ' covering everything you practiced.';
             tile.classList.add('daily-practice--friday');
           } else {
             if (sub) sub.textContent = n === 1

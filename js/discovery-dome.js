@@ -164,10 +164,13 @@
     if (H && typeof H.say === 'function') {
       // Use try-again-reading event to pick the right expression. Fact is the
       // text override so it plays as-written. Light expression: encouraging.
+      // Pass the card title as a visual-aid query — Wikipedia thumbnail will
+      // pop into the speech bubble for tangible things (hummingbirds, rainbows).
       H.say('try-again-reading', {
         kidName: 'Nigel',
         expression: 'encouraging',
         text: card.fact,
+        image: card.title,
       });
     }
   }

@@ -178,6 +178,46 @@
   hyphens: auto;
 }
 
+/* --- Visual aid (image in speech bubble) ---------------------------------- */
+
+.ha-humphrey__bubble-figure {
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: ha-bubble-img-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.ha-humphrey__bubble-figure[hidden] { display: none; }
+
+.ha-humphrey__bubble-img {
+  display: block;
+  max-width: 100%;
+  max-height: 140px;
+  width: auto;
+  height: auto;
+  border-radius: 10px;
+  border: 2px solid rgba(240, 217, 166, 0.7);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  background: #fff;
+  object-fit: cover;
+}
+
+.ha-humphrey__bubble-caption {
+  display: block;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: rgba(42, 36, 24, 0.7);
+  margin-top: 4px;
+  text-align: center;
+}
+.ha-humphrey__bubble-caption[hidden] { display: none; }
+
+@keyframes ha-bubble-img-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
 /* --- Hidden state ---------------------------------------------------------- */
 
 .ha-humphrey[hidden] { display: none !important; }
