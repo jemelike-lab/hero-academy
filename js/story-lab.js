@@ -320,6 +320,13 @@
     setTimeout(readAloud, 500);
 
     burstConfetti();
+
+    // Character progression — may unlock the next episode in an arc.
+    if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
+      setTimeout(function () {
+        NS.Characters.recordSessionComplete('storylab').catch(function () {});
+      }, 2000);
+    }
   }
 
   function readAloud() {

@@ -399,6 +399,13 @@
       restBtn.onclick = function () { window.location.href = 'index.html'; };
       restBtn.hidden = false;
     }
+
+    // Fire character-progression check — may surface an episode unlock.
+    if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
+      setTimeout(function () {
+        NS.Characters.recordSessionComplete('discoverydome').catch(function () {});
+      }, 1500);
+    }
   }
 
   function showAllSeen() {

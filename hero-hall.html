@@ -157,6 +157,30 @@
     z-index: 0; pointer-events: none;
   }
   .card.unlocked { border-color: var(--char-color, var(--gold)); }
+  /* Episode progression pips (3 dots under each card) */
+  .episode-pips { display:flex; gap:6px; justify-content:center; margin-top:10px; }
+  .pip { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.18);
+         border:1.5px solid rgba(255,255,255,.32); transition:all .25s; }
+  .pip.filled { background:var(--char-color, #ffd147);
+                border-color:var(--char-color, #ffd147);
+                box-shadow:0 0 8px var(--char-color, #ffd147); }
+  .card.squad-ready { border-width:3px; box-shadow:0 0 28px var(--char-color, #ffd147); }
+  .card.squad-ready::after { content:'★ SQUAD'; position:absolute; top:8px; right:10px;
+                              font-size:0.65rem; font-weight:700; letter-spacing:0.1em;
+                              color:var(--char-color, #ffd147); text-shadow:0 0 8px currentColor; }
+  /* Episode story log inside the modal */
+  .modal .ep-log { margin-top:14px; }
+  .modal .ep-row { display:flex; gap:10px; align-items:flex-start; padding:10px 0;
+                   border-top:1px solid rgba(255,255,255,.12); }
+  .modal .ep-row:first-child { border-top:none; }
+  .modal .ep-badge { flex:none; font-size:0.68rem; font-weight:700; letter-spacing:0.1em;
+                     padding:4px 8px; border-radius:8px; background:rgba(255,209,71,0.16);
+                     color:#ffd147; min-width:48px; text-align:center; }
+  .modal .ep-row.locked .ep-badge { color:rgba(255,255,255,0.4);
+                                    background:rgba(255,255,255,0.05); }
+  .modal .ep-text { flex:1; font-size:0.95rem; line-height:1.5;
+                    color:rgba(245,232,200,0.92); text-align:left; }
+  .modal .ep-row.locked .ep-text { color:rgba(255,255,255,0.4); font-style:italic; }
   .card.unlocked::before { opacity: .25; }
   .card.unlocked:active { transform: scale(.97); }
   .card.locked { opacity: .58; filter: grayscale(.7); }
@@ -351,22 +375,35 @@
       <p class="modal-bio" id="m-bio"></p>
       <div class="members" id="m-members"></div>
       <div class="modal-quote" id="m-quote"></div>
+      <div class="ep-log" id="m-ep-log"></div>
     </div>
   </div>
 
+  <!-- Load telemetry + humphrey FIRST so the async rendering below can
+       reach the Telemetry.rpc / Humphrey.say helpers immediately. -->
+  <script src="js/telemetry.js"></script>
+  <script src="js/humphrey.js"></script>
   <script src="js/characters.js"></script>
   <script>
-    (function () {
-      const { CHARACTERS, readUnlocked } = window.HeroAcademy.Characters;
+    (async function () {
+      const NS = window.HeroAcademy;
+      const { CHARACTERS, readUnlocked, getProgress, fetchEpisodeStory } = NS.Characters;
       const grid = document.getElementById('grid');
+
+      // legacy localStorage set (still used for the surprise overlay)
       const unlocked = new Set(readUnlocked());
+
+      // Server-backed episode progression — {charKey: highestEpisode 0-3}
+      let episodes = {};
+      try { episodes = await getProgress(); } catch (e) { episodes = {}; }
 
       // Zone-to-hint mapping
       const ZONE_HINTS = {
         numberlab: 'Play in Number Lab 🔢',
         wordtower: 'Play in Word Tower 📖',
-        discoverydome: 'Coming soon 🔬',
+        discoverydome: 'Play in Discovery Dome 🔬',
         explorershall: 'Play in Diner Lanes 🍔',
+        storylab: 'Write a story in Story Lab ✍️',
         win: 'Complete any game 🏆'
       };
       function hintFor(zones) {
@@ -376,10 +413,12 @@
       }
 
       // Stats — characters
-      document.getElementById('stat-unlocked').textContent = unlocked.size;
+      const discoveredCount = CHARACTERS.filter(c => (episodes[c.id] || 0) >= 1 || unlocked.has(c.id)).length;
+      const squadReadyCount = CHARACTERS.filter(c => (episodes[c.id] || 0) >= 3).length;
+      document.getElementById('stat-unlocked').textContent = discoveredCount;
       document.getElementById('stat-total').textContent = CHARACTERS.length;
       document.getElementById('stat-percent').textContent =
-        Math.round((unlocked.size / CHARACTERS.length) * 100) + '%';
+        Math.round((discoveredCount / CHARACTERS.length) * 100) + '%';
 
       // Stats — journey (from game state)
       try {
@@ -390,28 +429,42 @@
 
       // Render grid with hints + stagger
       CHARACTERS.forEach((c, idx) => {
-        const isUnlocked = unlocked.has(c.id);
+        // Episode 0 = locked, 1-3 = arc progression.
+        const ep = episodes[c.id] || 0;
+        // Treat episode >= 1 as discovered; surprise-visit unlocks also count
+        // (the legacy random visit system populates that set independently).
+        const isDiscovered = ep >= 1 || unlocked.has(c.id);
+        const isSquadReady = ep >= 3;
+
         const card = document.createElement('div');
-        card.className = 'card ' + (isUnlocked ? 'unlocked' : 'locked');
+        card.className = 'card ' +
+          (isDiscovered ? 'unlocked' : 'locked') +
+          (isSquadReady ? ' squad-ready' : '');
         card.style.setProperty('--char-color', c.color);
         card.style.animationDelay = (idx * 0.1) + 's';
 
+        const pips =
+          '<div class="episode-pips">' +
+          [1, 2, 3].map(n => `<div class="pip${ep >= n ? ' filled' : ''}"></div>`).join('') +
+          '</div>';
+
         card.innerHTML = `
           <div class="art">
-            <span class="main">${isUnlocked ? c.emoji : '❓'}</span>
-            ${isUnlocked && c.accessory ? `<span class="acc">${c.accessory}</span>` : ''}
+            <span class="main">${isDiscovered ? c.emoji : '❓'}</span>
+            ${isDiscovered && c.accessory ? `<span class="acc">${c.accessory}</span>` : ''}
           </div>
-          <h3>${isUnlocked ? c.name : '???'}</h3>
-          <div class="role">${isUnlocked ? c.archetype : 'Not yet discovered'}</div>
-          <div class="bio">${isUnlocked ? c.bio : 'Play more games to meet this hero!'}</div>
-          ${!isUnlocked ? `<div class="hint">${hintFor(c.zones)}</div>` : ''}
-          ${isUnlocked && c.members ? `
+          <h3>${isDiscovered ? c.name : '???'}</h3>
+          <div class="role">${isDiscovered ? c.archetype : 'Not yet discovered'}</div>
+          <div class="bio">${isDiscovered ? c.bio : 'Play more games to meet this hero!'}</div>
+          ${!isDiscovered ? `<div class="hint">${hintFor(c.zones)}</div>` : ''}
+          ${isDiscovered && c.members ? `
             <div class="members">
               ${c.members.map(m => `<span class="member" style="border-color:${m.color}99;">${m.emoji} ${m.name}</span>`).join('')}
             </div>` : ''}
+          ${isDiscovered ? pips : ''}
         `;
-        if (isUnlocked) {
-          card.addEventListener('click', () => openModal(c));
+        if (isDiscovered) {
+          card.addEventListener('click', () => openModal(c, ep));
         }
         grid.appendChild(card);
       });
@@ -419,7 +472,8 @@
       // Modal
       const modalBg = document.getElementById('modal-bg');
       const modal   = document.getElementById('modal');
-      function openModal(c) {
+      async function openModal(c, ep) {
+        ep = ep || 0;
         modal.style.setProperty('--char-color', c.color);
         document.getElementById('m-emoji').textContent = c.emoji;
         document.getElementById('m-acc').textContent = c.accessory || '';
@@ -438,7 +492,30 @@
           });
         }
         document.getElementById('m-quote').textContent = `"${c.voiceLine}"`;
+
+        // --- Episode story log ---
+        const epLog = document.getElementById('m-ep-log');
+        const stages = ['Met', 'Trained', 'Squad'];
+        epLog.innerHTML = stages.map((label, i) => {
+          const epNum = i + 1;
+          const earned = ep >= epNum;
+          return '<div class="ep-row' + (earned ? '' : ' locked') + '" data-ep="' + epNum + '">' +
+            '<div class="ep-badge">' + label + '</div>' +
+            '<div class="ep-text" id="m-ep-text-' + epNum + '">' +
+              (earned ? '<em style="opacity:.55">Loading…</em>' : 'Not earned yet — keep playing!') +
+            '</div></div>';
+        }).join('');
+
         modalBg.classList.add('open');
+
+        // Lazy-fetch the earned episode stories
+        for (let i = 1; i <= ep; i++) {
+          try {
+            const story = await fetchEpisodeStory(c.id, i);
+            const slot = document.getElementById('m-ep-text-' + i);
+            if (slot && story) slot.textContent = story;
+          } catch (e) { /* leave the placeholder */ }
+        }
       }
       function closeModal() { modalBg.classList.remove('open'); }
       document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -455,9 +532,9 @@
   </script>
 </body>
 
-<script src="js/telemetry.js"></script>
-<script src="js/humphrey.js"></script>
 <script>
+  // telemetry.js + humphrey.js loaded earlier so the async grid render
+  // can reach them. This block just kicks off Humphrey's welcome.
   if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
     window.HeroAcademy.Humphrey.init({
       position: 'bottom-left',
@@ -466,7 +543,6 @@
       welcomeEvent: 'welcome-hero-hall',
       kidName: 'Nigel',
     });
-    // Welcome fires automatically on first user gesture (gated daily).
   }
 </script>
 </html>

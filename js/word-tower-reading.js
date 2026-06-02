@@ -216,6 +216,12 @@
           : "Good work, Nigel. Some of those were tricky and you stuck with it. That is what real readers do.");
     say(line, { event: 'correct-answer-reading' });
     burstConfetti();
+    // Character progression — may surface an episode unlock.
+    if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
+      setTimeout(function () {
+        NS.Characters.recordSessionComplete('wordtower').catch(function () {});
+      }, 1500);
+    }
   }
 
   function persistSessionSummary(stats) {

@@ -359,6 +359,281 @@
     return visitCharacter('toybox-team', Object.assign({ duration: 4000 }, opts || {}));
   }
 
+  // ====================================================================
+  // EPISODE PROGRESSION (mastery-based, server-backed)
+  // ====================================================================
+  // Each character has 3 episodes Nigel earns by playing. Unlocks are
+  // deterministic (tied to real sessions / mastery), not random. Each unlock
+  // fires a Haiku-generated story snippet Ms. Humphrey reads aloud.
+  //
+  // Existing maybeSurprise / unlockCard / readUnlocked are kept untouched
+  // for the random-visit overlay — that's a separate flavor mechanism that
+  // populates the legacy 'unlocked' set. Episode state lives in a new
+  // localStorage key and is synced to Supabase per-child.
+
+  const MILESTONES_KEY = 'heroAcademy.milestones';
+  const EPISODE_KEY    = 'heroAcademy.episodes';    // local mirror of progress
+  const DEFAULT_CHILD  = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
+
+  // Per-character criteria. Each criterion is a predicate function over the
+  // milestones blob. Returns true when the kid has earned that episode.
+  const UNLOCK_CRITERIA = {
+    'webly': {
+      1: m => (m.sessionsByZone.wordtower || 0) >= 1,
+      2: m => (m.sessionsByZone.wordtower || 0) >= 5,
+      3: m => (m.sessionsByZone.wordtower || 0) >= 10,
+    },
+    'carlo': {
+      1: m => (m.sessionsByZone.discoverydome || 0) >= 1,
+      2: m => (m.sessionsByZone.discoverydome || 0) >= 5,
+      3: m => (m.sessionsByZone.discoverydome || 0) >= 10,
+    },
+    'aurora': {
+      1: m => (m.sessionsByZone.numberlab || 0) >= 1,
+      2: m => (m.sessionsByZone.numberlab || 0) >= 5,
+      3: m => (m.mathSkillsMastered || []).length >= 1,
+    },
+    'toybox-team': {
+      1: m => (m.sessionsByZone.storylab || 0) >= 1,
+      2: m => (m.sessionsByZone.storylab || 0) >= 5,
+      3: m => (m.sessionsByZone.storylab || 0) >= 10,
+    },
+    'shellback-squad': {
+      1: m => Object.keys(m.sessionsByZone || {}).length >= 2,
+      2: m => Object.keys(m.sessionsByZone || {}).length >= 4,
+      3: m => Object.keys(m.sessionsByZone || {})
+                .filter(z => (m.sessionsByZone[z] || 0) >= 3).length >= 4,
+    },
+  };
+
+  // -------- Milestones (the local source-of-truth for criteria) -----------
+  function defaultMilestones() {
+    return {
+      sessionsByZone: {},        // { numberlab: N, wordtower: N, ... }
+      zonesEverPlayed: [],       // array of zone ids (deduped via set)
+      daysPlayed: [],            // array of YYYY-MM-DD (deduped)
+      mathSkillsMastered: [],    // array of skill ids (deduped)
+    };
+  }
+  function readMilestones() {
+    try {
+      const raw = localStorage.getItem(MILESTONES_KEY);
+      return raw ? Object.assign(defaultMilestones(), JSON.parse(raw)) : defaultMilestones();
+    } catch (e) { return defaultMilestones(); }
+  }
+  function writeMilestones(m) {
+    try { localStorage.setItem(MILESTONES_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' +
+           String(d.getMonth() + 1).padStart(2, '0') + '-' +
+           String(d.getDate()).padStart(2, '0');
+  }
+
+  // -------- Episode state (local mirror of server) ------------------------
+  function readEpisodes() {
+    try {
+      const raw = localStorage.getItem(EPISODE_KEY);
+      return raw ? JSON.parse(raw) : {};   // { charKey: highestEpisode }
+    } catch (e) { return {}; }
+  }
+  function writeEpisodes(obj) {
+    try { localStorage.setItem(EPISODE_KEY, JSON.stringify(obj)); } catch (e) {}
+  }
+
+  // -------- Server sync helpers ------------------------------------------
+  function childId() {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry &&
+        typeof window.HeroAcademy.Telemetry.childId === 'function') {
+      return window.HeroAcademy.Telemetry.childId() || DEFAULT_CHILD;
+    }
+    return DEFAULT_CHILD;
+  }
+  function tel() {
+    return window.HeroAcademy && window.HeroAcademy.Telemetry;
+  }
+
+  // Fetch progress from server. Falls back to localStorage on any failure.
+  async function getProgress() {
+    const T = tel();
+    if (T && typeof T.rpc === 'function') {
+      try {
+        const r = await T.rpc('ha_get_character_progress', { p_child_id: childId() });
+        if (r && r.ok) {
+          const rows = await r.json();
+          if (Array.isArray(rows)) {
+            const out = {};
+            rows.forEach(row => { out[row.character_key] = row.episode || 0; });
+            // Mirror to local for fast next-render
+            writeEpisodes(out);
+            return out;
+          }
+        }
+      } catch (e) { /* fall through */ }
+    }
+    return readEpisodes();
+  }
+
+  // Record on the server, also update local mirror.
+  async function persistEpisode(charKey, episode) {
+    const T = tel();
+    if (T && typeof T.rpc === 'function') {
+      try {
+        await T.rpc('ha_unlock_character_episode', {
+          p_child_id: childId(), p_character_key: charKey, p_episode: episode
+        });
+      } catch (e) { /* localStorage will hold the change */ }
+    }
+    const eps = readEpisodes();
+    eps[charKey] = Math.max(eps[charKey] || 0, episode);
+    writeEpisodes(eps);
+  }
+
+  // Fetch or generate the episode story.
+  async function fetchEpisodeStory(charKey, episode) {
+    const T = tel();
+    // Try cached on the server
+    if (T && typeof T.rpc === 'function') {
+      try {
+        const r = await T.rpc('ha_get_character_episode', {
+          p_child_id: childId(), p_character_key: charKey, p_episode: episode
+        });
+        if (r && r.ok) {
+          const rows = await r.json();
+          if (Array.isArray(rows) && rows.length > 0 && rows[0].story) {
+            return rows[0].story;
+          }
+        }
+      } catch (e) {}
+    }
+    // Generate on demand
+    try {
+      const resp = await fetch('/api/humphrey/generate-character-episode', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          child_id: childId(), character_key: charKey, episode: episode
+        }),
+      });
+      if (resp.ok) {
+        const j = await resp.json();
+        if (j && j.story) return j.story;
+      }
+    } catch (e) {}
+    // Last resort — fall back to the character's voiceLine.
+    const c = getById(charKey);
+    return c ? (c.voiceLine || 'A new hero joins your squad!') : 'A new hero joins your squad!';
+  }
+
+  // Play the episode celebration overlay — character art animates in,
+  // Ms. Humphrey reads the story, then it fades out.
+  async function playEpisodeCelebration(charKey, episode, story) {
+    const char = getById(charKey);
+    if (!char) return;
+    ensureStyles();
+
+    // Build overlay using the same card scaffolding as random visits, but
+    // with the episode story shown underneath.
+    return new Promise(resolve => {
+      const overlay = buildOverlay();
+      const newUnlock = unlockCard(char.id);  // also flip legacy localStorage flag
+      const card = renderCard(char, newUnlock);
+
+      // Append the episode story as an extra panel under the card.
+      const arc = document.createElement('div');
+      arc.style.cssText =
+        'max-width:480px;margin:18px auto 0;padding:14px 18px;background:rgba(0,0,0,0.42);' +
+        'border-radius:14px;color:#f5e8c8;font-size:1.02rem;line-height:1.5;text-align:center;' +
+        'border:1px solid rgba(255,209,71,0.35)';
+      arc.innerHTML =
+        '<div style="font-weight:700;font-size:0.78rem;letter-spacing:0.08em;' +
+        'color:#ffd147;margin-bottom:8px">EPISODE ' + episode + '</div>' +
+        '<div>' + escapeHTML(story) + '</div>';
+      card.appendChild(arc);
+
+      overlay.appendChild(card);
+      spawnSparkles(overlay);
+
+      // Ms. Humphrey reads the story (preferred), else fall back to the
+      // legacy speechSynthesis voiceLine.
+      const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+      if (H && typeof H.say === 'function') {
+        H.say('correct-answer', {
+          kidName: 'Nigel',
+          text: story,
+          expression: 'cheering',
+          duration: Math.min(20000, Math.max(7000, story.length * 70)),
+        });
+      } else {
+        speakLine(story);
+      }
+
+      const duration = Math.min(14000, Math.max(7000, story.length * 70));
+      setTimeout(() => {
+        card.style.animation = 'hero-surprise-out .55s cubic-bezier(.7,0,.84,0) forwards';
+      }, duration - 600);
+      setTimeout(() => {
+        card.remove();
+        resolve({ character: char, episode });
+      }, duration);
+    });
+  }
+
+  function escapeHTML(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/\'/g, '&#39;');
+  }
+
+  // -------- Public: recordSessionComplete --------------------------------
+  // Each zone calls this when a session ends. It bumps milestones, then
+  // checks every character\'s criteria. New unlocks fire a celebration in
+  // sequence (awaited so we don\'t stack overlays).
+  async function recordSessionComplete(zoneId) {
+    if (!zoneId) return [];
+
+    // 1. Bump milestones
+    const m = readMilestones();
+    m.sessionsByZone[zoneId] = (m.sessionsByZone[zoneId] || 0) + 1;
+    if (m.zonesEverPlayed.indexOf(zoneId) < 0) m.zonesEverPlayed.push(zoneId);
+    const today = todayKey();
+    if (m.daysPlayed.indexOf(today) < 0) m.daysPlayed.push(today);
+    // Pull math-skills-mastered from main game state, if present
+    try {
+      const gs = JSON.parse(localStorage.getItem('hero_academy_state_v1') || '{}');
+      m.mathSkillsMastered = Array.from(new Set(gs.skillsMastered || []));
+    } catch (e) {}
+    writeMilestones(m);
+
+    // 2. Evaluate criteria against the new state
+    const currentEps = readEpisodes();
+    const newUnlocks = [];
+    Object.keys(UNLOCK_CRITERIA).forEach(charKey => {
+      const criteria = UNLOCK_CRITERIA[charKey];
+      const haveEp   = currentEps[charKey] || 0;
+      // Find the highest episode the kid newly qualifies for.
+      let earned = haveEp;
+      [1, 2, 3].forEach(ep => {
+        if (ep > earned && criteria[ep] && criteria[ep](m)) earned = ep;
+      });
+      // Stage up one episode at a time so each milestone gets its own scene.
+      // If kid qualifies for ep 3 but is still at 0, give ep 1 now and let
+      // future sessions deliver ep 2 and 3.
+      if (earned > haveEp) {
+        newUnlocks.push({ charKey, episode: haveEp + 1 });
+      }
+    });
+
+    // 3. For each new unlock, persist + fetch story + play celebration
+    for (const u of newUnlocks) {
+      await persistEpisode(u.charKey, u.episode);
+      const story = await fetchEpisodeStory(u.charKey, u.episode);
+      await playEpisodeCelebration(u.charKey, u.episode, story);
+    }
+    return newUnlocks;
+  }
+
   // --- Expose ----------------------------------------------------------
   global.HeroAcademy = global.HeroAcademy || {};
   global.HeroAcademy.Characters = {
@@ -372,6 +647,14 @@
     isUnlocked,
     readUnlocked,
     TRIGGER_CHANCE,
-    STORAGE_KEY
+    STORAGE_KEY,
+    // Episode progression
+    recordSessionComplete,
+    getProgress,
+    fetchEpisodeStory,
+    playEpisodeCelebration,
+    UNLOCK_CRITERIA,
+    readMilestones,
+    readEpisodes
   };
 })(window);
