@@ -557,6 +557,17 @@ class DinerScene extends Phaser.Scene {
     const isCorrect = pinContainer.getData('isCorrect');
     const emoji = pinContainer.getData('emoji');
 
+    // --- telemetry: record this bowl attempt ---------------------------------
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      const _c = CUSTOMERS[state.levelIndex] || {};
+      window.HeroAcademy.Telemetry.recordAttempt(
+        isCorrect,
+        (_c.name || '') + ' from ' + (_c.state || '') + ' wants ' + (_c.label || ''),
+        _c.emoji || '',
+        emoji || ''
+      );
+    }
+
     state.busy = true;
 
     // Bowling ball start position (between Ralphie and the lane bottom)

@@ -195,6 +195,17 @@
     });
     session.completedText = text;
 
+    // --- telemetry: record this completed story --------------------------
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry &&
+        typeof window.HeroAcademy.Telemetry.recordAttempt === 'function') {
+      window.HeroAcademy.Telemetry.recordAttempt(
+        true,
+        (tpl && tpl.title) || 'story',
+        'completion',
+        String(text).slice(0, 200)
+      );
+    }
+
     $('sl-stage').className = 'sl-stage sl-stage--story';
     $('sl-stage').innerHTML =
       '<div class="sl-story-header">' +

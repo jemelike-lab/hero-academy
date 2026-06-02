@@ -642,6 +642,18 @@ class CauldronScene extends Phaser.Scene {
       }
     });
 
+    // --- telemetry: record this serve attempt --------------------------------
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      const _exp = Object.keys(expected).map(function(k){return k+':'+expected[k];}).join(',');
+      const _got = Object.keys(got).filter(function(k){return got[k]>0;}).map(function(k){return k+':'+got[k];}).join(',') || 'empty';
+      window.HeroAcademy.Telemetry.recordAttempt(
+        correct,
+        (lvl.name || 'Order') + ' wants ' + _exp,
+        _exp,
+        _got
+      );
+    }
+
     if (correct) this.winLevel();
     else this.failLevel(mismatch);
   }

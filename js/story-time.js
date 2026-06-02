@@ -304,6 +304,10 @@
       })
     }).then(function (r) { return r.json(); }).then(function (json) {
       debug('assess result:', json);
+      // --- telemetry: record this read-aloud attempt -----------------------
+      if (NS.Telemetry && typeof NS.Telemetry.recordAttempt === 'function') {
+        NS.Telemetry.recordAttempt(!!json.passed, sentence, sentence, transcript || '');
+      }
       if (json.passed) {
         handleSentencePass(json);
       } else {
@@ -443,6 +447,10 @@
         kidName: 'Nigel'
       })
     }).then(function (r) { return r.json(); }).then(function (json) {
+      // --- telemetry: record this comprehension attempt --------------------
+      if (NS.Telemetry && typeof NS.Telemetry.recordAttempt === 'function') {
+        NS.Telemetry.recordAttempt(!!json.passed, p.comprehensionQuestion, p.expectedAnswerHint || '', transcript || '');
+      }
       if (json.passed) {
         handleComprehensionPass(json);
       } else {
