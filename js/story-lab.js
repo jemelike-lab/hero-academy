@@ -69,16 +69,14 @@
       '<div class="sl-template-grid" id="sl-template-grid"></div>' +
       '<button class="sl-library-link" id="sl-library-link">📚 My saved stories (<span id="sl-saved-count">0</span>)</button>';
 
-    var grid = $('sl-template-grid');
-    T.all().forEach(function (tpl) {
-      var btn = document.createElement('button');
-      btn.className = 'sl-template-card';
-      btn.innerHTML =
-        '<div class="sl-tpl-emoji">' + tpl.emoji + '</div>' +
-        '<div class="sl-tpl-title">' + escapeHTML(tpl.title) + '</div>' +
-        '<div class="sl-tpl-meta">' + tpl.slots.length + ' words to pick</div>';
-      btn.onclick = function () { startTemplate(tpl); };
-      grid.appendChild(btn);
+    // Try the Supabase content bank first; fall back to the static curated
+    // list on any failure or empty pool. The kid never blocks on Haiku.
+    loadServerTemplates().then(function (tpls) {
+      if (!tpls || tpls.length === 0) tpls = T.all();
+      renderPickerGrid(tpls);
+      maybeTopUpStoryPool();
+    }).catch(function () {
+      renderPickerGrid(T.all());
     });
 
     var saved = safeJSON(STORAGE_STORIES, []);
@@ -88,6 +86,84 @@
 
     // Quiet welcome — let Ms. Humphrey explain on the first visit only
     maybeWelcome();
+  }
+
+  // Renders the picker cards. Extracted so both server and static paths
+  // share the same DOM construction.
+  function renderPickerGrid(tpls) {
+    var grid = $('sl-template-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    tpls.forEach(function (tpl) {
+      var btn = document.createElement('button');
+      btn.className = 'sl-template-card';
+      btn.innerHTML =
+        '<div class="sl-tpl-emoji">' + tpl.emoji + '</div>' +
+        '<div class="sl-tpl-title">' + escapeHTML(tpl.title) + '</div>' +
+        '<div class="sl-tpl-meta">' + tpl.slots.length + ' words to pick</div>';
+      btn.onclick = function () { startTemplate(tpl); };
+      grid.appendChild(btn);
+    });
+  }
+
+  // --- Server content bank --------------------------------------------------
+
+  // Server rows look like:
+  //   { id, title, emoji, theme, slots_json, text_template }
+  // Client templates look like:
+  //   { id?, title, emoji, slots[], text }
+  // The picker + slot picker only care about slots/text — keep names aligned
+  // and stash _server so the started/completed mirrors fire.
+  function mapServerTemplate(row) {
+    var slots = Array.isArray(row.slots_json) ? row.slots_json : [];
+    return {
+      id: row.id,
+      title: row.title || '',
+      emoji: row.emoji || '✨',
+      slots: slots,
+      text: row.text_template || '',
+      theme: row.theme || '',
+      _server: true,
+    };
+  }
+
+  function loadServerTemplates() {
+    var Tel = NS.Telemetry;
+    if (!Tel || typeof Tel.rpc !== 'function') return Promise.resolve(null);
+    return Tel.rpc('ha_get_story_templates', {
+      p_child_id: Tel.childId(),
+      p_n: 10
+    }).then(function (r) {
+      if (!r || !r.ok) return null;
+      return r.json();
+    }).then(function (rows) {
+      if (!Array.isArray(rows) || rows.length === 0) return null;
+      return rows.map(mapServerTemplate);
+    });
+  }
+
+  function maybeTopUpStoryPool() {
+    var Tel = NS.Telemetry;
+    if (!Tel || typeof Tel.rpc !== 'function') return;
+    Tel.rpc('ha_story_pool_status', { p_child_id: Tel.childId() })
+      .then(function (r) {
+        if (!r || !r.ok) return null;
+        return r.json();
+      })
+      .then(function (rows) {
+        var s = Array.isArray(rows) ? rows[0] : rows;
+        if (!s) return;
+        if ((s.unseen || 0) >= 6) return;
+        fetch('/api/humphrey/generate-story-templates', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            child_id: Tel.childId(),
+            target_count: 6
+          }),
+          keepalive: true
+        }).catch(function () {});
+      }).catch(function () {});
   }
 
   function maybeWelcome() {
@@ -115,6 +191,13 @@
     session.template = tpl;
     session.slotValues = {};
     session.slotIndex = 0;
+    // Mirror "kid picked this template" to the content bank for seen tracking.
+    if (tpl && tpl.id && tpl._server) {
+      var Tel = NS.Telemetry;
+      if (Tel && typeof Tel.rpc === 'function') {
+        Tel.rpc('ha_mark_story_started', { p_item_id: tpl.id }).catch(function () {});
+      }
+    }
     renderSlot();
   }
 
@@ -204,6 +287,13 @@
         'completion',
         String(text).slice(0, 200)
       );
+      // Mirror completion to per-template bank — bumps completed_count and
+      // (after 3 completions) auto-masters the template so it rotates out.
+      if (tpl && tpl.id && tpl._server && typeof window.HeroAcademy.Telemetry.rpc === 'function') {
+        window.HeroAcademy.Telemetry.rpc('ha_mark_story_completed', {
+          p_item_id: tpl.id
+        }).catch(function () {});
+      }
     }
 
     $('sl-stage').className = 'sl-stage sl-stage--story';
