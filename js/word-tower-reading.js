@@ -37,6 +37,12 @@
   var ADVANCE_DELAY_MS    = 1600;  // pause after a pass before next word
   var COOLDOWN_MS         = 800;
   var STORAGE_KEY         = 'ha_word_tower_words';
+
+  // Supabase adaptive content bank — when the unseen pool drops below this,
+  // fire the generator endpoint (fire-and-forget) so the next session has
+  // fresh items waiting. Server short-circuits if pool is already healthy.
+  var TOPUP_THRESHOLD     = 15;
+  var TOPUP_BATCH_SIZE    = 15;
   // ---------------------------------------------------------------------
 
   var session = {
@@ -311,6 +317,13 @@
     recordWordResult(w.word, true, null);
     if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
       window.HeroAcademy.Telemetry.recordAttempt(true, w.word, w.word, w.word);
+      // Mirror to the content-bank item so seen/correct counts and mastery
+      // are tracked per-child server-side. Only items pulled from the server
+      // batch have an id; static-fallback items skip this branch.
+      if (w.id && typeof NS.Telemetry.rpc === 'function') {
+        NS.Telemetry.rpc('ha_mark_word_attempt', { p_item_id: w.id, p_correct: true })
+          .catch(function () {});
+      }
     }
     session.results.push({
       word: w.word,
@@ -335,6 +348,12 @@
       // Second miss — gentle move-on, mark for spaced repetition
       if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
         window.HeroAcademy.Telemetry.recordAttempt(false, w.word, w.word, (json && json.slip) || 'miss');
+        // Mirror miss to content bank (resets the 5-correct streak so the
+        // item stays in rotation instead of getting auto-mastered).
+        if (w.id && typeof NS.Telemetry.rpc === 'function') {
+          NS.Telemetry.rpc('ha_mark_word_attempt', { p_item_id: w.id, p_correct: false })
+            .catch(function () {});
+        }
       }
       session.results.push({
         word: w.word,
@@ -381,10 +400,21 @@
     session.results = [];
     session.attemptsThisWord = 0;
     var level = NS.WordLists.getLevel(NS.WordLists.getDefaultLevelId());
-    session.queue = pickWordsForSession(level);
     $('wt-end-card').hidden = true;
     $('wt-stage').hidden = false;
-    renderCurrentWord();
+    setStatus('Getting your next words ready…', 'hint');
+    loadServerQueue(level).then(function (serverQueue) {
+      session.queue = (serverQueue && serverQueue.length > 0)
+        ? serverQueue
+        : pickWordsForSession(level);
+      setStatus('', null);
+      renderCurrentWord();
+      maybeTopUpPool(level);
+    }).catch(function () {
+      session.queue = pickWordsForSession(level);
+      setStatus('', null);
+      renderCurrentWord();
+    });
   }
 
   // ---- Boot -----------------------------------------------------------
@@ -400,12 +430,12 @@
       return;
     }
     session.level = level;
-    session.queue = pickWordsForSession(level);
+    session.queue = [];          // populated async by loadServerQueue
     session.index = 0;
     session.results = [];
     session.startedAt = Date.now();
 
-    // Bind buttons
+    // Bind buttons (sync — must be wired immediately on boot)
     var mic = $('wt-mic-btn');
     if (mic) mic.addEventListener('click', onMicTap);
     var ta = $('wt-tryagain-btn');
@@ -415,17 +445,97 @@
     var restart = $('wt-restart-btn');
     if (restart) restart.addEventListener('click', onRestart);
 
-    // First word
-    renderCurrentWord();
+    // Show holding state until the queue resolves
+    setStatus('Getting your words ready, Nigel…', 'hint');
 
-    // Welcome line
-    setTimeout(function () {
-      say(
-        "Welcome to the Word Tower, Nigel! I'll show you a word, and you read it out loud to me. " +
-        "If you get stuck, I will help you sound it out. Tap the microphone when you are ready.",
-        { event: 'zone-enter' }
-      );
-    }, 600);
+    // Async: try Supabase content bank; fall back to static on any error
+    loadServerQueue(level).then(function (serverQueue) {
+      if (serverQueue && serverQueue.length > 0) {
+        session.queue = serverQueue;
+        debug('queue from Supabase:', serverQueue.map(function (q) { return q.word; }).join(' '));
+      } else {
+        session.queue = pickWordsForSession(level);
+        debug('queue from static fallback (empty server)');
+      }
+      setStatus('', null);
+      renderCurrentWord();
+
+      // Welcome line
+      setTimeout(function () {
+        say(
+          "Welcome to the Word Tower, Nigel! I'll show you a word, and you read it out loud to me. " +
+          "If you get stuck, I will help you sound it out. Tap the microphone when you are ready.",
+          { event: 'zone-enter' }
+        );
+      }, 600);
+
+      // Fire-and-forget pool top-up so the NEXT session has fresh items.
+      maybeTopUpPool(level);
+    }).catch(function (err) {
+      debug('loadServerQueue failed; using static fallback', err);
+      session.queue = pickWordsForSession(level);
+      setStatus('', null);
+      renderCurrentWord();
+      setTimeout(function () {
+        say(
+          "Welcome to the Word Tower, Nigel! I'll show you a word, and you read it out loud to me. " +
+          "If you get stuck, I will help you sound it out. Tap the microphone when you are ready.",
+          { event: 'zone-enter' }
+        );
+      }, 600);
+    });
+  }
+
+  // ---- Server queue loader -------------------------------------------------
+  // Calls the SECURITY DEFINER RPC ha_get_word_tower_batch via the shared
+  // Supabase config exposed on NS.Telemetry.
+  function loadServerQueue(level) {
+    var T = NS.Telemetry;
+    if (!T || typeof T.rpc !== 'function') return Promise.resolve(null);
+    return T.rpc('ha_get_word_tower_batch', {
+      p_child_id: T.childId(),
+      p_level_id: level.id,
+      p_n: WORDS_PER_SESSION
+    }).then(function (r) {
+      if (!r || !r.ok) return null;
+      return r.json();
+    }).then(function (rows) {
+      if (!Array.isArray(rows)) return null;
+      // Items already match the {id, word, pattern, hint, image_emoji, sentence}
+      // shape — no transformation needed.
+      return rows;
+    });
+  }
+
+  // Fire-and-forget: ask the server to top up the content pool for this
+  // (child, level) if it's running low. Server short-circuits if not needed,
+  // so it's cheap to call on every session start.
+  function maybeTopUpPool(level) {
+    var T = NS.Telemetry;
+    if (!T || typeof T.rpc !== 'function') return;
+    T.rpc('ha_word_tower_pool_status', {
+      p_child_id: T.childId(),
+      p_level_id: level.id
+    }).then(function (r) {
+      if (!r || !r.ok) return null;
+      return r.json();
+    }).then(function (rows) {
+      var status = Array.isArray(rows) ? rows[0] : rows;
+      if (!status) return;
+      debug('pool status', status);
+      if ((status.unseen || 0) >= TOPUP_THRESHOLD) return;
+      debug('pool low — firing generator');
+      fetch('/api/humphrey/generate-word-tower-batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          child_id: T.childId(),
+          level_id: level.id,
+          target_count: TOPUP_BATCH_SIZE
+        }),
+        keepalive: true
+      }).catch(function (e) { debug('topup fetch failed', e); });
+    }).catch(function (e) { debug('pool status fetch failed', e); });
   }
 
   // Confetti keyframes injected once

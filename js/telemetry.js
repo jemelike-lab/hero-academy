@@ -200,5 +200,9 @@
     endSession: endSession,
     unlockCharacter: unlockCharacter,
     currentSessionId: currentSessionId,
+    // Exposed so other zones (e.g. Word Tower content bank) can reuse the
+    // shared Supabase auth/config without duplicating the publishable key.
+    rpc: rpc,
+    childId: function () { return NIGEL_ID; },
   };
 })();
