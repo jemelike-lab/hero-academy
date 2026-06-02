@@ -255,7 +255,7 @@
     var H = NS.Humphrey;
     var fb = $('feedback');
 
-    if (session.strikesOnCard === 1) {
+    if (session.strikesOnCard === 1 && (session.difficulty || 2) > 1) {
       session.currentStreak = 0;  // wrong answer resets the streak
       // First strike — gentle nudge, re-enable the non-wrong buttons
       if (NS.Telemetry) {
@@ -282,8 +282,9 @@
         });
       }, 1000);
     } else {
-      // Second strike — Ms. Humphrey reads the fact again with explicit
-      // pointer to the answer, then the correct button pulses + unlocks.
+      // Second strike (or first strike at difficulty 1) — Ms. Humphrey
+      // walks through the answer immediately and unlocks the correct button.
+      session.currentStreak = 0;
       var card = session.current;
       var correctText = card.choices[card.answer];
       var scaffold = 'Let me help, Nigel. ' + card.fact + ' So the right answer is: ' + correctText + '. Tap it to lock it in.';
@@ -484,6 +485,7 @@
       currentStreak: 0,         // running first-try streak
       longestStreakEver: 0,     // peak streak this session
       cardsCompleted: 0,
+      difficulty: 2,            // loaded async from ha_get_difficulty
       startedAt: Date.now(),
     };
   }
@@ -542,7 +544,27 @@
   function loadServerQueue() {
     var T = NS.Telemetry;
     if (!T || typeof T.rpc !== 'function') return Promise.resolve(null);
-    return T.rpc('ha_get_discovery_cards', {
+    // Block on pool warmup if unseen pool is critically thin; also fetch
+    // the current difficulty level for adaptive scaffolds.
+    var prep = Promise.resolve(true);
+    if (typeof T.warmupPool === 'function') {
+      prep = T.warmupPool({
+        statusRpc: 'ha_discovery_pool_status',
+        statusArgs: { p_child_id: T.childId(), p_topic: null },
+        generatorPath: '/api/humphrey/generate-discovery-cards',
+        generatorBody: { child_id: T.childId(), target_count: 20 },
+      });
+    }
+    return prep.then(function () {
+      return T.rpc('ha_get_difficulty', { p_child_id: T.childId(), p_zone: 'discoverydome' });
+    }).then(function (dr) {
+      if (dr && dr.ok) {
+        return dr.json().then(function (dv) {
+          session.difficulty = (typeof dv === 'number') ? dv : (Array.isArray(dv) && dv[0]) || 2;
+        });
+      }
+    }).catch(function () {}).then(function () {
+      return T.rpc('ha_get_discovery_cards', {
       p_child_id: T.childId(),
       p_n: 6,
       p_topic: null
@@ -552,6 +574,7 @@
     }).then(function (rows) {
       if (!Array.isArray(rows) || rows.length === 0) return null;
       return rows.map(mapServerCard);
+    });
     });
   }
 

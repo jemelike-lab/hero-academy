@@ -130,7 +130,18 @@
   function loadServerTemplates() {
     var Tel = NS.Telemetry;
     if (!Tel || typeof Tel.rpc !== 'function') return Promise.resolve(null);
-    return Tel.rpc('ha_get_story_templates', {
+    // Block on pool warmup if unseen pool is critically thin.
+    var prep = Promise.resolve(true);
+    if (typeof Tel.warmupPool === 'function') {
+      prep = Tel.warmupPool({
+        statusRpc: 'ha_story_pool_status',
+        statusArgs: { p_child_id: Tel.childId() },
+        generatorPath: '/api/humphrey/generate-story-templates',
+        generatorBody: { child_id: Tel.childId(), target_count: 12 },
+      });
+    }
+    return prep.then(function () {
+      return Tel.rpc('ha_get_story_templates', {
       p_child_id: Tel.childId(),
       p_n: 10
     }).then(function (r) {
@@ -139,6 +150,7 @@
     }).then(function (rows) {
       if (!Array.isArray(rows) || rows.length === 0) return null;
       return rows.map(mapServerTemplate);
+    });
     });
   }
 

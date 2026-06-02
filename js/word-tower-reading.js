@@ -509,7 +509,18 @@
   function loadServerQueue(level) {
     var T = NS.Telemetry;
     if (!T || typeof T.rpc !== 'function') return Promise.resolve(null);
-    return T.rpc('ha_get_word_tower_batch', {
+    // Block on pool warmup if unseen pool is critically thin.
+    var prep = Promise.resolve(true);
+    if (typeof T.warmupPool === 'function') {
+      prep = T.warmupPool({
+        statusRpc: 'ha_word_tower_pool_status',
+        statusArgs: { p_child_id: T.childId(), p_level_id: level.id },
+        generatorPath: '/api/humphrey/generate-word-tower-batch',
+        generatorBody: { child_id: T.childId(), level_id: level.id, target_count: 25 },
+      });
+    }
+    return prep.then(function () {
+      return T.rpc('ha_get_word_tower_batch', {
       p_child_id: T.childId(),
       p_level_id: level.id,
       p_n: WORDS_PER_SESSION
@@ -521,6 +532,7 @@
       // Items already match the {id, word, pattern, hint, image_emoji, sentence}
       // shape — no transformation needed.
       return rows;
+    });
     });
   }
 
