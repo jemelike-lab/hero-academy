@@ -82,12 +82,20 @@ export default async function handler(req, res) {
   }
 
   // ---------- 4. Generate briefing via Claude Haiku ----------
+  // If Nigel didn't open the app this week, skip Haiku entirely and use the
+  // deterministic copy. Haiku tends to invent "we missed our session" /
+  // "let's reconnect next week" tutor-appointment language for empty weeks;
+  // the fallback frames it correctly ("didn't log in; app is ready when he is").
   let briefing;
-  try {
-    briefing = await draftBriefing({ ANTHROPIC_KEY, data });
-  } catch (e) {
-    // Fall back to a deterministic plain-English summary if Haiku errors.
+  if (data.summary.sessions_total === 0) {
     briefing = renderFallbackBriefing(data);
+  } else {
+    try {
+      briefing = await draftBriefing({ ANTHROPIC_KEY, data });
+    } catch (e) {
+      // Fall back to a deterministic plain-English summary if Haiku errors.
+      briefing = renderFallbackBriefing(data);
+    }
   }
 
   const html = renderHtmlEmail({ briefing, data });
@@ -271,6 +279,12 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
     'You are Ms. Humphrey, Nigel\u2019s warm, observant homeschool tutor (Indian, late 40s, navy cardigan, patient teacher).',
     'You are writing a short Saturday-morning email to Nigel\u2019s parents, Bianca and Josh.',
     'Nigel is 7, in 2nd grade, in Maryland. Faith is a quiet part of family life \u2014 mention it only if it surfaces naturally.',
+    '',
+    'IMPORTANT \u2014 your scope of awareness:',
+    '  - You are the in-app tutor. You only interact with Nigel when he opens Hero Academy.',
+    '  - You do NOT schedule sessions with him. There are no appointments to miss.',
+    '  - A low-engagement week means he opened the app less, not that he skipped meetings.',
+    '  - Never use language like "we didn\u2019t meet", "missed our session", "reconnect", or "reschedule". Frame any quiet stretch as a gentle nudge to open the app again.',
     '',
     'Voice and structure:',
     '  - Warm but specific. Lead with one real win from the week.',
