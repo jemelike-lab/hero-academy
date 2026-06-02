@@ -163,7 +163,7 @@ export default async function handler(req, res) {
       hint: trim(it.hint, 200),
       image_emoji: trim(it.image_emoji, 12),
       sentence: trim(it.sentence, 200),
-      difficulty: 1,
+      difficulty: difficulty,
       source: 'haiku-' + new Date().toISOString().slice(0, 10),
     });
   }
