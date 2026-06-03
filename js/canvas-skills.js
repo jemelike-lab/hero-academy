@@ -243,13 +243,147 @@
     });
   }
 
+  /**
+   * Count-on strategy: for problems like 9 + 2, where one addend is large
+   * and the other is small (≤3), the count-on strategy is faster than
+   * jumping. We show the larger addend as the start, then ONE TICK at a
+   * time stepping right, each tick labeled "+1". This makes the count-on
+   * mechanic crystal clear for a 7-year-old.
+   *
+   * Falls back to additionLine when the smaller addend is >3 (count-on
+   * stops being efficient — at that point a single arrow is clearer).
+   */
+  async function countOnLine(problem) {
+    var parsed = parseAddSub(problem.question || problem.prompt);
+    if (!parsed || parsed.op !== '+') return;
+    var a = parsed.a, b = parsed.b, sum = parsed.result;
+    var anchor = Math.max(a, b);
+    var hops   = Math.min(a, b);
+    // Only specialize when one addend is ≤3 and the other is ≥5.
+    // Below that, the rest of the curriculum (small + small) needs ten-frame
+    // visuals; above that, the arrow approach is fine.
+    if (hops > 3 || anchor < 5) return additionLine(problem);
+
+    var Canvas = C(); if (!Canvas) return;
+    var range = chooseLineRange(Math.max(sum, 10));
+
+    await Canvas.humphreyClear();
+    await Canvas.humphreyDrawNumberLine(range[0], range[1], { y: 240 });
+
+    // Anchor dot at the larger number
+    await Canvas.humphreyDrawCircle(anchor, 240, 14, {
+      color: '#ec4899', fill: '#ec4899', duration: 350,
+    });
+    await Canvas.humphreyDrawText(anchor, 180, 'Start at ' + anchor, {
+      color: '#0a0b2e',
+      font: '600 26px Fredoka, system-ui, sans-serif',
+    });
+
+    // One small arrow per hop, each labeled "+1", in a different color per hop
+    var palette = ['#14b8d4', '#a855f7', '#f59e0b'];
+    for (var i = 0; i < hops; i++) {
+      var fromN = anchor + i;
+      var toN   = anchor + i + 1;
+      await Canvas.humphreyDrawArrow(fromN, 210, toN, 210, {
+        color: palette[i % palette.length], width: 4, duration: 380,
+      });
+      await Canvas.humphreyDrawText((fromN + toN) / 2, 175, '+1', {
+        color: palette[i % palette.length],
+        font: '600 20px Fredoka, system-ui, sans-serif',
+      });
+    }
+
+    // Circle the result + the "= sum" label
+    await Canvas.humphreyDrawCircle(sum, 240, 32, {
+      color: '#22c55e', width: 6, duration: 600,
+    });
+    await Canvas.humphreyDrawText(sum, 320, '= ' + sum, {
+      color: '#22c55e',
+      font: '700 32px Fredoka, system-ui, sans-serif',
+    });
+  }
+
+  /**
+   * Subtract-from-10: 10 - N. Draw a ten-frame at the canvas top showing
+   * 10 dots, then animate crossing out N of them. Anchors the "10 - n"
+   * subtraction facts which are foundational for borrowing and make-10.
+   *
+   * Only specializes when the minuend is exactly 10. For other subtractions
+   * (8 - 3, 14 - 5), use the standard subtraction number line — it stays
+   * the better visualization for those.
+   */
+  async function subtractFromTenLine(problem) {
+    var parsed = parseAddSub(problem.question || problem.prompt);
+    if (!parsed || parsed.op !== '-') return;
+    if (parsed.a !== 10) return subtractionLine(problem);
+    var taken = parsed.b;
+    var leftover = parsed.result;
+
+    var Canvas = C(); if (!Canvas) return;
+
+    await Canvas.humphreyClear();
+
+    // Draw a 5x2 ten-frame grid centered horizontally on the canvas.
+    // Coordinates are in virtual 0-1000 pixel space (Canvas helpers scale).
+    var cellW = 80, cellH = 80, gap = 10;
+    var totalW = 5 * cellW + 4 * gap;          // 5 cells across
+    var gridLeftX = (1000 - totalW) / 2;       // center horizontally
+    var gridTopY  = 60;
+
+    // Draw 10 cells (5x2) and a dot in each
+    var cells = [];
+    for (var r = 0; r < 2; r++) {
+      for (var c = 0; c < 5; c++) {
+        var x = gridLeftX + c * (cellW + gap);
+        var y = gridTopY + r * (cellH + gap);
+        // Frame outline (4 lines)
+        await Canvas.humphreyDrawLine(x, y, x + cellW, y, { color: '#94a3b8', width: 2, duration: 60 });
+        await Canvas.humphreyDrawLine(x + cellW, y, x + cellW, y + cellH, { color: '#94a3b8', width: 2, duration: 60 });
+        await Canvas.humphreyDrawLine(x + cellW, y + cellH, x, y + cellH, { color: '#94a3b8', width: 2, duration: 60 });
+        await Canvas.humphreyDrawLine(x, y + cellH, x, y, { color: '#94a3b8', width: 2, duration: 60 });
+        // Center dot
+        var dotX = x + cellW / 2;
+        var dotY = y + cellH / 2;
+        await Canvas.humphreyDrawCircle(dotX, dotY, 22, {
+          color: '#ec4899', fill: '#ec4899', duration: 100,
+        });
+        cells.push({ x: dotX, y: dotY, cellW: cellW, cellH: cellH });
+      }
+    }
+
+    // Cross out `taken` dots from the right side (rightmost first)
+    for (var i = 0; i < taken && i < cells.length; i++) {
+      var cell = cells[cells.length - 1 - i];
+      var d = cell.cellW * 0.32;
+      await Canvas.humphreyDrawLine(
+        cell.x - d, cell.y - d, cell.x + d, cell.y + d,
+        { color: '#1a1554', width: 6, duration: 220 }
+      );
+      await Canvas.humphreyDrawLine(
+        cell.x - d, cell.y + d, cell.x + d, cell.y - d,
+        { color: '#1a1554', width: 6, duration: 220 }
+      );
+    }
+
+    // Equation below the frame
+    await Canvas.humphreyDrawText(500, 280, '10 \u2212 ' + taken + ' = ' + leftover, {
+      color: '#22c55e',
+      font: '700 42px Fredoka, system-ui, sans-serif',
+    });
+  }
+
   // ---- Registry -------------------------------------------------------------
 
+  // Each entry is a "smart dispatcher" — the specialized fn (countOnLine,
+  // subtractFromTenLine) checks the parsed problem and either renders its
+  // specialized view OR delegates to the standard fn for that op. Keeping
+  // the dispatch inside each fn means the registry stays flat and adding a
+  // new strategy is a 1-line change here.
   var registry = {
-    subtract_within_10: subtractionLine,
-    subtract_within_20: subtractionLine,
-    add_within_10: additionLine,
-    add_within_20: additionLine,
+    subtract_within_10: subtractFromTenLine,   // was subtractionLine — specializes 10-N
+    subtract_within_20: subtractFromTenLine,   // ditto
+    add_within_10: countOnLine,                // was additionLine — specializes count-on
+    add_within_20: countOnLine,                // ditto
     make_10: makeTenLine,
     doubles: additionLine,
     doubles_plus_one: additionLine,

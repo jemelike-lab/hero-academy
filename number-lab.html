@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/number-lab.css">
   <link rel="stylesheet" href="css/humphrey.css">
   <link rel="stylesheet" href="css/canvas.css">
+  <link rel="stylesheet" href="css/manipulatives.css">
   <title>Number Lab · Hero Academy</title>
 </head>
 <body class="zone-body zone-number-lab">
@@ -50,6 +51,8 @@
       <div class="zone-canvas-section">
         <button type="button" id="canvasToggle" class="zone-canvas-toggle" aria-pressed="false">🖍️  Sketch / Show whiteboard</button>
         <div id="canvasHost" class="zone-canvas-host"></div>
+        <button type="button" id="tenFrameToggle" class="zone-canvas-toggle zone-canvas-toggle--alt" aria-pressed="false">🔟  Ten-Frame counter</button>
+        <div id="tenFrameHost" class="zone-canvas-host zone-canvas-host--alt"></div>
       </div>
     </section>
     <section class="mastery-card" id="masteryCard" hidden>
@@ -71,6 +74,7 @@
   <script src="js/number-lab.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/canvas-skills.js"></script>
+  <script src="js/manipulatives.js"></script>
   <script>
     // Wire the whiteboard toggle: lazy-mount the canvas the first time Nigel
     // opens it (cheap enough to keep mounted afterwards).
@@ -87,6 +91,31 @@
           window.HeroAcademy.Canvas.mount(host);
         }
       });
+
+      // Wire the Ten-Frame toggle: lazy-mount the manipulative the first
+      // time Nigel opens it. Persist the instance so future opens just
+      // reveal it without re-mounting.
+      var tfBtn  = document.getElementById('tenFrameToggle');
+      var tfHost = document.getElementById('tenFrameHost');
+      var tfInstance = null;
+      if (tfBtn && tfHost) {
+        tfBtn.addEventListener('click', function () {
+          var open = tfHost.classList.toggle('is-open');
+          tfBtn.classList.toggle('is-active', open);
+          tfBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+          tfBtn.textContent = open ? '✖  Close ten-frame' : '🔟  Ten-Frame counter';
+          if (open && window.HeroAcademy && window.HeroAcademy.Manipulatives && !tfInstance) {
+            tfInstance = window.HeroAcademy.Manipulatives.tenFrame.mount(tfHost, {
+              initial: 0,
+              max: 10,
+              onChange: function (n) {
+                // Expose live value for Humphrey debugging
+                window.__lastTenFrameValue = n;
+              },
+            });
+          }
+        });
+      }
     });
   </script>
 

@@ -1,0 +1,139 @@
+/* Hero Academy — Manipulatives (ten-frame, etc.) */
+
+.mp-tenframe-host {
+  display: flex;
+  justify-content: center;
+}
+
+.mp-tenframe {
+  background: linear-gradient(155deg, rgba(255,255,255,0.96), rgba(255,255,255,0.86));
+  border: 2px solid rgba(255, 209, 71, 0.55);
+  border-radius: 22px;
+  padding: 22px 24px 18px;
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  max-width: 560px;
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mp-tenframe__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+  touch-action: none;
+}
+
+.mp-tenframe__cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: #fef7e0;
+  border: 3px solid #f3c14d;
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 160ms ease;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.mp-tenframe__cell:hover:not(.is-filled) {
+  background: #fff7c8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(243, 193, 77, 0.4);
+}
+.mp-tenframe__cell:active { transform: translateY(0); }
+
+/* The "counter" — a big colored dot that pops into place */
+.mp-tenframe__cell::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 56%; height: 56%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ff9a3d, #ec4899);
+  box-shadow:
+    0 4px 10px rgba(236, 72, 153, 0.45),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.18),
+    inset 0 2px 3px rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mp-tenframe__cell.is-filled::after { transform: translate(-50%, -50%) scale(1); }
+.mp-tenframe__cell.is-filled {
+  background: #fbe9b8;
+  border-color: #f5a623;
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.22);
+}
+
+.mp-tenframe__readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.mp-tenframe__count {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 48px;
+  line-height: 1;
+  color: #1a1554;
+  letter-spacing: -0.02em;
+  display: inline-block;
+}
+.mp-tenframe__count.is-pulse {
+  animation: mp-count-pulse 420ms ease;
+}
+@keyframes mp-count-pulse {
+  0%   { transform: scale(1); color: #1a1554; }
+  40%  { transform: scale(1.18); color: #ec4899; }
+  100% { transform: scale(1); color: #1a1554; }
+}
+.mp-tenframe__label {
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mp-tenframe__controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.mp-tenframe__btn {
+  background: #f3f4f6;
+  border: 1.5px solid #d1d5db;
+  color: #374151;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 140ms ease, transform 100ms ease;
+}
+.mp-tenframe__btn:hover { background: #e5e7eb; transform: translateY(-1px); }
+.mp-tenframe__btn:active { transform: translateY(0); }
+
+@media (max-width: 480px) {
+  .mp-tenframe { padding: 16px 14px 12px; border-radius: 18px; }
+  .mp-tenframe__grid { gap: 7px; margin-bottom: 12px; }
+  .mp-tenframe__cell { border-width: 2px; border-radius: 10px; }
+  .mp-tenframe__count { font-size: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-tenframe__cell, .mp-tenframe__cell::after, .mp-tenframe__count.is-pulse {
+    transition: none;
+    animation: none;
+  }
+}
