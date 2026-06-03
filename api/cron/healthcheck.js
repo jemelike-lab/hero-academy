@@ -407,8 +407,12 @@ async function sb({ SB_URL, SB_KEY, path, method, body, headers }) {
     const t = await r.text().catch(() => '');
     throw new Error(`supabase ${m} ${path} -> ${r.status} ${t.slice(0, 200)}`);
   }
-  if (r.status === 204) return null;
-  return r.json();
+  // 204 No Content, or 201 with Prefer: return=minimal — empty body, don't parse.
+  if (r.status === 204 || r.status === 201) return null;
+  // Some endpoints return 200 with empty body; guard against parse errors.
+  const text = await r.text();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return null; }
 }
 
 function withTimeout(promise, ms) {
