@@ -44,6 +44,25 @@ const UNLOCK_HINTS = [
   'Crush all three and Ms. Humphrey will celebrate with you.',
 ];
 
+// Reward character is picked from the *stretch* zone (the day\u2019s real work).
+// Keys match HeroAcademy.Characters CHARACTERS[].id in js/characters.js.
+const REWARD_CHARACTER_FOR_ZONE = {
+  'number-lab': 'aurora',          // owl announcer covers math + general
+  'word-tower': 'webly',           // web-slinger, wordtower-tagged
+  'story-time': 'aurora',
+  'discovery':  'carlo',           // cosmic plumber, discoverydome-tagged
+  'explorer':   'shellback-squad', // quartet covers explorers
+  'writing':    'aurora',
+  'hero-hall':  'toybox-team',     // win-screen crew
+};
+const REWARD_FALLBACK = 'aurora';
+
+function rewardCharacterForMission(m) {
+  if (!m) return REWARD_FALLBACK;
+  var stretchZone = m.stretch && m.stretch.zone_id;
+  return REWARD_CHARACTER_FOR_ZONE[stretchZone] || REWARD_FALLBACK;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
@@ -232,5 +251,8 @@ function validateAndPatch(m) {
     m.unlock_hint = UNLOCK_HINTS[0];
   }
   m.unlock_hint = String(m.unlock_hint).slice(0, 160);
+  // Reward character is always picked server-side from the stretch zone so the
+  // client doesn\u2019t have to know the mapping. Override any model hallucination.
+  m.reward_character_key = rewardCharacterForMission(m);
   return m;
 }

@@ -45,6 +45,19 @@
     'hero-hall':  '\ud83c\udfc6',
   };
 
+  // Local mirror of the reward roster so we don\u2019t have to depend on
+  // HeroAcademy.Characters being loaded before we render.
+  var REWARD_CHARACTERS = {
+    'carlo':           { name: 'Captain Carlo',       emoji: '\ud83e\udda6', color: '#ef4444', tag: 'Cosmic Plumber' },
+    'aurora':          { name: 'Aurora the Aviator',  emoji: '\ud83e\udd89', color: '#14b8d4', tag: 'High Skies Hero' },
+    'shellback-squad': { name: 'The Shellback Squad', emoji: '\ud83d\udc22', color: '#ff8b3d', tag: 'Ralphie\u2019s Cousins' },
+    'webly':           { name: 'Webly Quickfoot',     emoji: '\ud83d\udd77\ufe0f', color: '#a855f7', tag: 'The Web-Slinger' },
+    'toybox-team':     { name: 'The Toybox Team',     emoji: '\ud83e\uddf8', color: '#ec4899', tag: 'Living Toys' },
+  };
+  function rewardChar(key) {
+    return REWARD_CHARACTERS[key] || REWARD_CHARACTERS['aurora'];
+  }
+
   function todayKey() {
     var d = new Date();
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -87,6 +100,8 @@
     var key = 'ha_mission_' + todayKey();
     var cached = readJSON(key);
     if (cached && cached.warmup && cached.stretch && cached.win) {
+      // Re-persist to DB if we never confirmed (e.g. offline on day-1 load).
+      if (!cached.db_persisted) persistMissionToDb(cached);
       return Promise.resolve(cached);
     }
     return generateForToday().then(function (m) {
@@ -98,8 +113,33 @@
       });
       m.created_at = new Date().toISOString();
       writeJSON(key, m);
+      persistMissionToDb(m);
       return m;
     });
+  }
+
+  function persistMissionToDb(m) {
+    // Fire-and-forget. localStorage remains the source of truth for UI.
+    try {
+      var T = (window.HeroAcademy && window.HeroAcademy.Telemetry) || null;
+      if (!T || typeof T.rpc !== 'function') return;
+      T.rpc('ha_record_mission', {
+        p_child_id:             T.childId(),
+        p_mission_date:         todayKey(),
+        p_warmup:               m.warmup,
+        p_stretch:              m.stretch,
+        p_win:                  m.win,
+        p_total_minutes:        m.total_minutes || 25,
+        p_reward_character_key: m.reward_character_key || 'aurora',
+        p_unlock_hint:          m.unlock_hint || '',
+      }).then(function (r) {
+        if (r && r.ok) {
+          var key = 'ha_mission_' + todayKey();
+          var stored = readJSON(key);
+          if (stored) { stored.db_persisted = true; writeJSON(key, stored); }
+        }
+      }).catch(function () { /* offline-safe */ });
+    } catch (e) { /* never break the UI for telemetry */ }
   }
 
   function generateForToday() {
@@ -160,6 +200,30 @@
     var visited = readJSON(key) || {};
     visited[zoneId] = true;
     writeJSON(key, visited);
+    // Fire the RPC so the server knows this zone was tapped from today\u2019s
+    // mission. The response tells us whether *all 3* are now done; we cache
+    // that flag so the home page can show the celebration on next render.
+    try {
+      var T = (window.HeroAcademy && window.HeroAcademy.Telemetry) || null;
+      if (!T || typeof T.rpc !== 'function') return;
+      T.rpc('ha_mission_zone_done', {
+        p_child_id:     T.childId(),
+        p_mission_date: todayKey(),
+        p_zone_id:      zoneId,
+      }, { keepalive: true })
+        .then(function (r) { return r && r.ok ? r.json() : null; })
+        .then(function (result) {
+          if (!result) return;
+          if (result.just_completed) {
+            // Stash so when the user returns to the home page, we show the
+            // celebration overlay exactly once.
+            writeJSON('ha_mission_just_completed_' + todayKey(), {
+              reward_character_key: result.reward_character_key || 'aurora',
+              at: Date.now(),
+            });
+          }
+        }).catch(function () { /* offline-safe */ });
+    } catch (e) {}
   }
 
   function refresh() {
@@ -216,6 +280,73 @@
         window.location.href = url;
       });
     });
+
+    // If all three are locally done and we haven\u2019t shown the celebration
+    // overlay for today yet, surface it now. We use the server\u2019s
+    // just_completed flag if available, falling back to local detection
+    // (covers the case where the server is unreachable but we still
+    // detected via zoneProgress delta).
+    if (allDone) {
+      var celebKey = 'ha_mission_celebrated_' + todayKey();
+      if (!localStorage.getItem(celebKey)) {
+        var stashed = readJSON('ha_mission_just_completed_' + todayKey());
+        var rewardKey = (stashed && stashed.reward_character_key) ||
+                        mission.reward_character_key || 'aurora';
+        try { localStorage.setItem(celebKey, String(Date.now())); } catch (e) {}
+        // Delay one frame so the card fade-in renders first.
+        setTimeout(function () { showCelebration(rewardKey); }, 250);
+      }
+    }
+  }
+
+  function showCelebration(rewardKey) {
+    if (document.getElementById('tmCelebrate')) return;
+    var ch = rewardChar(rewardKey);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'tmCelebrate';
+    overlay.className = 'tm-celebrate';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Mission complete');
+    overlay.innerHTML = [
+      '<div class="tm-celebrate__backdrop"></div>',
+      '<div class="tm-celebrate__card" style="--reward-color:' + ch.color + '">',
+      '  <div class="tm-celebrate__burst" aria-hidden="true">',
+      '    <span>\u2728</span><span>\ud83c\udf89</span><span>\u2b50</span><span>\ud83c\udf86</span>',
+      '    <span>\ud83c\udf1f</span><span>\u2728</span>',
+      '  </div>',
+      '  <div class="tm-celebrate__emoji" aria-hidden="true">' + ch.emoji + '</div>',
+      '  <div class="tm-celebrate__eyebrow">Mission Complete!</div>',
+      '  <div class="tm-celebrate__headline">You crushed all 3 today, Nigel!</div>',
+      '  <div class="tm-celebrate__unlock">',
+      '    <span class="tm-celebrate__unlock-label">Cheering you on today</span>',
+      '    <span class="tm-celebrate__unlock-name">' + escapeHtml(ch.name) + '</span>',
+      '    <span class="tm-celebrate__unlock-tag">' + escapeHtml(ch.tag) + '</span>',
+      '  </div>',
+      '  <button type="button" class="tm-celebrate__cta">Awesome!</button>',
+      '</div>',
+    ].join('');
+    document.body.appendChild(overlay);
+    requestAnimationFrame(function () { overlay.classList.add('tm-celebrate--in'); });
+
+    function close() {
+      overlay.classList.remove('tm-celebrate--in');
+      setTimeout(function () { if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 280);
+    }
+    overlay.querySelector('.tm-celebrate__cta').addEventListener('click', close);
+    overlay.querySelector('.tm-celebrate__backdrop').addEventListener('click', close);
+
+    // Ms. Humphrey audio narration (best-effort \u2014 silent if not loaded).
+    try {
+      var H = (window.HeroAcademy && window.HeroAcademy.Humphrey) || null;
+      if (H && typeof H.say === 'function') {
+        H.say('mission_complete', {
+          text: 'Wow, Nigel \u2014 you finished all three of today\u2019s mission steps! ' +
+                'I\u2019m so proud of you. Come back tomorrow and we\u2019ll start a fresh one.',
+          expression: 'cheering',
+        });
+      }
+    } catch (e) {}
   }
 
   function escapeHtml(s) {
