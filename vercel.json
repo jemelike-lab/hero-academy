@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/saturday-email",
       "schedule": "0 12 * * 6"
+    },
+    {
+      "path": "/api/cron/healthcheck",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
