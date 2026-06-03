@@ -111,21 +111,24 @@ export default async function handler(req, res) {
     zapier_dns: zapDnsR,
   };
 
-  const allOk = Object.values(checks).every((c) => c && c.ok === true);
-  const overall_status = allOk ? 'ok' : 'degraded';
   const duration_ms = Date.now() - startMs;
 
-  // ---------- 4. Transition detection ----------
+  // ---------- 4. Transition detection + freshness ----------
+  // We fetch the most recent prior row once and reuse it for both:
+  //  a) transition detection (was prev OK or degraded?)
+  //  b) cron freshness (is the prior row stale, meaning Vercel skipped a run?)
   let prev_status = null;
+  let prev_checked_at = null;
   if (SB_URL && SB_KEY) {
     try {
       const prev = await sb({
         SB_URL,
         SB_KEY,
-        path: 'ha_health_checks?select=overall_status&order=checked_at.desc&limit=1',
+        path: 'ha_health_checks?select=overall_status,checked_at&order=checked_at.desc&limit=1',
       });
       if (Array.isArray(prev) && prev.length > 0) {
         prev_status = prev[0].overall_status;
+        prev_checked_at = prev[0].checked_at;
       }
     } catch (e) {
       // Non-fatal: if we can't read prev state, we just won't dedupe alerts.
@@ -133,9 +136,23 @@ export default async function handler(req, res) {
     }
   }
 
+  // Now that we have prev_checked_at, evaluate cron freshness as a
+  // standalone check. If the most recent prior row is more than 7 hours old,
+  // Vercel skipped at least one scheduled cron run (we run every 6h). This
+  // catches *partial* outages of the scheduler — the kind where some runs
+  // fire and some don't. Full outages still need an external watchdog
+  // (HEALTHCHECKS_PING_URL below), since nothing internal can detect "no
+  // runs at all". On first ever run, prev_checked_at is null and we skip
+  // this check rather than alarm.
+  checks.cron_freshness = checkCronFreshness({ prev_checked_at });
+
+  const allOkWithFreshness = Object.values(checks).every((c) => c && c.ok === true);
+  const overall_status = allOkWithFreshness ? 'ok' : 'degraded';
+
   // ---------- 5. Log row (skipped on dry_run) ----------
   let logged = 'skipped';
   let alerted = 'skipped';
+  let pinged = 'skipped';
 
   if (!dryRun && SB_URL && SB_KEY) {
     // Decide alert FIRST so we can store the alerted value alongside the row.
@@ -168,14 +185,45 @@ export default async function handler(req, res) {
     }
   }
 
+  // ---------- 6. External watchdog pingback (healthchecks.io or compatible) ----------
+  // The healthcheck above can detect partial cron-schedule misses via the
+  // freshness check, but it cannot detect a complete schedule outage — if
+  // Vercel stops firing the cron entirely, nothing internal would ever notice.
+  // The fix: ping an external service every successful run. If pings stop
+  // arriving, the external service alerts directly. HEALTHCHECKS_PING_URL is
+  // optional — when unset, this no-ops and the rest of the system is unaffected.
+  const PING_URL = process.env.HEALTHCHECKS_PING_URL;
+  if (!dryRun && PING_URL) {
+    // Healthchecks.io convention: POST /<uuid>/fail to signal failure,
+    // POST /<uuid> to signal success. We mirror our overall_status.
+    const pingTarget = overall_status === 'ok' ? PING_URL : `${PING_URL.replace(/\/$/, '')}/fail`;
+    try {
+      const r = await withTimeout(
+        fetch(pingTarget, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overall_status, duration_ms, alerted, logged }),
+        }),
+        3000,
+      );
+      pinged = r.ok ? `ok (${r.status})` : `failed (${r.status})`;
+    } catch (e) {
+      pinged = `failed (${String(e?.message || e).slice(0, 100)})`;
+    }
+  } else if (!PING_URL) {
+    pinged = 'no_ping_url';
+  }
+
   return res.status(200).json({
-    ok: allOk,
+    ok: overall_status === 'ok',
     overall_status,
     duration_ms,
     dry_run: dryRun,
     prev_status,
+    prev_checked_at,
     logged,
     alerted,
+    pinged,
     checks,
   });
 }
@@ -284,6 +332,30 @@ async function checkZapierDns({ ZAP_URL }) {
   } catch (e) {
     return { ok: false, host, error: String(e?.message || e).slice(0, 200), latency_ms: Date.now() - t0 };
   }
+}
+
+/**
+ * Cron schedule is "0 *\/6 * * *" — every 6 hours. We allow up to 7 hours of
+ * staleness (1h jitter) before flagging. On the first ever run, prev is null
+ * and we report ok with a note. This catches partial schedule outages where
+ * Vercel skipped a run; full outages need the HEALTHCHECKS_PING_URL watchdog.
+ */
+function checkCronFreshness({ prev_checked_at }) {
+  const STALE_THRESHOLD_HOURS = 7;
+  if (!prev_checked_at) {
+    return { ok: true, note: 'first run — no prior row to compare against' };
+  }
+  const prevTime = new Date(prev_checked_at).getTime();
+  if (Number.isNaN(prevTime)) {
+    return { ok: false, error: `unparseable prev_checked_at: ${prev_checked_at}` };
+  }
+  const ageHours = Math.round(((Date.now() - prevTime) / 3600000) * 10) / 10;
+  return {
+    ok: ageHours <= STALE_THRESHOLD_HOURS,
+    age_hours: ageHours,
+    threshold_hours: STALE_THRESHOLD_HOURS,
+    prev_checked_at,
+  };
 }
 
 // ---------------------------------------------------------------------------
