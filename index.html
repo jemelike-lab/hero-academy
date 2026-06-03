@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/humphrey.css">
   <link rel="stylesheet" href="css/today-mission.css">
+  <link rel="stylesheet" href="css/quests.css">
   <link rel="stylesheet" href="css/review.css">
   <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
   <title>Hero Academy · Nigel</title>
@@ -49,6 +50,17 @@
       </div>
     </section>
     <section id="todayMissionCard" class="today-mission" hidden aria-label="Today's Mission"></section>
+    <button type="button" id="realWorldQuestTile" class="quest-tile" hidden aria-label="Start a real-world quest from Ms. Humphrey">
+      <div class="quest-tile-row">
+        <span class="quest-tile-emoji" aria-hidden="true">🌟</span>
+        <div class="quest-tile-body">
+          <p class="quest-tile-eyebrow">Real-world Quest</p>
+          <p class="quest-tile-title">Ms. Humphrey has an off-screen mission</p>
+          <p class="quest-tile-sub">Go find something in your house and come back to tell me!</p>
+        </div>
+        <span class="quest-tile-arrow" aria-hidden="true">→</span>
+      </div>
+    </button>
     <a href="review.html" class="daily-practice" id="dailyPracticeTile" hidden aria-label="Start Daily Practice">
       <div class="daily-practice-row">
         <span class="daily-practice-emoji" aria-hidden="true">🧠</span>
@@ -113,9 +125,13 @@
   <script src="js/telemetry.js"></script>
   <script src="js/srs.js"></script>
   <script src="js/today-mission.js"></script>
+  <script src="js/quests.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.TodayMission) {
       window.HeroAcademy.TodayMission.init();
+    }
+    if (window.HeroAcademy && window.HeroAcademy.Quests) {
+      window.HeroAcademy.Quests.init();
     }
     // Daily Practice tile — populate from SRS queue count.
     // On Fridays, swap to "Friday Quiz" framing + ?mode=friday route.
