@@ -43,6 +43,25 @@ const ZONE_LABELS = {
   'hero-hall': 'Hero Hall',
 };
 
+// Emoji rendered in the premium "By zone" cards. Keep playful but not loud.
+const ZONE_EMOJI = {
+  'number-lab': '\u{1F522}',     // 🔢
+  'word-tower': '\u{1F3DB}\uFE0F', // 🏛 (towering reading)
+  'story-time': '\u{1F4D6}',     // 📖
+  'discovery': '\u{1F52C}',      // 🔬
+  'explorer': '\u{1F5FA}\uFE0F', // 🗺
+  'writing': '\u270F\uFE0F',     // ✏️
+  'hero-hall': '\u{1F3C6}',      // 🏆
+};
+
+// ElevenLabs voice + model for Ms. Humphrey's audio briefing.
+const HUMPHREY_VOICE_ID = 'aNGh7D6DrhhIlad2U6Fg';   // Emory
+const HUMPHREY_TTS_MODEL = 'eleven_flash_v2_5';
+
+// Hero portrait used in the email header. Hot-linked from production —
+// Gmail proxies images so the link survives forever even if we redeploy.
+const HUMPHREY_PORTRAIT_URL = 'https://hero-academy-jemelike-6356s-projects.vercel.app/assets/humphrey/humphrey_base_512.png';
+
 export default async function handler(req, res) {
   // ---------- 1. Auth ----------
   const auth = req.headers.authorization || '';
@@ -98,8 +117,38 @@ export default async function handler(req, res) {
     }
   }
 
-  const html = renderHtmlEmail({ briefing, data });
-  const text = renderTextEmail({ briefing, data });
+  // ---------- 4b. Generate audio briefing in Ms. Humphrey's voice ----------
+  // ElevenLabs TTS → upload to Supabase Storage → embed link in email.
+  // Wrapped in try/catch so audio failure (rate limit, transient outage,
+  // storage upload error) never blocks the email from going out — the
+  // parents still get the briefing, just without the audio player.
+  let audio_url = null;
+  let audio_status = 'skipped';
+  const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY;
+  if (ELEVENLABS_KEY) {
+    try {
+      const weekTag = new Date().toISOString().slice(0, 10);
+      const audioBytes = await synthesizeBriefingAudio({
+        ELEVENLABS_KEY,
+        text: briefingToSpeech(briefing),
+      });
+      audio_url = await uploadAudioToStorage({
+        SB_URL,
+        SB_KEY,
+        weekTag,
+        audioBytes,
+      });
+      audio_status = `ok (${audioBytes.byteLength} bytes)`;
+    } catch (e) {
+      audio_status = `failed: ${String(e && e.message || e).slice(0, 200)}`;
+      // Do not return — proceed with email-without-audio.
+    }
+  } else {
+    audio_status = 'no_elevenlabs_key';
+  }
+
+  const html = renderHtmlEmail({ briefing, data, audio_url });
+  const text = renderTextEmail({ briefing, data, audio_url });
   const subject = subjectLine({ data });
   const to = (process.env.PARENT_EMAILS || DEFAULT_RECIPIENTS).trim();
 
@@ -118,6 +167,9 @@ export default async function handler(req, res) {
           reply_to: 'jemelike@gmail.com',
           kid_name: 'Nigel',
           week_ending: new Date().toISOString().slice(0, 10),
+          // audio_url is null when generation/upload failed. Zapier-side
+          // logic should treat null as "no attachment" and proceed.
+          audio_url: audio_url,
         }),
       });
       zapierStatus = r.ok ? `ok (${r.status})` : `failed (${r.status})`;
@@ -138,6 +190,8 @@ export default async function handler(req, res) {
     ok: true,
     dry_run: dryRun,
     zapier: zapierStatus,
+    audio: audio_status,
+    audio_url: audio_url,
     to: to,
     subject: subject,
     counts: {
@@ -406,72 +460,164 @@ function escapeHtml(s) {
 }
 
 function briefingToHtml(text) {
-  // Convert Haiku\u2019s markdown-ish output to safe simple HTML.
-  // Supports: ** ** bold, line breaks, paragraphs.
+  // Convert Haiku's markdown-ish output to safe simple HTML for the letter
+  // body. Uses a warm serif (Georgia → fallback) to feel like a personal
+  // letter, not a system notification. Supports: **bold**, line breaks,
+  // paragraphs. Section headings written as a standalone bolded line on its
+  // own paragraph render as h4-like display.
   const para = escapeHtml(text)
     .split(/\n{2,}/)
-    .map((p) => p.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'))
-    .map((p) => `<p style="margin:0 0 16px 0;line-height:1.6;color:#1f2937;">${p}</p>`)
+    .map((p) => p.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#7c3aed;font-weight:700;">$1</strong>'))
+    .map((p) => `<p style="margin:0 0 14px 0;line-height:1.7;color:#1e1b4b;font-family:Georgia,'Iowan Old Style','Charter',serif;font-size:16px;">${p}</p>`)
     .join('\n');
   return para;
 }
 
-function renderHtmlEmail({ briefing, data }) {
+function briefingToSpeech(text) {
+  // Strip markdown markers and the sign-off so the TTS doesn't pronounce
+  // "asterisk asterisk" or "em dash Ms. Humphrey". Light cleanup only.
+  return String(text || '')
+    .replace(/\*\*/g, '')
+    .replace(/^\s*[-\u2014]\s*Ms\.?\s*Humphrey\s*$/im, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function renderHtmlEmail({ briefing, data, audio_url }) {
   const s = data.summary;
-  const zoneRows = Object.entries(data.byZone)
+  const weekDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // Stat-grid cells (4 colored cards). Inline-styled <td>s for max email
+  // client compatibility — Outlook does not honor flexbox/grid.
+  const statCard = (label, value, tint) => `
+    <td style="padding:6px;width:25%;text-align:center;">
+      <div style="background:linear-gradient(135deg,${tint.bg1},${tint.bg2});border-radius:14px;padding:18px 6px;border:1px solid ${tint.border};">
+        <div style="font-size:30px;font-weight:800;color:${tint.fg};line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">${value}</div>
+        <div style="font-size:11px;color:${tint.label};text-transform:uppercase;letter-spacing:1px;margin-top:6px;font-weight:700;">${label}</div>
+      </div>
+    </td>`;
+  const tints = {
+    amber:  { bg1:'#fffbeb', bg2:'#fef3c7', border:'#fde68a', fg:'#b45309', label:'#78350f' },
+    pink:   { bg1:'#fdf2f8', bg2:'#fce7f3', border:'#fbcfe8', fg:'#be185d', label:'#831843' },
+    cyan:   { bg1:'#ecfeff', bg2:'#cffafe', border:'#a5f3fc', fg:'#0e7490', label:'#155e75' },
+    green:  { bg1:'#f0fdf4', bg2:'#dcfce7', border:'#bbf7d0', fg:'#15803d', label:'#14532d' },
+  };
+
+  // Per-zone cards, sorted by time spent. Use a small emoji + label + 1-line
+  // summary so the breakdown feels editorial, not spreadsheet-y.
+  const zoneCards = Object.entries(data.byZone)
     .sort((a, b) => b[1].seconds - a[1].seconds)
     .map(([zoneId, v]) => {
-      const acc = v.total_q > 0 ? Math.round((100 * v.correct_q) / v.total_q) + '%' : '\u2014';
-      return `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;">${escapeHtml(ZONE_LABELS[zoneId] || zoneId)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;">${v.sessions}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;">${Math.round(v.seconds / 60)} min</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;">${acc}</td>
+      const acc = v.total_q > 0 ? Math.round((100 * v.correct_q) / v.total_q) + '% accuracy' : 'no graded items';
+      const minutes = Math.round(v.seconds / 60);
+      const emoji = ZONE_EMOJI[zoneId] || '\u2728';
+      const label = escapeHtml(ZONE_LABELS[zoneId] || zoneId);
+      const sub = `${v.sessions} session${v.sessions === 1 ? '' : 's'} \u00b7 ${minutes} min \u00b7 ${acc}`;
+      return `
+      <tr>
+        <td style="padding:6px 0;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#fff;border-radius:12px;border:1px solid #e9d5ff;border-collapse:separate;">
+            <tr>
+              <td style="padding:14px 16px;width:48px;font-size:26px;vertical-align:middle;">${emoji}</td>
+              <td style="padding:14px 16px 14px 0;vertical-align:middle;">
+                <div style="font-size:15px;font-weight:700;color:#1e1b4b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">${label}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:3px;">${sub}</div>
+              </td>
+            </tr>
+          </table>
+        </td>
       </tr>`;
     })
     .join('\n');
 
+  // Audio player block — only rendered when ElevenLabs + Supabase upload
+  // succeeded earlier. Falls back to nothing on failure (the briefing text
+  // itself is the message; audio is the premium).
+  const audioBlock = audio_url ? `
+    <div style="margin:20px 0 0 0;padding:20px;background:linear-gradient(135deg,#1e1b4b 0%,#7c3aed 100%);border-radius:16px;text-align:center;">
+      <div style="font-size:11px;color:#fbbf24;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-weight:700;">\u{1F3A7} Listen to this week's briefing</div>
+      <a href="${escapeHtml(audio_url)}" style="display:inline-block;background:#fff;color:#7c3aed;padding:14px 28px;border-radius:999px;font-weight:700;font-size:15px;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,0.2);">\u25B6\u00A0\u00A0Play Ms. Humphrey's voice note</a>
+      <div style="font-size:12px;color:#c4b5fd;margin-top:10px;">Tap to listen in your browser.</div>
+    </div>` : '';
+
   return `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Hero Academy \u2014 Saturday Briefing</title></head>
-<body style="margin:0;padding:0;background:#fafaf7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2937;">
-  <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
-    <div style="background:linear-gradient(135deg,#ffd147 0%,#ff8b3d 100%);padding:24px;border-radius:16px 16px 0 0;text-align:center;">
-      <h1 style="margin:0;font-size:24px;color:#0f172a;">\ud83e\uddb8\u200d\u2640\ufe0f Hero Academy</h1>
-      <p style="margin:8px 0 0 0;color:#0f172a;font-size:14px;font-weight:600;">Saturday Briefing \u2014 Nigel</p>
-    </div>
-    <div style="background:#ffffff;padding:24px;border-radius:0 0 16px 16px;border:1px solid #e2e8f0;border-top:none;">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-        <span style="background:#f1f5f9;padding:6px 12px;border-radius:999px;font-size:13px;color:#475569;"><strong>${s.sessions_total}</strong> sessions</span>
-        <span style="background:#f1f5f9;padding:6px 12px;border-radius:999px;font-size:13px;color:#475569;"><strong>${s.total_minutes}</strong> minutes</span>
-        <span style="background:#f1f5f9;padding:6px 12px;border-radius:999px;font-size:13px;color:#475569;"><strong>${s.accuracy_pct}%</strong> accuracy</span>
-        <span style="background:#f1f5f9;padding:6px 12px;border-radius:999px;font-size:13px;color:#475569;"><strong>${s.days_active}</strong> active days</span>
-      </div>
-      ${briefingToHtml(briefing)}
-      ${zoneRows ? `
-      <h3 style="margin:24px 0 8px 0;font-size:15px;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">By zone</h3>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <thead>
-          <tr style="text-align:left;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">
-            <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">Zone</th>
-            <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">Sessions</th>
-            <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">Time</th>
-            <th style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right;">Accuracy</th>
-          </tr>
-        </thead>
-        <tbody>${zoneRows}</tbody>
-      </table>` : ''}
-      <p style="margin:24px 0 0 0;font-size:12px;color:#94a3b8;text-align:center;">
-        Generated for ${escapeHtml(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }))}.<br>
-        Reply to this email to send Ms. Humphrey notes about Nigel\u2019s focus areas.
-      </p>
-    </div>
-  </div>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Hero Academy \u2014 Saturday Briefing</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0b2e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1e1b4b;-webkit-text-size-adjust:100%;">
+  <div style="display:none;max-height:0;overflow:hidden;color:transparent;">Nigel\u2019s week in review from Ms. Humphrey \u2014 ${escapeHtml(weekDate)}.</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#0a0b2e;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 24px 60px rgba(10,11,46,0.45);">
+
+        <!-- HERO BANNER -->
+        <tr><td style="background:#1e1b4b;background-image:linear-gradient(135deg,#1e1b4b 0%,#7c3aed 35%,#ec4899 70%,#ff8b3d 100%);padding:36px 28px 80px 28px;text-align:center;color:#ffffff;">
+          <div style="font-size:11px;letter-spacing:2.5px;text-transform:uppercase;opacity:0.85;margin-bottom:8px;font-weight:700;">\u{1F9B8}\u200D\u2640\uFE0F Hero Academy</div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:0.2px;">Saturday Briefing</div>
+          <div style="font-size:14px;opacity:0.85;margin-top:4px;">${escapeHtml(weekDate)}</div>
+        </td></tr>
+
+        <!-- HUMPHREY PORTRAIT (overlaps banner) -->
+        <tr><td style="text-align:center;padding:0 28px;">
+          <img src="${HUMPHREY_PORTRAIT_URL}" width="120" height="120" alt="Ms. Humphrey" style="border-radius:50%;border:4px solid #ffffff;box-shadow:0 8px 24px rgba(124,58,237,0.35);margin-top:-60px;background:#ffffff;display:inline-block;">
+          <div style="margin-top:14px;font-size:20px;font-weight:700;color:#1e1b4b;">From Ms. Humphrey</div>
+          <div style="margin-top:2px;font-size:13px;color:#7c3aed;font-weight:600;">Nigel\u2019s tutor</div>
+        </td></tr>
+
+        <!-- STATS GRID -->
+        <tr><td style="padding:24px 16px 8px 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;">
+            <tr>
+              ${statCard('Minutes', s.total_minutes, tints.amber)}
+              ${statCard('Sessions', s.sessions_total, tints.pink)}
+              ${statCard('Accuracy', s.accuracy_pct + '%', tints.cyan)}
+              ${statCard('Active days', s.days_active, tints.green)}
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- AUDIO PLAYER (if available) -->
+        ${audio_url ? `<tr><td style="padding:0 28px;">${audioBlock}</td></tr>` : ''}
+
+        <!-- LETTER -->
+        <tr><td style="padding:28px 28px 8px 28px;">
+          <div style="border-left:4px solid #ec4899;padding:6px 0 6px 20px;background:linear-gradient(90deg,#fdf2f8 0%,#ffffff 60%);border-radius:0 6px 6px 0;">
+            ${briefingToHtml(briefing)}
+          </div>
+        </td></tr>
+
+        ${zoneCards ? `
+        <!-- BY ZONE -->
+        <tr><td style="padding:8px 24px 8px 24px;">
+          <div style="margin:8px 4px 4px 4px;font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">By zone this week</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;">
+            ${zoneCards}
+          </table>
+        </td></tr>` : ''}
+
+        <!-- FOOTER -->
+        <tr><td style="padding:28px 28px 36px 28px;background:#faf8ff;border-top:1px solid #ede9fe;">
+          <p style="margin:0 0 14px 0;font-size:14px;color:#4c1d95;line-height:1.6;text-align:center;font-weight:500;">
+            Reply with anything you\u2019d like me to focus on next week.<br>
+            I\u2019ll keep an eye on Nigel and let you know how it goes.
+          </p>
+          <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;letter-spacing:0.5px;">
+            Hero Academy \u00B7 Week ending ${escapeHtml(weekDate)}
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
 </body>
 </html>`;
 }
 
-function renderTextEmail({ briefing, data }) {
+function renderTextEmail({ briefing, data, audio_url }) {
   const s = data.summary;
   const lines = [
     'HERO ACADEMY \u2014 Saturday Briefing for Nigel',
@@ -479,10 +625,75 @@ function renderTextEmail({ briefing, data }) {
     '',
     `Sessions: ${s.sessions_total}   Minutes: ${s.total_minutes}   Accuracy: ${s.accuracy_pct}%   Active days: ${s.days_active}`,
     '',
-    briefing,
-    '',
-    '\u2014',
-    'Reply to this email to send Ms. Humphrey notes about Nigel\u2019s focus areas.',
   ];
+  if (audio_url) {
+    lines.push('Listen to this week\u2019s voice note:', audio_url, '');
+  }
+  lines.push(briefing, '', '\u2014', 'Reply to this email to send Ms. Humphrey notes about Nigel\u2019s focus areas.');
   return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// ElevenLabs TTS + Supabase Storage upload (Ms. Humphrey audio briefing)
+// ---------------------------------------------------------------------------
+
+async function synthesizeBriefingAudio({ ELEVENLABS_KEY, text }) {
+  // POST to ElevenLabs and get an MP3 ArrayBuffer back. We use the flash
+  // model for fast generation and lower cost — a ~1000-char briefing
+  // generates in ~3-5s and costs about $0.05/1k chars.
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${HUMPHREY_VOICE_ID}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': ELEVENLABS_KEY,
+      'Content-Type': 'application/json',
+      Accept: 'audio/mpeg',
+    },
+    body: JSON.stringify({
+      text: text,
+      model_id: HUMPHREY_TTS_MODEL,
+      voice_settings: {
+        stability: 0.55,
+        similarity_boost: 0.75,
+        style: 0.20,        // a touch of warmth, not robotic
+        use_speaker_boost: true,
+      },
+    }),
+  });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`elevenlabs ${r.status}: ${body.slice(0, 200)}`);
+  }
+  const buf = await r.arrayBuffer();
+  if (!buf || buf.byteLength < 1000) {
+    throw new Error(`elevenlabs returned suspiciously small audio (${buf ? buf.byteLength : 0} bytes)`);
+  }
+  return buf;
+}
+
+async function uploadAudioToStorage({ SB_URL, SB_KEY, weekTag, audioBytes }) {
+  // Upload to the `humphrey-audio` bucket (must exist + be public). The
+  // service-role key bypasses RLS so this works without a write policy.
+  // File path uses the week-ending date so each Saturday gets its own file
+  // and we can re-run safely (upsert=true).
+  const path = `briefing-${weekTag}.mp3`;
+  const url = `${SB_URL}/storage/v1/object/humphrey-audio/${path}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'audio/mpeg',
+      'x-upsert': 'true',         // overwrite if file already exists
+      'Cache-Control': 'public, max-age=2592000', // 30 days
+    },
+    body: audioBytes,
+  });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`supabase storage ${r.status}: ${body.slice(0, 200)}`);
+  }
+  // Public URL format for Supabase Storage. The bucket must be marked
+  // `public=true` (handled by migration ha_humphrey_audio_bucket).
+  return `${SB_URL}/storage/v1/object/public/humphrey-audio/${path}`;
 }
