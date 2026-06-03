@@ -462,13 +462,17 @@ function escapeHtml(s) {
 function briefingToHtml(text) {
   // Convert Haiku's markdown-ish output to safe simple HTML for the letter
   // body. Uses a warm serif (Georgia → fallback) to feel like a personal
-  // letter, not a system notification. Supports: **bold**, line breaks,
-  // paragraphs. Section headings written as a standalone bolded line on its
-  // own paragraph render as h4-like display.
+  // letter. Wraps every paragraph in <font color="..."> AND repeats the
+  // color in the inline style — Gmail's dark mode inverts CSS colors but
+  // respects HTML4 <font> attributes, so this combination keeps the text
+  // visible in both light and dark mode without forcing the whole email
+  // into one scheme.
+  const TEXT_COLOR = '#0a0b2e';   // very dark to maximize contrast
+  const ACCENT = '#7c3aed';
   const para = escapeHtml(text)
     .split(/\n{2,}/)
-    .map((p) => p.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong style="color:#7c3aed;font-weight:700;">$1</strong>'))
-    .map((p) => `<p style="margin:0 0 14px 0;line-height:1.7;color:#1e1b4b;font-family:Georgia,'Iowan Old Style','Charter',serif;font-size:16px;">${p}</p>`)
+    .map((p) => p.replace(/\n/g, '<br>').replace(/\*\*(.+?)\*\*/g, `<strong style="color:${ACCENT};font-weight:700;"><font color="${ACCENT}">$1</font></strong>`))
+    .map((p) => `<p style="margin:0 0 14px 0;line-height:1.7;color:${TEXT_COLOR};font-family:Georgia,'Iowan Old Style','Charter',serif;font-size:16px;mso-line-height-rule:exactly;"><font color="${TEXT_COLOR}" face="Georgia, serif">${p}</font></p>`)
     .join('\n');
   return para;
 }
@@ -488,12 +492,14 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
   const weekDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   // Stat-grid cells (4 colored cards). Inline-styled <td>s for max email
-  // client compatibility — Outlook does not honor flexbox/grid.
+  // client compatibility — Outlook does not honor flexbox/grid. <font>
+  // wrappers are HTML4 but Gmail respects them in dark mode (whereas it
+  // can override CSS `color` properties), so we use both belt and suspenders.
   const statCard = (label, value, tint) => `
-    <td style="padding:6px;width:25%;text-align:center;">
-      <div style="background:linear-gradient(135deg,${tint.bg1},${tint.bg2});border-radius:14px;padding:18px 6px;border:1px solid ${tint.border};">
-        <div style="font-size:30px;font-weight:800;color:${tint.fg};line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">${value}</div>
-        <div style="font-size:11px;color:${tint.label};text-transform:uppercase;letter-spacing:1px;margin-top:6px;font-weight:700;">${label}</div>
+    <td bgcolor="${tint.bg2}" style="padding:6px;width:25%;text-align:center;">
+      <div style="background:${tint.bg2};background-image:linear-gradient(135deg,${tint.bg1},${tint.bg2});border-radius:14px;padding:18px 6px;border:1px solid ${tint.border};">
+        <div style="font-size:30px;font-weight:800;color:${tint.fg};line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;"><font color="${tint.fg}">${value}</font></div>
+        <div style="font-size:11px;color:${tint.label};text-transform:uppercase;letter-spacing:1px;margin-top:6px;font-weight:700;"><font color="${tint.label}">${label}</font></div>
       </div>
     </td>`;
   const tints = {
@@ -516,12 +522,12 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
       return `
       <tr>
         <td style="padding:6px 0;">
-          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#fff;border-radius:12px;border:1px solid #e9d5ff;border-collapse:separate;">
+          <table role="presentation" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:100%;background:#ffffff;border-radius:12px;border:1px solid #e9d5ff;border-collapse:separate;">
             <tr>
               <td style="padding:14px 16px;width:48px;font-size:26px;vertical-align:middle;">${emoji}</td>
               <td style="padding:14px 16px 14px 0;vertical-align:middle;">
-                <div style="font-size:15px;font-weight:700;color:#1e1b4b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">${label}</div>
-                <div style="font-size:12px;color:#6b7280;margin-top:3px;">${sub}</div>
+                <div class="ha-text-dark" style="font-size:15px;font-weight:700;color:#0a0b2e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;"><font color="#0a0b2e">${label}</font></div>
+                <div style="font-size:12px;color:#6b7280;margin-top:3px;"><font color="#6b7280">${sub}</font></div>
               </td>
             </tr>
           </table>
@@ -545,10 +551,20 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
 <title>Hero Academy \u2014 Saturday Briefing</title>
+<style>
+  :root { color-scheme: light only; supported-color-schemes: light only; }
+  /* Gmail dark-mode override: when Gmail wraps the email in [data-ogsc],
+     it's running its color inversion. We re-pin our text colors so the
+     letter stays readable on both themes. */
+  u + .body [data-ogsc] .ha-text-dark { color: #0a0b2e !important; }
+  [data-ogsc] .ha-text-dark { color: #0a0b2e !important; }
+  [data-ogsc] .ha-letter-card { background-color: #fdf2f8 !important; }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#0a0b2e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1e1b4b;-webkit-text-size-adjust:100%;">
+<body class="body" style="margin:0;padding:0;background:#0a0b2e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#0a0b2e;-webkit-text-size-adjust:100%;color-scheme:light only;supported-color-schemes:light only;">
   <div style="display:none;max-height:0;overflow:hidden;color:transparent;">Nigel\u2019s week in review from Ms. Humphrey \u2014 ${escapeHtml(weekDate)}.</div>
   <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#0a0b2e;">
     <tr><td align="center" style="padding:24px 12px;">
@@ -556,20 +572,20 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
 
         <!-- HERO BANNER -->
         <tr><td style="background:#1e1b4b;background-image:linear-gradient(135deg,#1e1b4b 0%,#7c3aed 35%,#ec4899 70%,#ff8b3d 100%);padding:36px 28px 80px 28px;text-align:center;color:#ffffff;">
-          <div style="font-size:11px;letter-spacing:2.5px;text-transform:uppercase;opacity:0.85;margin-bottom:8px;font-weight:700;">\u{1F9B8}\u200D\u2640\uFE0F Hero Academy</div>
-          <div style="font-size:22px;font-weight:700;letter-spacing:0.2px;">Saturday Briefing</div>
-          <div style="font-size:14px;opacity:0.85;margin-top:4px;">${escapeHtml(weekDate)}</div>
+          <div style="font-size:11px;letter-spacing:2.5px;text-transform:uppercase;opacity:0.85;margin-bottom:8px;font-weight:700;color:#ffffff;"><font color="#ffffff">\u{1F9B8}\u200D\u2640\uFE0F Hero Academy</font></div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:0.2px;color:#ffffff;"><font color="#ffffff">Saturday Briefing</font></div>
+          <div style="font-size:14px;opacity:0.85;margin-top:4px;color:#ffffff;"><font color="#ffffff">${escapeHtml(weekDate)}</font></div>
         </td></tr>
 
         <!-- HUMPHREY PORTRAIT (overlaps banner) -->
-        <tr><td style="text-align:center;padding:0 28px;">
+        <tr><td bgcolor="#ffffff" style="text-align:center;padding:0 28px;background:#ffffff;">
           <img src="${HUMPHREY_PORTRAIT_URL}" width="120" height="120" alt="Ms. Humphrey" style="border-radius:50%;border:4px solid #ffffff;box-shadow:0 8px 24px rgba(124,58,237,0.35);margin-top:-60px;background:#ffffff;display:inline-block;">
-          <div style="margin-top:14px;font-size:20px;font-weight:700;color:#1e1b4b;">From Ms. Humphrey</div>
-          <div style="margin-top:2px;font-size:13px;color:#7c3aed;font-weight:600;">Nigel\u2019s tutor</div>
+          <div class="ha-text-dark" style="margin-top:14px;font-size:20px;font-weight:700;color:#0a0b2e;"><font color="#0a0b2e">From Ms. Humphrey</font></div>
+          <div style="margin-top:2px;font-size:13px;color:#7c3aed;font-weight:600;"><font color="#7c3aed">Nigel\u2019s tutor</font></div>
         </td></tr>
 
         <!-- STATS GRID -->
-        <tr><td style="padding:24px 16px 8px 16px;">
+        <tr><td bgcolor="#ffffff" style="padding:24px 16px 8px 16px;background:#ffffff;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;">
             <tr>
               ${statCard('Minutes', s.total_minutes, tints.amber)}
@@ -581,33 +597,33 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
         </td></tr>
 
         <!-- AUDIO PLAYER (if available) -->
-        ${audio_url ? `<tr><td style="padding:0 28px;">${audioBlock}</td></tr>` : ''}
+        ${audio_url ? `<tr><td bgcolor="#ffffff" style="padding:0 28px;background:#ffffff;">${audioBlock}</td></tr>` : ''}
 
         <!-- LETTER -->
-        <tr><td style="padding:28px 28px 8px 28px;">
-          <div style="border-left:4px solid #ec4899;padding:6px 0 6px 20px;background:linear-gradient(90deg,#fdf2f8 0%,#ffffff 60%);border-radius:0 6px 6px 0;">
+        <tr><td bgcolor="#ffffff" style="padding:28px 28px 8px 28px;background:#ffffff;">
+          <div class="ha-letter-card" style="border-left:4px solid #ec4899;padding:18px 22px;background:#fdf2f8;border-radius:0 12px 12px 0;">
             ${briefingToHtml(briefing)}
           </div>
         </td></tr>
 
         ${zoneCards ? `
         <!-- BY ZONE -->
-        <tr><td style="padding:8px 24px 8px 24px;">
-          <div style="margin:8px 4px 4px 4px;font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;">By zone this week</div>
+        <tr><td bgcolor="#ffffff" style="padding:8px 24px 8px 24px;background:#ffffff;">
+          <div class="ha-text-dark" style="margin:8px 4px 4px 4px;font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;"><font color="#7c3aed">By zone this week</font></div>
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;">
             ${zoneCards}
           </table>
         </td></tr>` : ''}
 
         <!-- FOOTER -->
-        <tr><td style="padding:28px 28px 36px 28px;background:#faf8ff;border-top:1px solid #ede9fe;">
-          <p style="margin:0 0 14px 0;font-size:14px;color:#4c1d95;line-height:1.6;text-align:center;font-weight:500;">
+        <tr><td bgcolor="#faf8ff" style="padding:28px 28px 36px 28px;background:#faf8ff;border-top:1px solid #ede9fe;">
+          <p class="ha-text-dark" style="margin:0 0 14px 0;font-size:14px;color:#4c1d95;line-height:1.6;text-align:center;font-weight:500;"><font color="#4c1d95">
             Reply with anything you\u2019d like me to focus on next week.<br>
             I\u2019ll keep an eye on Nigel and let you know how it goes.
-          </p>
-          <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;letter-spacing:0.5px;">
+          </font></p>
+          <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;letter-spacing:0.5px;"><font color="#9ca3af">
             Hero Academy \u00B7 Week ending ${escapeHtml(weekDate)}
-          </p>
+          </font></p>
         </td></tr>
 
       </table>
