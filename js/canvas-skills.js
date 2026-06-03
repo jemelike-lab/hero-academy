@@ -21,9 +21,35 @@
   // ---- Parsers --------------------------------------------------------------
   // Pull "8 - 3" / "13 + 4" / "Nigel has 5 apples... gives 3..." style prompts.
 
+  // Strong addition signals — when one of these appears, addition wins even if
+  // a subtraction verb is also present in the prompt. Real grade-2 word
+  // problems frequently mix them: "Gabriel gives him 5 MORE apples" used to
+  // parse as subtraction because "gives" matched the old regex.
+  // "fewer" / "less" are also additive-looking words ("how many more...?")
+  // when paired with a comparison, but in K-2 problems they almost always
+  // signal subtraction, so we keep them on the sub side.
+  var STRONG_ADD = /\b(more|altogether|in all|total|combined|both|added|join(ed|s)?|extra|additional|sum|gained|got|received|won|earned|found|bought|all together)\b/;
+  var SUB_VERBS = /\b(gives? away|give away|gave away|takes? away|took away|loses?|lost|fewer|less|left|away|eats?|eaten|ate|sells?|sold|drops?|dropped|popped?|broke|burst|spilled|missing|remain(s|ing)?|gone|disappeared)\b/;
+  // "gives"/"gave" by themselves are ambiguous (e.g., "Gabriel gives him 3
+  // more") so they're NOT in SUB_VERBS — they only signal subtraction when
+  // paired with "away" (covered above) or another subtraction signal.
+
+  function inferOp(lower) {
+    var hasAdd = STRONG_ADD.test(lower);
+    var hasSub = SUB_VERBS.test(lower);
+    // Both present (e.g., "He gave 3 away but received 5 more") — addition
+    // wins because addition-strong signals are deliberate, while subtraction
+    // verbs often appear as throwaway setup ("he had some, then gave some,
+    // and how many MORE...?").
+    if (hasAdd) return '+';
+    if (hasSub) return '-';
+    return '+'; // default for unmarked word problems
+  }
+
   function parseAddSub(text) {
     if (!text) return null;
-    // Direct arithmetic: "8 - 3 = ?" / "13 + 4 = ?"
+    // Direct arithmetic: "8 - 3 = ?" / "13 + 4 = ?" — unambiguous, takes
+    // precedence over any verb in the surrounding text.
     var m = String(text).match(/(-?\d+)\s*([+\-−])\s*(-?\d+)/);
     if (m) {
       var a = parseInt(m[1], 10);
@@ -31,12 +57,11 @@
       var op = (m[2] === '+') ? '+' : '-';
       return { a: a, b: b, op: op, result: op === '+' ? a + b : a - b };
     }
-    // Word problem: extract first two integers and infer op from verbs
+    // Word problem: extract first two integers and infer op from verbs.
     var nums = (String(text).match(/\b\d+\b/g) || []).map(function (s) { return parseInt(s, 10); });
     if (nums.length >= 2) {
       var lower = String(text).toLowerCase();
-      var isSub = /\b(gives?|give away|loses?|left|away|fewer|takes? away|eats?|sells?|drops?|popped?|loses)\b/.test(lower);
-      var op2 = isSub ? '-' : '+';
+      var op2 = inferOp(lower);
       return { a: nums[0], b: nums[1], op: op2, result: op2 === '+' ? nums[0] + nums[1] : nums[0] - nums[1] };
     }
     return null;
@@ -139,6 +164,85 @@
     });
   }
 
+  /**
+   * Make-10 strategy: 8 + 5 → 8 + 2 + 3 → 10 + 3 = 13.
+   * The "make 10" curriculum approach decomposes the second addend so the
+   * first addend rounds up to 10, then adds whatever's left. This drawing
+   * splits the visual jump into two arrows so Nigel sees WHY the trick works,
+   * not just what the answer is.
+   *
+   * If the problem isn't a make-10 candidate (e.g., neither addend < 10, or
+   * sum already < 10), we fall back to the regular additionLine so we never
+   * leave Nigel without a walkthrough.
+   */
+  async function makeTenLine(problem) {
+    var parsed = parseAddSub(problem.question || problem.prompt);
+    if (!parsed || parsed.op !== '+') return;
+
+    // Make-10 only makes sense when one addend < 10, the sum > 10, and we'd
+    // actually cross the 10 boundary. Otherwise revert to plain addition.
+    var a = parsed.a;
+    var b = parsed.b;
+    var sum = parsed.result;
+    var crossesTen = (a < 10 && sum > 10) || (b < 10 && sum > 10);
+    if (!crossesTen) return additionLine(problem);
+
+    // Pick the larger addend as the "anchor" so we jump toward 10 from
+    // whichever side gets us there fastest. Visually nicer than always
+    // jumping from `a`.
+    var anchor = Math.max(a, b);
+    var other = Math.min(a, b);
+    var toTen = 10 - anchor;        // first jump: anchor → 10
+    var remainder = other - toTen;  // second jump: 10 → sum
+
+    var Canvas = C(); if (!Canvas) return;
+    var range = chooseLineRange(Math.max(sum, 20));
+
+    await Canvas.humphreyClear();
+    await Canvas.humphreyDrawNumberLine(range[0], range[1], { y: 240 });
+
+    // Drop anchor dot
+    await Canvas.humphreyDrawCircle(anchor, 240, 14, {
+      color: '#ec4899', fill: '#ec4899', duration: 350,
+    });
+    await Canvas.humphreyDrawText(anchor, 180, 'Start at ' + anchor, {
+      color: '#0a0b2e',
+      font: '600 26px Fredoka, system-ui, sans-serif',
+    });
+
+    // Jump 1: anchor → 10
+    await Canvas.humphreyDrawArrow(anchor, 200, 10, 200, {
+      color: '#14b8d4', width: 5, duration: 700,
+    });
+    await Canvas.humphreyDrawText((anchor + 10) / 2, 160, '+ ' + toTen + ' → 10', {
+      color: '#14b8d4',
+      font: '600 22px Fredoka, system-ui, sans-serif',
+    });
+
+    // Tiny pause-dot at 10 to make the decomposition visible
+    await Canvas.humphreyDrawCircle(10, 240, 10, {
+      color: '#fbbf24', fill: '#fbbf24', duration: 250,
+    });
+
+    // Jump 2: 10 → sum
+    await Canvas.humphreyDrawArrow(10, 200, sum, 200, {
+      color: '#a855f7', width: 5, duration: 700,
+    });
+    await Canvas.humphreyDrawText((10 + sum) / 2, 290, '+ ' + remainder, {
+      color: '#a855f7',
+      font: '600 22px Fredoka, system-ui, sans-serif',
+    });
+
+    // Circle the result
+    await Canvas.humphreyDrawCircle(sum, 240, 32, {
+      color: '#22c55e', width: 6, duration: 600,
+    });
+    await Canvas.humphreyDrawText(sum, 320, '= ' + sum, {
+      color: '#22c55e',
+      font: '700 32px Fredoka, system-ui, sans-serif',
+    });
+  }
+
   // ---- Registry -------------------------------------------------------------
 
   var registry = {
@@ -146,7 +250,7 @@
     subtract_within_20: subtractionLine,
     add_within_10: additionLine,
     add_within_20: additionLine,
-    make_10: additionLine,    // close-enough visual; refine later
+    make_10: makeTenLine,
     doubles: additionLine,
     doubles_plus_one: additionLine,
   };
@@ -161,5 +265,9 @@
   NS.CanvasSkills = {
     drawForSkill: drawForSkill,
     registry: registry,
+    // Exposed for console debug + verification — call from DevTools as
+    //   HeroAcademy.CanvasSkills._parseAddSub('Gabriel gives him 5 more apples')
+    _parseAddSub: parseAddSub,
+    _inferOp: inferOp,
   };
 })();
