@@ -25,6 +25,39 @@
 
 const HAIKU_MODEL = 'claude-haiku-4-5';
 
+// Build #5 v2: parent directives. Server has service-role access so we read
+// directly via the SECURITY DEFINER RPC ha_active_directives.
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const NIGEL_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
+
+// focus_skill payload keys -> the zone where that skill lives. If the parent
+// wants subtraction emphasized today, the stretch should be number-lab.
+const SKILL_TO_ZONE = {
+  'add_within_10':      'number-lab',
+  'add_within_20':      'number-lab',
+  'subtract_within_10': 'number-lab',
+  'subtract_within_20': 'number-lab',
+  'make_10':            'number-lab',
+  'place_value':        'number-lab',
+  'reading_fluency':    'word-tower',
+  'sight_words':        'word-tower',
+  'writing_sentences':  'writing',
+};
+
+// Human-readable skill labels for the Haiku prompt.
+const SKILL_LABELS = {
+  'add_within_10':      'addition within 10',
+  'add_within_20':      'addition within 20',
+  'subtract_within_10': 'subtraction within 10',
+  'subtract_within_20': 'subtraction within 20',
+  'make_10':            'the make-a-10 strategy',
+  'place_value':        'place value',
+  'reading_fluency':    'reading fluency',
+  'sight_words':        'sight words',
+  'writing_sentences':  'writing complete sentences',
+};
+
 // Subject/zone pool the model is allowed to pick from. Hero Hall is a trophy
 // room \u2014 fine as a \"win\" celebration step, but not a learning task.
 const ZONES = [
@@ -63,6 +96,53 @@ function rewardCharacterForMission(m) {
   return REWARD_CHARACTER_FOR_ZONE[stretchZone] || REWARD_FALLBACK;
 }
 
+// ---------------------------------------------------------------------------
+// Parent directives (Build #5 v2)
+// ---------------------------------------------------------------------------
+
+async function fetchActiveDirectives() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return [];
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/ha_active_directives', {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_SERVICE_ROLE_KEY,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ p_child_id: NIGEL_ID }),
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return Array.isArray(j) ? j : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+// Sort active directives into the three buckets the mission cares about.
+// request_quest_category is for the quest picker, not us — ignored here.
+function classifyDirectives(directives) {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const skipZones = new Set();
+  let focusSkill = null;
+  const parentNotes = [];
+  for (const d of (directives || [])) {
+    const p = d.payload || {};
+    if (d.directive_type === 'skip_zone_today') {
+      const payloadDate = p.date || todayISO;
+      if (payloadDate === todayISO && p.zone) skipZones.add(p.zone);
+    } else if (d.directive_type === 'focus_skill') {
+      // directives arrive newest-first; first wins.
+      if (!focusSkill && p.skill) focusSkill = p.skill;
+    } else if (d.directive_type === 'note_for_humphrey') {
+      if (p.text) parentNotes.push({ text: String(p.text).slice(0, 300), by: d.created_by || 'parent' });
+    }
+  }
+  return { skipZones, focusSkill, parentNotes };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
@@ -76,6 +156,10 @@ export default async function handler(req, res) {
   const homeworkDue = !!body.homework_due;
   const homeworkTopic = body.homework_topic || null;
 
+  // Build #5 v2: read any active parent directives and let them shape today.
+  const directives = await fetchActiveDirectives();
+  const { skipZones, focusSkill, parentNotes } = classifyDirectives(directives);
+
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
   let mission;
@@ -83,15 +167,16 @@ export default async function handler(req, res) {
     try {
       mission = await generateWithHaiku({
         ANTHROPIC_KEY, dayName, zoneProgress, recentZones, homeworkDue, homeworkTopic,
+        skipZones, focusSkill, parentNotes,
       });
     } catch (e) {
       mission = null;
     }
   }
-  if (!mission) mission = fallbackMission({ zoneProgress, recentZones, homeworkDue });
+  if (!mission) mission = fallbackMission({ zoneProgress, recentZones, homeworkDue, skipZones, focusSkill });
 
-  // Final shape validation
-  mission = validateAndPatch(mission);
+  // Final shape validation — also enforces skip rules in case Haiku ignored them.
+  mission = validateAndPatch(mission, { skipZones, focusSkill });
 
   return res.status(200).json(mission);
 }
@@ -102,15 +187,37 @@ function dayNameFromNumber(n) {
   return names[new Date().getDay()];
 }
 
-async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZones, homeworkDue, homeworkTopic }) {
-  const zonePool = ZONES.map((z) => ({
-    id: z.id,
-    label: z.label,
-    subject: z.subject,
-    is_learning: z.learn,
-    progress_pct: zoneProgress[z.id] || 0,
-    minutes_estimate: z.est,
-  }));
+async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZones, homeworkDue, homeworkTopic, skipZones, focusSkill, parentNotes }) {
+  const skipSet = skipZones || new Set();
+  // Filter the zone pool so Haiku can't even pick a skipped zone.
+  const zonePool = ZONES
+    .filter((z) => !skipSet.has(z.id))
+    .map((z) => ({
+      id: z.id,
+      label: z.label,
+      subject: z.subject,
+      is_learning: z.learn,
+      progress_pct: zoneProgress[z.id] || 0,
+      minutes_estimate: z.est,
+    }));
+
+  // Compose parent context block (omitted entirely when there's no input).
+  const parentLines = [];
+  if (focusSkill && SKILL_LABELS[focusSkill]) {
+    const targetZone = SKILL_TO_ZONE[focusSkill];
+    parentLines.push(
+      '  - Parent wants extra focus on ' + SKILL_LABELS[focusSkill] +
+      (targetZone ? ' (lives in zone: ' + targetZone + ' — use it as the stretch if possible).' : '.')
+    );
+  }
+  if (skipSet.size > 0) {
+    parentLines.push('  - Parent asked to skip these zones today (already excluded from the pool): ' + Array.from(skipSet).join(', ') + '.');
+  }
+  if (parentNotes && parentNotes.length > 0) {
+    parentNotes.slice(0, 3).forEach(function (n) {
+      parentLines.push('  - Note from ' + n.by + ': "' + n.text + '" — weave the warmth of this into the warmup blurb if it fits naturally.');
+    });
+  }
 
   const systemPrompt = [
     'You are Ms. Humphrey designing today\u2019s 25-minute homeschool mission for Nigel \u2014 7 years old, 2nd grade, Maryland.',
@@ -125,6 +232,7 @@ async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZ
     '  - Cover at least 2 different subjects across the 3 picks.',
     '  - Avoid picking the same zone Nigel did most recently as the warmup, unless nothing else fits.',
     '  - If homework_due is true, the stretch MUST be \"number-lab\" (homework is math).',
+    parentLines.length > 0 ? '\nParent guidance for today (Bianca/Josh sent these in the co-pilot — respect them):\n' + parentLines.join('\n') : '',
     '  - Each blurb is ONE short sentence written TO Nigel (\"Practice your ch- words with Webly.\") \u2014 not to parents.',
     '  - Minutes per step should be realistic: warmup ~5\u20137, stretch ~8\u201310, win ~3\u20136. Total close to 25.',
     '  - Output strictly valid JSON, nothing else. No markdown, no prose, no code fences.',
@@ -137,7 +245,7 @@ async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZ
     '  "total_minutes": 0,',
     '  "unlock_hint": "..."',
     '}',
-  ].join('\n');
+  ].filter(function (l) { return l !== ''; }).join('\n');
 
   const userPrompt = [
     'Day: ' + dayName,
@@ -177,10 +285,11 @@ async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZ
   return parsed;
 }
 
-function fallbackMission({ zoneProgress, recentZones, homeworkDue }) {
+function fallbackMission({ zoneProgress, recentZones, homeworkDue, skipZones, focusSkill }) {
+  const skipSet = skipZones || new Set();
   // Pick least-recently-visited learning zones with lowest progress first.
   const recent = new Set(recentZones.slice(0, 2));
-  const candidates = ZONES.filter((z) => z.learn).slice();
+  const candidates = ZONES.filter((z) => z.learn && !skipSet.has(z.id)).slice();
   candidates.sort((a, b) => {
     var aRecent = recent.has(a.id) ? 1 : 0;
     var bRecent = recent.has(b.id) ? 1 : 0;
@@ -188,14 +297,21 @@ function fallbackMission({ zoneProgress, recentZones, homeworkDue }) {
     return (zoneProgress[a.id] || 0) - (zoneProgress[b.id] || 0);
   });
 
-  var warmupPool = ZONES.filter((z) => z.learn).slice().sort((a, b) => (zoneProgress[b.id] || 0) - (zoneProgress[a.id] || 0));
-  var warmup = warmupPool[0] || candidates[0];
+  var warmupPool = ZONES.filter((z) => z.learn && !skipSet.has(z.id)).slice().sort((a, b) => (zoneProgress[b.id] || 0) - (zoneProgress[a.id] || 0));
+  // If every learning zone got skipped (shouldn't happen in practice), back off.
+  if (warmupPool.length === 0) warmupPool = ZONES.filter((z) => z.learn).slice();
+  var warmup = warmupPool[0] || candidates[0] || ZONES[0];
   var stretchPool = candidates.filter((z) => z.id !== warmup.id);
-  if (homeworkDue) {
+  // Parent focus_skill wins over the default ordering for stretch selection.
+  var focusZone = focusSkill && SKILL_TO_ZONE[focusSkill];
+  if (focusZone && !skipSet.has(focusZone)) {
+    var fz = stretchPool.find((z) => z.id === focusZone) || ZONES.find((z) => z.id === focusZone);
+    if (fz) stretchPool = [fz].concat(stretchPool.filter((z) => z.id !== focusZone));
+  } else if (homeworkDue) {
     var nl = stretchPool.find((z) => z.id === 'number-lab') || ZONES.find((z) => z.id === 'number-lab');
-    if (nl) stretchPool = [nl].concat(stretchPool.filter((z) => z.id !== 'number-lab'));
+    if (nl && !skipSet.has('number-lab')) stretchPool = [nl].concat(stretchPool.filter((z) => z.id !== 'number-lab'));
   }
-  var stretch = stretchPool[0];
+  var stretch = stretchPool[0] || candidates[0] || warmup;
   var win = candidates.find((z) => z.id !== warmup.id && z.id !== stretch.id) || ZONES.find((z) => z.id === 'hero-hall');
 
   return {
@@ -208,9 +324,11 @@ function fallbackMission({ zoneProgress, recentZones, homeworkDue }) {
     stretch: {
       zone_id: stretch.id,
       title: stretch.label,
-      blurb: homeworkDue && stretch.id === 'number-lab'
-        ? 'Knock out today\u2019s homework, hero.'
-        : 'Today\u2019s real challenge \u2014 take your time.',
+      blurb: (focusZone && stretch.id === focusZone)
+        ? 'Today\u2019s focus \u2014 dig in, hero.'
+        : (homeworkDue && stretch.id === 'number-lab'
+          ? 'Knock out today\u2019s homework, hero.'
+          : 'Today\u2019s real challenge \u2014 take your time.'),
       minutes: Math.max(8, stretch.est),
     },
     win: {
@@ -224,19 +342,39 @@ function fallbackMission({ zoneProgress, recentZones, homeworkDue }) {
   };
 }
 
-function validateAndPatch(m) {
+function validateAndPatch(m, opts) {
   if (!m || typeof m !== 'object') m = {};
+  opts = opts || {};
+  const skipSet = opts.skipZones || new Set();
   const pool = new Set(ZONES.map((z) => z.id));
+  // Pool of valid zones EXCLUDING parent-skipped ones, for repair.
+  const allowedPool = ZONES.filter((z) => !skipSet.has(z.id));
+  const usedZones = new Set();
   ['warmup', 'stretch', 'win'].forEach((slot) => {
     if (!m[slot] || typeof m[slot] !== 'object') m[slot] = {};
     var step = m[slot];
-    if (!pool.has(step.zone_id)) {
-      // Patch invalid zone_id with a sensible default
+    var bad = !pool.has(step.zone_id) || skipSet.has(step.zone_id) || usedZones.has(step.zone_id);
+    if (bad) {
+      // Pick a sensible replacement from allowedPool that isn't already used.
       var fallbacks = { warmup: 'discovery', stretch: 'number-lab', win: 'hero-hall' };
-      step.zone_id = fallbacks[slot];
-      var z = ZONES.find((zz) => zz.id === step.zone_id);
-      step.title = z ? z.label : step.zone_id;
+      var preferred = fallbacks[slot];
+      var replacement = null;
+      if (!skipSet.has(preferred) && !usedZones.has(preferred)) {
+        replacement = ZONES.find((zz) => zz.id === preferred);
+      }
+      if (!replacement) {
+        replacement = allowedPool.find((zz) => !usedZones.has(zz.id));
+      }
+      if (!replacement) {
+        // Last-resort: pick any zone not yet used, ignoring skip set.
+        replacement = ZONES.find((zz) => !usedZones.has(zz.id)) || ZONES[0];
+      }
+      step.zone_id = replacement.id;
+      step.title = replacement.label;
+      // Reset blurb so we don't keep a hallucinated reference to the wrong zone.
+      step.blurb = '';
     }
+    usedZones.add(step.zone_id);
     if (typeof step.title !== 'string' || !step.title) {
       var z2 = ZONES.find((zz) => zz.id === step.zone_id);
       step.title = z2 ? z2.label : step.zone_id;

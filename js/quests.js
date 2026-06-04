@@ -55,9 +55,42 @@
     // Avoid repeating the same quest twice in a row.
     var lastKey = null;
     try { lastKey = localStorage.getItem('ha_quest_last_key'); } catch (e) {}
+
+    // Build #5 v2: parent may have requested a specific category. If so, prefer
+    // quests of that category (still excluding the most recent key).
+    var requestedCat = state.requestedCategory;
     var pool = QUESTS.filter(function (q) { return q.key !== lastKey; });
+    if (requestedCat) {
+      var preferred = pool.filter(function (q) { return q.category === requestedCat; });
+      if (preferred.length > 0) pool = preferred;
+    }
     if (!pool.length) pool = QUESTS;
     return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // Build #5 v2: load active parent directives once at init. Cache results on
+  // state so pickRandom can use them without paying an RPC cost per tap.
+  // Refreshed on a best-effort basis when openRandom is called (fire-and-forget).
+  function loadActiveDirectives() {
+    var T = (window.HeroAcademy && window.HeroAcademy.Telemetry) || null;
+    if (!T || typeof T.rpc !== 'function' || typeof T.childId !== 'function') return Promise.resolve(null);
+    return T.rpc('ha_active_directives', { p_child_id: T.childId() })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (arr) {
+        var requested = null;
+        if (Array.isArray(arr)) {
+          for (var i = 0; i < arr.length; i++) {
+            var d = arr[i];
+            if (d.directive_type === 'request_quest_category' && d.payload && d.payload.category) {
+              requested = d.payload.category;
+              break; // newest-first ordering
+            }
+          }
+        }
+        state.requestedCategory = requested;
+        return requested;
+      })
+      .catch(function () { return null; });
   }
 
   function pickByKey(key) {
@@ -73,6 +106,8 @@
     questId:  null,
     timer:    null,
     timerEndsAt: 0,
+    // Build #5 v2 — parent-requested quest category (refreshed on init + each openRandom)
+    requestedCategory: null,
     // Build #7 v2 — camera capture lifecycle
     stream:           null,    // MediaStream from getUserMedia
     snapshotDataUrl:  null,    // captured frame as data:image/jpeg;base64,...
@@ -592,9 +627,14 @@
       e.preventDefault();
       openRandom();
     });
+    // Build #5 v2: warm the requested-category cache. Best effort — silent fail.
+    loadActiveDirectives();
   }
 
   function openRandom() {
+    // Fire-and-forget refresh so a directive Bianca sends mid-day takes effect
+    // on the *next* tap (the current tap uses whatever is already cached).
+    loadActiveDirectives();
     var quest = pickRandom();
     renderQuest(quest);
     openOverlay();

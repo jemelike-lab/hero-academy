@@ -227,7 +227,7 @@ async function sb({ SB_URL, SB_KEY, path, headers }) {
 async function pullWeek({ SB_URL, SB_KEY, since }) {
   const childFilter = `child_id=eq.${NIGEL_ID}`;
 
-  const [sessions, attempts, topicMastery, charUnlocks, topics, fridayQuiz] = await Promise.all([
+  const [sessions, attempts, topicMastery, charUnlocks, topics, fridayQuiz, activeDirectives, recentDirectives] = await Promise.all([
     sb({ SB_URL, SB_KEY, path: `ha_sessions?${childFilter}&started_at=gte.${since}&order=started_at.asc&limit=500` }),
     sb({ SB_URL, SB_KEY, path: `ha_attempts?${childFilter}&attempted_at=gte.${since}&order=attempted_at.asc&limit=2000` }),
     sb({ SB_URL, SB_KEY, path: `ha_topic_mastery?${childFilter}&limit=200` }),
@@ -235,6 +235,10 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
     sb({ SB_URL, SB_KEY, path: `ha_topics?select=id,title,subject,zone_id&limit=200` }),
     // Most recent Friday cumulative-quiz result within the past 7 days, if any.
     sb({ SB_URL, SB_KEY, path: `ha_friday_quiz_results?${childFilter}&taken_at=gte.${since}&order=taken_at.desc&limit=1` }).catch(() => []),
+    // Build #5 v2: parent directives currently steering the experience.
+    sb({ SB_URL, SB_KEY, path: `ha_parent_directives?${childFilter}&active=eq.true&order=created_at.desc&limit=20` }).catch(() => []),
+    // Build #5 v2: every directive (active OR deactivated) created in the window — narrative context for Haiku.
+    sb({ SB_URL, SB_KEY, path: `ha_parent_directives?${childFilter}&created_at=gte.${since}&order=created_at.desc&limit=30` }).catch(() => []),
   ]);
 
   const topicMap = {};
@@ -299,6 +303,9 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
     struggles,
     newCharacters: charUnlocks.map((c) => c.character_id),
     fridayQuiz: Array.isArray(fridayQuiz) && fridayQuiz.length > 0 ? fridayQuiz[0] : null,
+    // Build #5 v2 — parent directives
+    activeDirectives: Array.isArray(activeDirectives) ? activeDirectives : [],
+    recentDirectives: Array.isArray(recentDirectives) ? recentDirectives : [],
     summary: {
       sessions_total: sessions.length,
       total_minutes: Math.round(totalSeconds / 60),
@@ -342,6 +349,14 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
     struggles: data.struggles.map((s) => ({ title: s.title, accuracy: s.accuracy })),
     new_characters_unlocked: data.newCharacters,
     friday_quiz: fridayQuizFact,
+    // Build #5 v2 — what Bianca/Josh asked you to do this week, via the parent co-pilot.
+    parent_directives_this_week: (data.recentDirectives || []).map((d) => ({
+      type: d.directive_type,
+      payload: d.payload,
+      by: d.created_by,
+      created_at: d.created_at,
+      still_active: d.active === true,
+    })),
   }, null, 2);
 
   const systemPrompt = [
@@ -360,6 +375,12 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
     '  - Phrase the result naturally, e.g. "Nigel retained 8 of 10 things from this week" or "his Friday brain-check landed at 80%".',
     '  - If `friday_quiz.weak_areas` is non-empty, name them in the struggles section.',
     '  - If `friday_quiz` is null, just don\u2019t mention retention \u2014 don\u2019t make up a number.',
+    '',
+    'About parent directives (`parent_directives_this_week`):',
+    '  - These are notes Bianca or Josh sent through the Parent Co-pilot. If any are present, acknowledge them in the "Looking ahead" section in one warm sentence (e.g. "I have Bianca\u2019s note about subtraction \u2014 I\u2019ll keep it on my radar Monday.").',
+    '  - Do NOT mention parent directives in any other section.',
+    '  - Do NOT quote `note_for_humphrey` text verbatim \u2014 paraphrase the intent.',
+    '  - If `parent_directives_this_week` is empty, skip this entirely.',
     '',
     'Voice and structure:',
     '  - Warm but specific. Lead with one real win from the week.',
@@ -546,6 +567,70 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
       <div style="font-size:12px;color:#c4b5fd;margin-top:10px;">Tap to listen in your browser.</div>
     </div>` : '';
 
+  // Build #5 v2 — "From Bianca & Josh" section, rendered only when there's
+  // at least one active directive. Mirrors directive type-to-label logic in
+  // js/parent.js so the wording matches what parents see in the dashboard.
+  const SKILL_LABELS_HTML = {
+    'add_within_10':      'addition within 10',
+    'add_within_20':      'addition within 20',
+    'subtract_within_10': 'subtraction within 10',
+    'subtract_within_20': 'subtraction within 20',
+    'make_10':            'the make-a-10 strategy',
+    'place_value':        'place value',
+    'reading_fluency':    'reading fluency',
+    'sight_words':        'sight words',
+    'writing_sentences':  'writing sentences',
+  };
+  const QUEST_CAT_LABELS_HTML = {
+    'counting':     'counting things',
+    'color':        'spotting colors',
+    'letter':       'finding letters',
+    'observation':  'looking around',
+    'show_and_tell':'show-and-tell with a photo',
+  };
+  function directiveLabel(d) {
+    const p = d.payload || {};
+    switch (d.directive_type) {
+      case 'focus_skill':
+        return 'Focus more on <strong>' + escapeHtml(SKILL_LABELS_HTML[p.skill] || p.skill || 'a skill') + '</strong>';
+      case 'skip_zone_today':
+        return 'Skip <strong>' + escapeHtml(ZONE_LABELS[p.zone] || p.zone || 'a zone') + '</strong> today';
+      case 'request_quest_category':
+        return 'Suggest a real-world quest about <strong>' + escapeHtml(QUEST_CAT_LABELS_HTML[p.category] || p.category || 'something specific') + '</strong>';
+      case 'note_for_humphrey':
+        return p.text ? '\u201C' + escapeHtml(String(p.text).slice(0, 240)) + '\u201D' : 'A note for Ms. Humphrey';
+      default:
+        return escapeHtml(d.directive_type);
+    }
+  }
+  const directiveItems = (data.activeDirectives || [])
+    .slice(0, 6)
+    .map((d) => {
+      const by = escapeHtml((d.created_by || 'parent').replace(/^./, (c) => c.toUpperCase()));
+      return `
+      <tr>
+        <td style="padding:6px 0;">
+          <table role="presentation" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:100%;background:#ffffff;border-radius:12px;border:1px solid #fbcfe8;border-collapse:separate;">
+            <tr>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-size:11px;color:#be185d;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px;font-weight:700;"><font color="#be185d">From ${by}</font></div>
+                <div class="ha-text-dark" style="font-size:14px;color:#0a0b2e;line-height:1.5;"><font color="#0a0b2e">${directiveLabel(d)}</font></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    })
+    .join('\n');
+  const directiveBlock = directiveItems ? `
+        <!-- FROM BIANCA & JOSH (Build #5 v2) -->
+        <tr><td bgcolor="#ffffff" style="padding:8px 24px 8px 24px;background:#ffffff;">
+          <div class="ha-text-dark" style="margin:8px 4px 4px 4px;font-size:11px;color:#be185d;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;"><font color="#be185d">Notes from home this week</font></div>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;">
+            ${directiveItems}
+          </table>
+        </td></tr>` : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -606,6 +691,8 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
           </div>
         </td></tr>
 
+        ${directiveBlock}
+
         ${zoneCards ? `
         <!-- BY ZONE -->
         <tr><td bgcolor="#ffffff" style="padding:8px 24px 8px 24px;background:#ffffff;">
@@ -645,7 +732,33 @@ function renderTextEmail({ briefing, data, audio_url }) {
   if (audio_url) {
     lines.push('Listen to this week\u2019s voice note:', audio_url, '');
   }
-  lines.push(briefing, '', '\u2014', 'Reply to this email to send Ms. Humphrey notes about Nigel\u2019s focus areas.');
+  lines.push(briefing, '');
+
+  // Build #5 v2 — parent directives currently active.
+  const directives = data.activeDirectives || [];
+  if (directives.length > 0) {
+    lines.push('NOTES FROM HOME THIS WEEK');
+    directives.slice(0, 6).forEach((d) => {
+      const p = d.payload || {};
+      const by = (d.created_by || 'parent').replace(/^./, (c) => c.toUpperCase());
+      let txt = '';
+      switch (d.directive_type) {
+        case 'focus_skill':
+          txt = 'Focus more on ' + (p.skill || 'a skill').replace(/_/g, ' ') + '.'; break;
+        case 'skip_zone_today':
+          txt = 'Skip ' + (p.zone || 'a zone') + ' today.'; break;
+        case 'request_quest_category':
+          txt = 'Suggest a quest about ' + (p.category || 'something specific') + '.'; break;
+        case 'note_for_humphrey':
+          txt = p.text ? '\u201C' + String(p.text).slice(0, 200) + '\u201D' : 'Note for Ms. Humphrey'; break;
+        default: txt = d.directive_type;
+      }
+      lines.push('  - From ' + by + ': ' + txt);
+    });
+    lines.push('');
+  }
+
+  lines.push('\u2014', 'Reply to this email to send Ms. Humphrey notes about Nigel\u2019s focus areas.');
   return lines.join('\n');
 }
 
