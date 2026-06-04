@@ -54,6 +54,12 @@ export default async function handler(req, res) {
   const activeProblem = body.activeProblem ? String(body.activeProblem).trim() : '';
   const activeProblemAnswer = body.activeProblemAnswer != null ? String(body.activeProblemAnswer).trim() : '';
 
+  // Page-aware context (from humphrey-qna's sniffPageContext). All optional.
+  const zoneId      = body.zoneId      ? String(body.zoneId).trim().slice(0, 60)       : '';
+  const zoneLabel   = body.zoneLabel   ? String(body.zoneLabel).trim().slice(0, 120)   : '';
+  const pageTitle   = body.pageTitle   ? String(body.pageTitle).trim().slice(0, 120)   : '';
+  const visibleText = body.visibleText ? String(body.visibleText).trim().slice(0, 800) : '';
+
   // Sanitize + clamp history. Anthropic requires strict alternation user→assistant→user,
   // and the final message MUST be a user message (which we add ourselves below).
   // We drop malformed entries, then keep only the last 10 messages.
@@ -162,6 +168,21 @@ export default async function handler(req, res) {
   const notebookBlock = notebookSections.length ? ('\n\n' + notebookSections.join('\n\n') + '\n') : '';
   // -----------------------------------------------------------------------
 
+  // ---- Page-awareness block: what zone Nigel is on, what's on his screen --
+  // Built only when we have something to share. The block is informational —
+  // activeProblem rules below still take precedence for math problems.
+  const screenLines = [];
+  if (zoneLabel) screenLines.push(`Zone: ${zoneLabel}.`);
+  else if (zoneId) screenLines.push(`Zone: ${zoneId}.`);
+  if (pageTitle && pageTitle.toLowerCase() !== (zoneLabel || '').toLowerCase()) {
+    screenLines.push(`Page: ${pageTitle}.`);
+  }
+  if (visibleText) screenLines.push(`Visible content on screen:\n"${visibleText}"`);
+  const screenBlock = screenLines.length
+    ? '\n\nWHAT IS ON ' + kidName.toUpperCase() + "'S SCREEN RIGHT NOW (use this to ground your answer — if he asks \"what is this?\" or \"read this to me\" or anything that depends on what he's looking at, refer to this content. Don't read it back verbatim unless he asked you to; explain it in your own words):\n" + screenLines.join('\n') + '\n'
+    : '';
+  // -----------------------------------------------------------------------
+
   const systemPrompt = [
     `You are Ms. Humphrey, a warm, patient elementary-school teacher speaking aloud to ${kidName}, a ${grade} student.`,
     `Your voice will be spoken via TTS, so answer in two or three short conversational sentences. No markdown, no lists, no parentheticals.`,
@@ -171,6 +192,7 @@ export default async function handler(req, res) {
     `If the question is about a school subject and you don't know the exact answer for sure, say honestly that you'd love to look it up together.`,
     `Never tell ${kidName} they are wrong or scold them. If they sound frustrated, validate the feeling first, then help.`,
     notebookBlock,
+    screenBlock,
     `Use the notebook above to be warm and specific — when explaining math, reach for things he loves (Spider-Man swinging, Mario coins, soccer goals, building Legos). When he mentions family or friends, you already know who they are. Reference recent conversations naturally when relevant. Do NOT dump the notebook at him; let it inform your tone.`,
     activeProblem
       ? `IMPORTANT TUTORING RULE: ${kidName} is currently working on the math problem "${activeProblem}"${activeProblemAnswer ? ` (the answer is ${activeProblemAnswer})` : ''}. If their question is asking you to solve this exact problem or one that uses the same numbers, DO NOT give the answer. Instead, gently nudge them with a counting-on strategy, a real-world example, or a question that helps them figure it out. For any unrelated question, just answer normally.`

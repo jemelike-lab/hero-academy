@@ -532,6 +532,7 @@
     currentExpression: 'idle',
     persisted: loadPersisted(),
     idleTimer: null,
+    stickyBubbleActive: false,         // true while a visual aid is "frozen" on the bubble after Humphrey finishes speaking
     refs: { root: null, portrait: null, bubble: null, bubbleText: null, bubbleFigure: null, bubbleImg: null, bubbleCaption: null, muteBtn: null },
     listeners: {},
   };
@@ -609,6 +610,14 @@
     // so the two UIs stop battling each other.
     // (Was: state.refs.portrait.addEventListener('click', onPortraitClick);)
     state.refs.muteBtn.addEventListener('click', toggleMute);
+
+    // Tap the speech bubble to dismiss a lingering visual aid. Only acts when
+    // the bubble is sticky (i.e. carries an image and Humphrey is done
+    // speaking); otherwise the tap is a no-op so the kid can't kill her
+    // mid-sentence accidentally.
+    state.refs.bubble.addEventListener('click', () => {
+      if (state.stickyBubbleActive) hideBubble();
+    });
 
     // Reflect initial mute state
     reflectMuteState();
@@ -855,10 +864,27 @@
           if (state.currentUtterance !== visualToken) return;
           if (state.refs.bubble.dataset.visible !== 'true') return;
           showBubble(utterance.text, hit.url, hit.caption);
+          // Once an image has landed on the bubble, the bubble becomes
+          // "sticky" — finish() won't auto-hide it. It stays up until
+          //   (a) the next utterance calls showBubble() (which clears it), or
+          //   (b) the user taps the bubble to dismiss it, or
+          //   (c) Humphrey.clearVisualAid() is called programmatically.
+          // Note: showBubble() above already cleared the flag (since it's
+          // called fresh), so we set it true AFTER showBubble.
+          state.stickyBubbleActive = true;
         });
       }
 
       const finish = () => {
+        // If a visual aid landed on this bubble, leave it visible so the kid
+        // can still see the picture while reading the question on the page.
+        // We still mark speaking as done and drop her expression to idle.
+        if (state.stickyBubbleActive) {
+          state.refs.root.dataset.speaking = 'false';
+          setExpression('idle');
+          resolve();
+          return;
+        }
         hideBubble();
         state.refs.root.dataset.speaking = 'false';
         setExpression('idle');
@@ -883,6 +909,9 @@
   }
 
   function showBubble(text, imageUrl, imageCaption) {
+    // A new showBubble call always supersedes any prior sticky aid. The next
+    // utterance owns the bubble until IT finishes.
+    state.stickyBubbleActive = false;
     state.refs.bubbleText.textContent = text;
     // Make the bubble visible BEFORE setting img.src. If the parent figure is
     // display:none when src is assigned, browsers skip the network fetch
@@ -906,9 +935,18 @@
     }
   }
   function hideBubble() {
+    state.stickyBubbleActive = false;
     state.refs.bubble.dataset.visible = 'false';
     if (state.refs.bubbleFigure) state.refs.bubbleFigure.hidden = true;
     if (state.refs.bubbleImg) state.refs.bubbleImg.removeAttribute('src');
+  }
+
+  /**
+   * Public API: dismiss a sticky visual aid programmatically.
+   * Called e.g. from a zone JS when the kid moves on to the next card.
+   */
+  function clearVisualAid() {
+    if (state.stickyBubbleActive) hideBubble();
   }
 
   // -------------------------------------------------------------------------
@@ -1358,6 +1396,7 @@
     configure,
     startIdleWatcher,
     stopIdleWatcher,
+    clearVisualAid,
     on,
     off,
     emit,        // 1.5 — exposed so Listener can signal the listening state

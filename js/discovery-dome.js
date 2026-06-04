@@ -166,10 +166,13 @@
       // text override so it plays as-written. Light expression: encouraging.
       // Pass the card title as a visual-aid query — Wikipedia thumbnail will
       // pop into the speech bubble for tangible things (hummingbirds, rainbows).
+      // Speak the fact AND the question — a tiny pause between them lets Nigel
+      // hear what he's actually being asked to choose. Without the question
+      // being voiced, the buttons appear with no audio cue.
       H.say('try-again-reading', {
         kidName: 'Nigel',
         expression: 'encouraging',
-        text: card.fact,
+        text: card.fact + '   ' + card.question,
         image: card.title,
       });
     }

@@ -58,6 +58,102 @@
   function setContextProvider(fn) { if (typeof fn === 'function') ctxProvider = fn; }
   function modules() { return { H: NS.Humphrey, L: NS.Listener, C: NS.Chat, M: NS.Memory }; }
 
+  /**
+   * Sniff the current page so the chat API knows where Nigel is and what's
+   * on his screen. Returns { zoneId, zoneLabel, pageTitle, visibleText } —
+   * any field may be empty when we can't determine it.
+   *
+   * The zone is read from the body's `zone-<id>` class (or a `data-zone`
+   * attribute if set). The visible text is read from the largest known
+   * problem/card container — we pick whichever element is present so this
+   * helper works in every zone without per-zone wiring.
+   */
+  function sniffPageContext() {
+    if (typeof document === 'undefined') return null;
+    var out = { zoneId: '', zoneLabel: '', pageTitle: '', visibleText: '' };
+
+    // Zone id — body class `zone-<id>` (zone-discovery-dome, zone-number-lab, etc.)
+    // The math/discovery pages reuse `zone-number-lab` as a CSS shim, so we ALSO
+    // check pageTitle/url for disambiguation downstream.
+    try {
+      var body = document.body;
+      if (body) {
+        if (body.dataset && body.dataset.zone) out.zoneId = String(body.dataset.zone);
+        if (!out.zoneId) {
+          var m = (body.className || '').match(/zone-([a-z0-9\-]+)/);
+          if (m) out.zoneId = m[1];
+        }
+      }
+    } catch (_) {}
+
+    // Disambiguate by URL when the body class is shared
+    try {
+      var path = (location.pathname || '').toLowerCase();
+      if (/discovery-dome/.test(path))   out.zoneId = 'discovery-dome';
+      else if (/word-tower/.test(path))  out.zoneId = 'word-tower';
+      else if (/number-lab/.test(path))  out.zoneId = 'number-lab';
+      else if (/cauldron-cafe/.test(path)) out.zoneId = 'cauldron-cafe';
+      else if (/story-lab/.test(path))   out.zoneId = 'story-lab';
+      else if (/story-time/.test(path))  out.zoneId = 'story-time';
+      else if (/diner-lanes/.test(path)) out.zoneId = 'diner-lanes';
+      else if (/explorer/.test(path))    out.zoneId = 'explorers-hall';
+      else if (/hero-hall/.test(path))   out.zoneId = 'hero-hall';
+      else if (/parent\b/.test(path))    out.zoneId = 'parent-dashboard';
+      else if (/^\/?(index\.html)?$/.test(path)) out.zoneId = out.zoneId || 'home';
+    } catch (_) {}
+
+    // Human-friendly zone label
+    var LABELS = {
+      'discovery-dome': 'Discovery Dome (Science)',
+      'word-tower': 'Word Tower (Reading & Spelling)',
+      'number-lab': 'Number Lab (Math)',
+      'cauldron-cafe': 'Cauldron Café (Math)',
+      'story-lab': 'Story Lab (Reading Comprehension)',
+      'story-time': 'Story Time (Read-Aloud)',
+      'diner-lanes': 'Diner Lanes (Social Studies / Bowling)',
+      'explorers-hall': "Explorer's Hall (Social Studies)",
+      'hero-hall': 'Hero Hall (Trophy Room)',
+      'parent-dashboard': 'Parent Co-pilot Dashboard',
+      'home': 'Home Map'
+    };
+    out.zoneLabel = LABELS[out.zoneId] || '';
+
+    // Page title
+    try { out.pageTitle = String(document.title || '').replace(/\s+·\s+Hero Academy\s*$/i, '').trim(); } catch (_) {}
+
+    // Visible text — try a sequence of likely containers, take the first that
+    // has substantive text. Order matters: problem card first, then story
+    // passage, then fact card. Cap to 800 chars so we don't blow the prompt.
+    function readText(sel) {
+      try {
+        var el = document.querySelector(sel);
+        if (!el) return '';
+        if (el.hidden) return '';
+        if (el.offsetParent === null && getComputedStyle(el).display === 'none') return '';
+        var t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+        return t;
+      } catch (_) { return ''; }
+    }
+    var candidates = [
+      '#problemQuestion',          // Number Lab, Discovery Dome (fact + question card)
+      '#storyPassage',             // Story Lab / Story Time passages
+      '.passage-text',
+      '#wordDisplay',              // Word Tower current word
+      '.problem-display',
+      '#problemCard',
+      '#dailyMissionCard',
+      '#cardLabel'
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var t = readText(candidates[i]);
+      if (t && t.length > 4) {
+        out.visibleText = t.slice(0, 800);
+        break;
+      }
+    }
+    return out;
+  }
+
   function speakLine(text) {
     var H = NS.Humphrey;
     if (!H || typeof H.say !== 'function') return Promise.resolve();
@@ -226,6 +322,20 @@
       ctx.kidName = 'Nigel';
       ctx.grade = '2nd grade';
       ctx.history = convo.history.slice();
+
+      // Page-awareness: sniff which zone Nigel is on AND what's currently on
+      // his screen, so Humphrey can answer "what is this?" or "read this to
+      // me" without guessing. The chat API treats these as advisory context;
+      // activeProblem (from ctxProvider) still wins for math problem rules.
+      try {
+        var pc = sniffPageContext();
+        if (pc) {
+          if (pc.zoneId)      ctx.zoneId      = pc.zoneId;
+          if (pc.zoneLabel)   ctx.zoneLabel   = pc.zoneLabel;
+          if (pc.pageTitle)   ctx.pageTitle   = pc.pageTitle;
+          if (pc.visibleText) ctx.visibleText = pc.visibleText;
+        }
+      } catch (_) {}
 
       // Attach profile + recentSummaries from Memory module if ready
       var memoryReady = m.M && typeof m.M.getContext === 'function'

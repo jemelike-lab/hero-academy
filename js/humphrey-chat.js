@@ -50,6 +50,12 @@
     if (Array.isArray(ctx.history) && ctx.history.length) body.history = ctx.history;
     if (ctx.profile && typeof ctx.profile === 'object') body.profile = ctx.profile;
     if (Array.isArray(ctx.recentSummaries) && ctx.recentSummaries.length) body.recentSummaries = ctx.recentSummaries;
+    // Page-awareness (sniffed by humphrey-qna.js). Empty strings are dropped
+    // server-side so the prompt block doesn't appear when there's nothing to share.
+    if (ctx.zoneId)      body.zoneId      = String(ctx.zoneId);
+    if (ctx.zoneLabel)   body.zoneLabel   = String(ctx.zoneLabel);
+    if (ctx.pageTitle)   body.pageTitle   = String(ctx.pageTitle);
+    if (ctx.visibleText) body.visibleText = String(ctx.visibleText);
     debug('ask:', body);
     return fetch('/api/humphrey/chat', {
       method: 'POST',
