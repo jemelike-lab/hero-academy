@@ -405,6 +405,11 @@
     $('#directiveType').value = 'note_for_humphrey';
     renderPayloadFields('note_for_humphrey');
     $('#composerError').hidden = true;
+    // Reset submit button — it may have been left in a "Sending…" / disabled
+    // state by a prior successful submit (see submitComposer).
+    var sub = $('#composerSubmit');
+    sub.disabled = false;
+    sub.textContent = 'Send';
     setTimeout(function () {
       var firstInput = overlay.querySelector('textarea, input, select:not(#directiveType)');
       if (firstInput) firstInput.focus();
@@ -450,6 +455,8 @@
       p_payload: payload,
       p_created_by: state.parent.token,
     }).then(function () {
+      btn.disabled = false;
+      btn.textContent = 'Send';
       closeComposer();
       loadDashboard();
     }).catch(function (e) {
