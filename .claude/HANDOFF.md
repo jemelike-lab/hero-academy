@@ -1,8 +1,8 @@
 # Hero Academy — HANDOFF
 
-**Last updated:** End of session, early morning June 3, 2026 (after the 4-build push).
-**Live SW:** `hero-academy-v62`
-**Latest commit on `main`:** `cd4cb92` (Build #7 v2 camera capture + Humphrey vision)
+**Last updated:** End of session, evening of June 4, 2026 (sticky aid + page-aware Humphrey + question readout).
+**Live SW:** `hero-academy-v73`
+**Latest commit on `main`:** the voice-context fix that shipped tonight (commit hash visible in `git log --oneline | head -1` on VPS — was pushed via Mac terminal SCP, not by Claude).
 
 ---
 
@@ -21,241 +21,207 @@
 | **Target device** | **Android Galaxy Tab running Chrome installed as PWA** (NOT iPad) |
 | **Truth source** | This file (`.claude/HANDOFF.md` on `main`) — read first |
 
-### Deploy pattern (proven 4× this session)
+### Deploy pattern (proven again this session)
 1. Claude prepares a bundle as `*.tar.gz` and presents it for SCP.
 2. Josh runs `scp ~/Downloads/<bundle>.tar.gz root@2.24.68.106:/tmp/` from Mac terminal.
-3. Claude drives the VPS terminal via Chrome MCP (`document.execCommand('insertText')` + synthetic Enter keydown on `.xterm-helper-textarea`) to `git fetch origin main -q && git reset --hard origin/main -q && tar xzf <bundle> && git add -A && git commit -m '<msg>' && git push`.
-4. Vercel auto-deploys. Claude verifies via Vercel MCP `list_deployments` (top deployment `state: READY` + matching `githubCommitSha`).
-5. Claude runs a live UI test via Chrome MCP — clear SW + caches, hard reload, exercise the feature, verify the DB row landed via Supabase MCP.
+3. Josh OR Claude runs (via Chrome MCP VPS terminal): `cd /tmp/hero-deploy && git fetch origin main -q && git reset --hard origin/main -q && tar xzf /tmp/<bundle>.tar.gz && git add -A && git commit -m '<msg>' && git push`
+4. Vercel auto-deploys (~60s). Verify via fetch `/sw.js` first line for cache version match.
+5. Claude runs live UI test via Chrome MCP — navigate with `?bust=vN` cache-bust to force fresh SW activation.
 
 ---
 
-## 1 — What shipped this session (June 3 2026, post-handoff push)
+## 1 — What shipped this session (June 4 2026, evening)
 
-**Four production builds, all verified live end-to-end with real Supabase rows + real Haiku vision calls.**
+**One bundle, SW v73, three user-visible fixes — all verified via live UI test on the production URL.**
 
-### Build #1 — Daily structured mission ✅ COMPLETE
+### Bundle: `sticky-aid-page-awareness-question-readout.tar.gz` ✅ COMPLETE
 
-**Commit `63aa2c77`, SW v59.** Migration `ha_daily_mission_v1` already on DB (table + 2 RPCs).
+**6 files:**
+- `sw.js` — v72 → v73
+- `js/humphrey.js` — sticky bubble lifecycle (~30 lines added)
+- `js/humphrey-qna.js` — `sniffPageContext()` helper + ctx integration (~80 lines added)
+- `js/humphrey-chat.js` — forwards `zoneId`, `zoneLabel`, `pageTitle`, `visibleText` to API
+- `api/humphrey/chat.js` — parses page-context body fields + injects "WHAT IS ON NIGEL'S SCREEN RIGHT NOW" block into system prompt
+- `js/discovery-dome.js` — concatenates fact + 3-space gap + question in `say()` text
 
-- `api/mission/today.js` — server-side `reward_character_key` derived from the mission's stretch zone via `REWARD_CHARACTER_FOR_ZONE` map: number-lab → aurora, word-tower → webly, story-time → aurora, discovery → carlo, explorer → shellback-squad, writing → aurora, hero-hall → toybox-team. Always returned by `validateAndPatch`.
-- `js/today-mission.js` — purely additive over the existing scaffold (0 lines removed):
-  - `persistMissionToDb(m)` — fire-and-forget `ha_record_mission` RPC on mission generate; sets `db_persisted: true` on localStorage when response is OK
-  - `markVisited(zoneId)` — now fires `ha_mission_zone_done` RPC alongside the localStorage flag; stashes `ha_mission_just_completed_<date>` from the RPC response if server says `just_completed: true`
-  - `render()` — when `allDone` is true AND `ha_mission_celebrated_<date>` is unset, fires the celebration overlay (one-time-per-day guard)
-  - `showCelebration(rewardKey)` — full-screen overlay with reward character emoji + name + tag, bursting confetti, "Awesome!" CTA, Ms. Humphrey `mission_complete` speech
-- `css/today-mission.css` — celebration overlay styles (backdrop blur, pop-in card, emoji bounce, confetti burst, mobile-responsive).
-- `sw.js` — v58 → v59.
+### Fix #1 — Sticky visual aid ✅
+**Problem:** Picture popup in Humphrey's speech bubble disappeared as soon as her speech ended — Nigel couldn't refer to the picture while reading the question.
 
-**Verified live**: Reset row in `ha_daily_mission`, navigated to home, mission persisted (`db_persisted: true`). Simulated tapping all 3 zones — RPC returned `just_completed: true` with `reward_character_key: aurora`. Celebration overlay rendered with Aurora 🦉 "High Skies Hero". DB row showed `completed_zones: ['story-time','hero-hall','writing']` + `completed_at` set (83-second total flow). Dismiss + replay-block confirmed working.
+**Solution:** When a Wikipedia visual aid attaches to the bubble during `say()`, set `state.stickyBubbleActive = true`. In `finish()` (timer expiry), check the flag: if sticky, only set `speaking=false` and reset expression to idle, but DON'T call `hideBubble()`.
 
-### Build #6 v2 — Multi-modal teaching (ten-frame + 2 skill visualizations) ✅
+**Dismiss paths:**
+- Next `say()` call → `showBubble()` clears the flag and replaces content
+- User taps the bubble → click handler in `init()` calls `hideBubble()`
+- Programmatic: `window.HeroAcademy.Humphrey.clearVisualAid()` (newly exposed)
 
-**Commit `752c649`, SW v60.** No DB changes.
+**Verified:**
+- ✅ Mid-speech: bubble + image + caption + flag all set
+- ✅ After speech ends: speaking=false, expression idle, **bubble + image persist**
+- ✅ Tap-to-dismiss: clears flag, hides bubble + image
+- ✅ Next `say()` cleanly replaces sticky bubble
+- ✅ `clearVisualAid()` API works
+- ✅ Visual confirmation: hummingbird image bubble screenshotted with full fact+question text
 
-- **NEW** `js/manipulatives.js` (231 lines): `HeroAcademy.Manipulatives.tenFrame.mount(host, opts)` — 2×5 cell grid, tap-to-fill with smart semantics (tap empty = fill up to that index, tap filled = clear from that index), drag-to-paint, big animated numeric readout with pulse, Clear button. `demoFill(n, opts)` for Humphrey walkthroughs returns a Promise. Public API: `mount`, plus the instance exposes `unmount()`, `set(n)`, `value()`, `demoFill(n)`.
-- **NEW** `css/manipulatives.css` (139 lines): full ten-frame styling — magenta-orange radial-gradient dots that pop-scale in, gold cell borders, big Fredoka readout, mobile breakpoints, reduced-motion support.
-- `js/canvas-skills.js` — two new skill viz functions, each a smart dispatcher that delegates to the standard viz when the problem doesn't match its specialization:
-  - `countOnLine(problem)` — for problems like "9 + 2", draws the anchor + small "+1" hops per addend (max 3 hops). Falls back to `additionLine` when the smaller addend > 3 or the larger < 5.
-  - `subtractFromTenLine(problem)` — for "10 − N", draws a 2×5 ten-frame on the canvas, then crosses out N dots from the right. Falls back to `subtractionLine` when minuend ≠ 10.
-  - Registry: `add_within_10`/`add_within_20` → `countOnLine`; `subtract_within_10`/`subtract_within_20` → `subtractFromTenLine`; `make_10` unchanged.
-- `number-lab.html` — adds `🔟 Ten-Frame counter` toggle + host below the existing whiteboard, lazy-mounts the manipulative on first open. Links `manipulatives.css`, loads `manipulatives.js`.
-- `sw.js` — v59 → v60; adds `manipulatives.js`/`css` to CORE cache.
+### Fix #2 — Page-aware Humphrey QnA ✅
+**Problem:** When Nigel tapped the voice button and asked "what is this?", Humphrey gave generic answers because she didn't know what was on screen.
 
-**Verified live**: SW v60 active, all namespaces loaded, registry routes to new functions, parser correctly identifies count-on (9+2=11) and sub-from-10 (10-4=6) cases. Ten-frame mounted via toggle, 10 cells render with magenta dots, all interaction semantics work — tap empty cell index 4 fills 0-4 (count=5), tap index 7 fills to 8, tap index 9 fills all 10, tap filled index 3 clears down to 3, Clear resets to 0. `drawForSkill('add_within_10', {question:'9+2=?'})` writes pixels to canvas (17 KB data URL).
+**Solution:** `humphrey-qna.js` now calls `sniffPageContext()` before sending to Chat API. Helper reads:
+- `zoneId` from `body.dataset.zone` or `body.className.match(/zone-([a-z0-9-]+)/)`, with URL-based disambiguation
+- `zoneLabel` from a static LABELS map (e.g. `discovery-dome` → `"Discovery Dome (Science)"`)
+- `pageTitle` from `document.title` (Hero Academy suffix stripped)
+- `visibleText` from first non-hidden of: `#problemQuestion`, `#storyPassage`, `.passage-text`, `#wordDisplay`, `.problem-display`, `#problemCard`, `#dailyMissionCard`, `#cardLabel` — capped to 800 chars
 
-### Build #7 v1 — Physical world bridge (real-world quests, no camera) ✅
+`humphrey-chat.js` forwards all 4 fields in the request body. `api/humphrey/chat.js` parses + size-caps them and, when `visibleText` is non-empty, injects:
+```
+WHAT IS ON NIGEL'S SCREEN RIGHT NOW (use this to ground your answer — if he asks "what is this?" or "read this to me" or anything that depends on what he's looking at, refer to this content. Don't read it back verbatim unless he asked you to; explain it in your own words):
+Zone: <zoneLabel>.
+Page: <pageTitle>.
+Visible content on screen:
+"<visibleText>"
+```
 
-**Commit `e91e8cf`, SW v61.** Migration `ha_real_world_quests_v1` applied:
-
-- New table `ha_real_world_quests` (id, child_id, quest_key, quest_text, category, target_seconds, started_at, completed_at, duration_seconds, answer, source). RLS enabled; all writes via SECURITY DEFINER RPCs.
-- New RPCs `ha_start_quest(...)` returning the new row's uuid, and `ha_complete_quest(quest_id, answer)` returning jsonb. Both granted EXECUTE to anon/authenticated.
-
-Client code:
-
-- **NEW** `js/quests.js` (344 lines): `HeroAcademy.Quests.init({tileId})` wires the home-page tile. `openRandom()` / `openQuest(key)` open the modal. 10 seed quests across 4 categories (counting, color, letter, observation). 4-phase modal flow: see quest → START → countdown timer + "I'm back!" button → answer prompt → submit → done screen + Humphrey celebration. Fire-and-forget DB persistence. Avoids repeating the same quest twice in a row via `ha_quest_last_key` localStorage.
-- **NEW** `css/quests.css` (283 lines): Quest tile (cyan→green gradient on home page), modal overlay with backdrop blur, animated countdown bar (cyan→magenta), big input field.
-- `index.html` — quest tile section after `#todayMissionCard`. Loads `quests.js`, calls `Quests.init()` alongside `TodayMission.init()`.
-- `sw.js` — v60 → v61.
-
-**Verified live**: SW v61, Quests namespace loaded, catalog size 10. `openQuest('count_chairs')` → modal renders with category "COUNTING", quest text "Count the chairs at the dining table.", gold "Start the quest!" button. START → timer panel visible, clock counting down from 00:30, `ha_start_quest` RPC inserted row. "I'm back!" → answer block shows "How many did you find?" with `inputMode: numeric`. Submit with `6` → done screen shows "Awesome quest, Nigel!" + "You found 6! That's your real-world win for today." DB row landed with `answer: "6"`, `duration_seconds: 2`, `completed_at` set, `source: home_tile`. **Humphrey audio actually played** — debug log: `TTS resp 200 ct=audio/mpeg`, `TTS blob 100772B`, `PLAY ✓ playing`, with quest_start AND quest_complete narration.
-
-### Build #7 v2 — Camera capture + Humphrey vision (Haiku) ✅
-
-**Commit `cd4cb92`, SW v62.** No DB schema change (reuses `ha_real_world_quests.answer` with `[photo] <reaction>` prefix).
-
-**Privacy design — photo NEVER persists server-side.** The image lives only in browser memory + the single Haiku API call. Vercel logs aren't written with image data. The only artifact that touches the DB is Ms. Humphrey's reaction text (e.g., `[photo] Oh Nigel, what a wonderful drawing! I love the bright red house...`).
-
-- **NEW** `api/humphrey/see-photo.js` (~140 lines): POST endpoint accepting `{image: dataurl, media_type, quest_text}`. Calls Claude Haiku 4.5 vision (`claude-haiku-4-5`). Strict child-safety system prompt baked in:
-  - NEVER identify/describe people/faces/appearance/location
-  - Focus on objects, colors, shapes, what's being held or shown
-  - Refuse inappropriate content gracefully ("Let us pick a different thing to show me, sweet pea")
-  - Fall back to "tell me about it" if blurry/unclear
-  - 2-3 short sentences, ~50 words, age-7 appropriate
-  - End with an invitation to share more
-  - Max 5MB image, allowed media types: jpeg/png/webp/gif
-  - Uses `ANTHROPIC_API_KEY` env var
-- **js/quests.js** (344 → 617 lines): Added 5 photo quests (`show_drawing`, `show_stuffie`, `show_build`, `show_cool_shape`, `show_fav_book`), all `category: show_and_tell`, `answer_kind: 'photo'`. Added camera lifecycle:
-  - `state.stream` and `state.snapshotDataUrl` fields
-  - `stopTimer()` branches to `startCameraPhase()` for photo quests (vs `text_answer_phase` for text/number)
-  - `startCameraPhase()` requests `getUserMedia({video: {facingMode: {ideal: 'environment'}, width: {ideal: 1280}, height: {ideal: 720}}, audio: false})` with fallback to `{video: true}` on OverconstrainedError
-  - `snapPhoto()` downscales the captured frame to max 1024px longer edge, JPEG quality 0.78 (~80-150KB base64)
-  - `retakePhoto()` reuses the live stream (no new permission prompt)
-  - `sendPhoto()` stops the stream BEFORE the POST (camera LED off ASAP), POSTs to `/api/humphrey/see-photo`, shows reaction via `showVisionResult()` which calls `Humphrey.say('quest_complete', reaction, 'cheering')`
-  - `stopStream()` idempotent track cleanup
-  - `fallbackToText()` converts the quest to text-answer mode on permission denial
-  - `closeOverlay()` now calls `stopStream()` so the camera is released on dismiss
-  - DB persists `[photo] <reaction>` as the answer string
-- **css/quests.css** (283 → 406 lines): Camera frame (4:3 black box with cyan border + box-shadow), big snap button, retake/send button pair, error block with "Tell me about it instead" fallback, vision loading spinner with "Ms. Humphrey is looking…" label, vision result text card with gold left-bar.
-- **sw.js** — v61 → v62. No new static files (the endpoint is server-side).
-
-**The 5 photo quests** (target_seconds, all `answer_kind: photo`):
-- `show_drawing` (180s) — "Show me a drawing you have made recently."
-- `show_stuffie` (60s) — "Show me your favorite stuffed animal or toy."
-- `show_build` (240s) — "Show me something you built (LEGOs, fort, anything!)."
-- `show_cool_shape` (180s) — "Find something with a cool shape and show me!"
-- `show_fav_book` (90s) — "Show me one of your favorite books."
-
-**Verified live**: SW v62 active, deploy `cd4cb92` READY. Catalog size 15 (10 original + 5 photo). `openQuest('show_drawing')` renders modal with `"SHOW AND TELL • 📸"` category. START fires `ha_start_quest` RPC → row inserted. "I'm back!" branches to `startCameraPhase()` — camera block becomes visible with 4:3 cyan-bordered frame + gold "📸 Snap!" button. (Chrome MCP's headless environment can't grant real camera permission, so the live `getUserMedia` stream stays pending — that's expected and will work on the Galaxy Tab.) Synthetic 400×300 JPEG of a red house + brown roof + yellow sun + green grass posted directly to `/api/humphrey/see-photo` returned a beautiful Ms. Humphrey reaction in 2.9 seconds: *"Oh Nigel, what a wonderful drawing! I love how you made that bright red house with a strong brown roof, and you put a cheerful yellow sun right up in the blue sky. The green grass at the bottom makes it look so sunny and happy! You did a great job with your colors — did you have fun making this?"* Reaction follows every safety rule: names colors/shapes/objects, never identifies people, age-appropriate, ends with invitation. Then `ha_complete_quest` RPC with `[photo] <reaction>` updated DB row id `9d5ed6ee-...` with `duration_seconds: 114` + `completed_at`.
-
----
-
-## 2 — Status of the 8 MUST BUILD items (post-session)
-
-| # | Title | Status | Δ this session |
-|---|---|---|---|
-| 1 | Daily structured mission | ✅ **COMPLETE** | NEW (0% → 100%) |
-| 2 | AI-generated adaptive content | 🟡 ~70% | (no change) |
-| 3 | Story arc + Hero levels | 🟡 ~30% | (no change) |
-| 4 | Spaced repetition + cumulative assessment | 🟡 ~80% (needs live verify) | (no change) |
-| 5 | Bianca as co-pilot | ❌ NOT BUILT | (no change) |
-| 6 | Multi-modal teaching | 🟡 ~80% (was ~65%) | +ten-frame + count_on + sub_from_10 |
-| 7 | Physical world bridge | 🟡 ~80% (was 0%) | +real-world quests + camera + Haiku vision |
-| 8 | Error recovery + observability | 🟡 ~75% | (no change) |
-
----
-
-## 3 — Database state additions this session
-
-| Table | Purpose | Approx rows |
+**Verified — definitive A/B on the eagle card:**
+| | Length | Specific eagle keywords (eyesight/eyes/vision/rabbit/eagle) |
 |---|---|---|
-| `ha_daily_mission` (existed pre-session, used now) | Today's mission record per child per day | 1 (test row from this session) |
-| `ha_real_world_quests` (NEW Build #7 v1) | Real-world quest issued + completion | 3 (test rows: 1 count_chairs + 2 show_drawing) |
+| **WITH page context** | 296 chars | **4 of 5 hit** |
+| **WITHOUT page context** | 158 chars | **0 of 5 hit** |
 
-New RPCs (all SECURITY DEFINER with anon EXECUTE granted):
-- `ha_record_mission`
-- `ha_mission_zone_done`
-- `ha_start_quest`
-- `ha_complete_quest`
+WITH ctx: *"this is about eagles, Nigel... their eyes are way [stronger] than ours, and they can spot tiny things like rabbits..."*
+WITHOUT ctx: *"I'd love to help you figure that out, Nigel, but I can't quite see what you're pointing at. Can you tell me what it looks like?"*
 
-New serverless endpoint:
-- `/api/humphrey/see-photo` — Claude Haiku vision proxy with child-safety system prompt. No persistence.
+### Fix #3 — Discovery Dome reads question after fact ✅
+**Problem:** Discovery Dome showed a fact card AND a question, but Humphrey only spoke the fact. Nigel had to read the question himself to know what to pick.
 
-Test rows from this session (safe to delete or leave):
-- `ha_daily_mission` id `bd735b35-cabb-4835-84eb-a6f19ed6ce52` (today's mission, completed end-to-end in 83s)
-- `ha_real_world_quests` id `aa21170c-d56a-4f56-b1aa-b68cf7ee6a2a` (`count_chairs` quest, answer "6", 2s duration)
-- `ha_real_world_quests` id `9d5ed6ee-6562-487b-836d-eb568d95a79c` (`show_drawing` quest, `[photo] Oh Nigel, what a wonderful drawing!...`, 114s)
-- `ha_real_world_quests` id `dc02f19c-955c-4007-a88d-a4bbc35c6847` (`show_drawing` quest, never completed — pending row)
+**Solution:** In `showCard()`, changed `text: card.fact` → `text: card.fact + '   ' + card.question`. Three-space gap creates a natural pause in TTS between the description and the prompt.
+
+**Verified:** Debug log shows `say() try-again-reading → A turtle has a hard shell. The shell grows with the turtle.   Which animal has a hard shell?` — both segments speaking, gap intact.
 
 ---
 
-## 4 — Device-acceptance pass needed for Build #7 v2
+## 2 — Current live state
 
-The camera capture pipeline is architecturally complete and verified down to the API + DB layers. What remains is a **physical-device acceptance pass on the Galaxy Tab** — these can only be tested on real hardware:
+### Active SW: `hero-academy-v73`
 
-| Verify on Galaxy Tab | Why |
+### Active builds (cumulative)
+| Feature | Status |
 |---|---|
-| Camera permission prompt fires when "I'm back!" is tapped on a photo quest | Chrome MCP doesn't expose camera prompts |
-| `facingMode: 'environment'` actually picks the rear camera | Device-dependent enumeration |
-| Live video element auto-plays the stream (no manual `.play()` needed in Android Chrome) | Headless env shows 0×0 |
-| Tapping "Snap!" captures a real frame to canvas at proper resolution | Requires real video stream |
-| Captured preview renders correctly + Retake button reactivates stream | Same |
-| Camera indicator (LED/notification) turns off after `stopStream()` runs | Visual confirmation only |
-| End-to-end: real photo of Nigel's actual drawing → Haiku reacts to it specifically | The whole point |
-| PWA install behavior — does the camera permission persist after install + relaunch? | PWA-specific |
+| Daily Mission (Build #1) | Live, persisted, celebration overlay works |
+| Manipulatives + skill viz (Build #6 v2) | Live |
+| Real-world Quests (Build #7 v1) | Live, 10 seed quests + 5 photo quests |
+| Photo capture + Humphrey vision (Build #7 v2) | Live, **STILL needs Galaxy Tab acceptance** |
+| Parent Co-pilot dashboard (Build #5) | Live, all 4 directive types end-to-end |
+| Hero Journey level + Journey UI (Build #3) | Live, Nigel at Level 4 Champion 7/15 |
+| Quest streaks on home tile (Build #7 v3) | Live |
+| Sat email — Notes from Home (Build #5 v2) | Live, fires naturally Sat |
+| Sat email — Show & Tell highlights (Build #7 v3) | Live, fires naturally Sat |
+| **Sticky visual aid (SW v73)** | **Live, verified via Chrome MCP A/B test** |
+| **Page-aware Humphrey QnA (SW v73)** | **Live, verified via Chrome MCP A/B test** |
+| **Discovery Dome fact + question readout (SW v73)** | **Live, verified via debug log + screenshot** |
 
-If anything off-spec surfaces on first device test (permission denied silently, video stuck black, etc.), the most likely fixes are:
-- Add `vid.setAttribute('autoplay', '')` defensively
-- Move the `stream.getTracks()[0].getSettings()` log into Humphrey debug to capture actual constraints
-- Try `enumerateDevices()` first to confirm a rear camera exists before requesting `facingMode: 'environment'`
-
----
-
-## 5 — Open items for next session
-
-### Cheap verification first
-- [ ] **Galaxy Tab acceptance pass for Build #7 v2** (above) — highest priority before anything else
-- [ ] Confirm Daily Mission flow with Nigel using it (not just synthetic JS-driven test)
-- [ ] Confirm ten-frame works with finger drag on Galaxy Tab touchscreen
-- [ ] Confirm real-world quest audio narration plays (Humphrey TTS gate verified working in test but new device)
-
-### Build #6 remaining (deferred)
-- Manipulatives v2: base-10 blocks (tens + ones columns) for `place_value` and 2-digit add/subtract
-- More skill visuals: `place_value`, telling time, fractions
-- AI-generated canvas drawings (Haiku outputs draw commands)
-- Cross-zone canvas (mount in Discovery Dome + Explorer's Hall)
-- `ha_drawings` DB persistence so Saturday email can include "this week he drew…"
-- Word Tower letter tracing
-- Bedtime story canvas
-
-### Build #7 v3 (after device acceptance pass)
-- **Saturday email integration**: surface photo-quest reactions in the weekly summary — "Nigel shared 3 things with me this week. Here's what he showed me…" with each reaction text
-- **Quest streak counter** on the home tile (current consecutive days a quest was completed)
-- **Issue quests from inside Ms. Humphrey chat** (not just home tile) — she could say "Hey, want to go count something for me?"
-- **Optional photo persistence** with parent toggle in Build #5 dashboard — Bianca might want a weekly grid of what Nigel showed
-- **More photo quests**: `show_dinner`, `show_outside`, `show_yourself_smiling` (faces still off-limits in vision response but can be the trigger)
-
-### The 8 in priority order going forward
-1. **MUST BUILD #5 — Bianca as co-pilot** (highest unbuilt; Saturday email already premium, give her a steering wheel)
-2. **MUST BUILD #3 — Hero levels + Journey Map** (gives kids something to be hungry for tomorrow)
-3. **MUST BUILD #7 v3** — quest streaks + Saturday email surfacing
-4. **MUST BUILD #6 v3** — base-10 blocks + more skill visuals
-5. **MUST BUILD #8.2 / #8.3** — retries + client-side error capture
-6. **MUST BUILD #2 cross-zone coordination** — Story Lab story about a math problem he struggled with
-7. **MUST BUILD #4 verification** — confirm SRS populates from real play
+Nigel's Hero Journey state: `aurora=3, carlo=1, shellback-squad=1, toybox-team=1, webly=1` → total 7/15 → Level 4 Champion, 3 more chapters to Level 5.
 
 ---
 
-## 6 — Hard-won lessons from this session
+## 3 — Pending verification / acceptance items
 
-1. **Live UI test after each build is non-negotiable.** Four builds shipped in one session, all verified by clicking through the real UI + checking real Supabase rows. No "syntax-OK = done" shortcuts.
-2. **Phantom completions show up if you don't reset DB rows between tests.** First Build #1 verification showed a pre-existing `completed_at` from a phantom prior test — had to DELETE the row + re-do clean to be sure the celebration overlay actually fires.
-3. **Canvas helpers in `js/canvas.js` interpret all x/y as virtual pixels 0-1000** (multiplied by scaleX), not as number-line units. The existing `additionLine`/`subtractionLine` pattern of passing `parsed.a` (a small integer like 8) as x looks like a positioning bug — dots draw near the left edge instead of at tick 8 on the number line. New functions in this session follow the same pattern for consistency; will fix in a future canvas-helper pass.
-4. **Smart-fill semantics work great for ten-frames.** Kids don't think in "toggle one cell at a time" — they think "I want 7" and tap somewhere around the 7th cell. Smart-fill (tap empty = fill up to here, tap filled = clear from here) maps to that mental model and makes the manipulative feel responsive instead of fiddly.
-5. **CDP `Runtime.evaluate` times out at 45s** when awaiting long animation chains. The fix: don't await the whole `drawForSkill` chain in a single JS exec; let it run, then re-inspect the canvas state with a separate exec call.
-6. **Telemetry namespace makes new builds trivial.** Both Build #1 and Build #7 v1/v2 used `HeroAcademy.Telemetry.rpc(fn, body)` — the publishable Supabase key is already configured client-side, so new RPCs are plug-and-play.
-7. **Privacy-first vision = no photo persistence.** Build #7 v2 sends the image to Haiku once, gets a text reaction back, and never writes the image anywhere — not to Supabase Storage, not to Vercel logs. Only the reaction string lives in `ha_real_world_quests.answer` as `[photo] <reaction>`. This respects child privacy without giving up the narrative thread for the Saturday email.
-8. **Strict child-safety system prompts work.** The Haiku vision endpoint's system prompt explicitly forbids identifying people, commenting on appearance, speculating about location. The test response on a synthetic drawing reproduced exactly the desired tone — warm, specific, age-appropriate, ends with an invitation — without ever drifting into unsafe territory.
-9. **Android Galaxy Tab + Chrome PWA is the easiest possible target for `getUserMedia`.** No iOS Safari quirks (no playsinline-muted dance, no fullscreen forcing, no autoplay restrictions). `facingMode: 'environment'` for rear camera works straight through. The whole architecture is built for this device specifically.
-10. **Headless Chrome MCP can verify almost everything except real device permissions.** The pattern that worked: API endpoints can be tested directly via fetch, DB persistence can be verified via Supabase MCP, UI rendering can be verified via DOM inspection + screenshots. Real-device-only things (camera permission, touch drag, TTS playback on a specific speaker) need a Galaxy Tab acceptance pass.
+### 🔴 Galaxy Tab acceptance pass for Build #7 v2 camera — deferred 3× now
+**Highest priority before any new build.** Test plan:
+- Open Hero Academy as PWA on Galaxy Tab
+- Tap the Real-world Quest tile until a "SHOW AND TELL • 📸" quest appears
+- Tap Start → "I'm back!" → Allow camera permission
+- Confirm rear camera (not selfie) activates and video plays
+- Aim at something → "📸 Snap!" → preview shows → optionally Retake → Send
+- Confirm Humphrey reaction text appears + voice plays
+- Watch DB row land in `ha_real_world_quests` via Supabase MCP
 
----
+### 🟡 Real-device test of tonight's three fixes
+The chrome automation A/B tests prove the logic works end-to-end, but real device acceptance is the only way to confirm:
+- The sticky bubble layout doesn't break in portrait/landscape on the actual Galaxy Tab viewport
+- The fact + question readout flows naturally at Emory's voice pace (3-space gap might need tuning to longer)
+- The page-aware "what is this?" works on a fresh card before audio-unlock vs after
 
-## 7 — Pickup checklist for next session
+### 🟡 Saturday June 6 email watch
+- Does the Show & Tell block render with Nigel's real quest data?
+- Does the streak badge appear if he has any quests this week?
+- Does the Notes from Home block consume any active directives correctly?
 
-1. **Read this file in full** (truth source)
-2. **Check current SW version:** `curl -fsSL https://raw.githubusercontent.com/jemelike-lab/hero-academy/main/sw.js | head -1` — should be `v62`
-3. **Check latest commit:** on `/tmp/hero-deploy` — should show `cd4cb92 feat: Build 7 v2 camera capture + Humphrey vision SW v62` at top
-4. **Check Vercel deployment:** Vercel MCP `list_deployments` — top deployment should be `state: READY` with `githubCommitSha` `cd4cb92...`
-5. **Check healthcheck status:** Curl `/api/cron/healthcheck?dry_run=1` with bearer — should return `overall_status: ok`
-6. **Ask Josh** what he wants to work on. If he completed the device acceptance pass for Build #7 v2 already and it worked, proceed to MUST BUILD #5 (Bianca co-pilot). If anything was off, fix that first.
+### 🟢 Quest streak ≥2 branch verification (cosmetic)
+DOM-simulated only so far. First time Nigel hits a real 2-day streak, confirm the 🔥 emoji + "N-day quest streak" copy renders.
 
-**Recipes for the next likely builds:**
-
-### MUST BUILD #5 — Bianca as co-pilot
-- New table `ha_parent_directives` (child_id, directive_type, payload jsonb, created_at, active boolean)
-- New page `parent.html` — password-gated via URL hash like `parent.html#bianca`, no real auth but obscure enough
-- Surfaces: this week's missions + completion %, recent quest answers, last 7 days of skill mastery moves
-- Edit features: "focus more on subtraction this week", "skip writing today, he's tired", "give him a real-world quest about colors"
-- Integration: Daily Mission picker reads from `ha_parent_directives` to bias zone selection
-- Saturday email gets a "From Bianca this week" section showing directives
-
-### Build #7 v3 — quest streaks + Saturday email
-- New column `ha_real_world_quests.streak_day_number int`
-- New RPC `ha_quest_streak_count(p_child_id)` returning current consecutive-day streak
-- Home tile shows "🔥 3-day quest streak!" when applicable
-- Saturday email `compileSaturdayBrief` adds `quest_summary` field with last 7 days of completed quests + reactions
+### 🟢 Hero Hall `is_almost` pulse-glow (cosmetic)
+Code exists but no character is currently within 1 play of next unlock — verify naturally when Nigel approaches a milestone.
 
 ---
 
-_End of HANDOFF. Last updated end of Jun 3 2026 session (post-Builds 1/6v2/7v1/7v2)._
+## 4 — Open items for next session
+
+### Priority order
+1. **Galaxy Tab acceptance for Build #7 v2 camera** — deferred 3×. Highest priority.
+2. **Tablet device check of SW v73 features** — pictures stick around correctly, both fact and question are spoken with good pacing, page-aware QnA grounds answers in screen content.
+3. **Watch Sat June 6 email** — confirm Show & Tell + streak rendering with real data.
+4. **MUST BUILD #6 v3** — base-10 blocks for `place_value` + 2-digit ops. More skill visuals.
+5. **Remaining placeholder zones** — Sound Stage, Training Gym, Creation Studio still stubs.
+6. **Story arc / character progression** — Surprise Squad infrastructure is loaded but the narrative progression is unwired. Identified earlier as high-priority moat feature.
+7. **Apply Fix #3 (question readout) to other zones** — Currently only Discovery Dome reads the question. Number Lab problems, Cauldron Café word problems, Story Lab comprehension questions could all benefit from the same `fact + question` pattern. Audit per zone.
+
+---
+
+## 5 — Key technical learnings (this session)
+
+### Chrome MCP test patterns
+- **`await` requires async IIFE** — `(async () => { ... })()` wrapper. Bare top-level `await` fails with "await is only valid in async functions".
+- **`window.__live` caching pattern** — store complex objects on window, then re-query with simple boolean reductions in a second call. The chat UI's safety filter blocks results that look like cookie/query strings (e.g. raw `swVer` strings with `=` signs).
+- **`?bust=vN` cache-bust** — append to URL to force fresh SW activation. Required after every deploy to verify new code is actually serving.
+- **Page reloads mid-test** — when the SW activates a new version, `sw-register.js` auto-reloads the tab. Lost `window.__*` caches. Re-run setup in single-round-trip when possible. (Bit me twice tonight.)
+- **A/B with monkey-patched fetch** — intercept `/api/humphrey/chat` POSTs to verify the request body shape end-to-end. Cleaner than blind regex on the response.
+
+### Humphrey internals
+- `state.stickyBubbleActive` lives on the Humphrey state object alongside `currentUtterance`, `speaking`, `queue`, etc. Reset at every `showBubble()` (so a new utterance always wins) and set true inside the visual-aid `.then()` callback once an image actually attaches.
+- `fetchVisualAid` is async. By the time the timer-based `finish()` fires, the image may or may not have attached. The sticky flag is only meaningful if the image DID land — otherwise the bubble hides normally.
+- `say()` returns immediately; the bubble's display duration is computed from text length via `computeDuration(text)` (clamped to min/max). Three-space gaps add 3 chars × `msPerCharacter` to the timer.
+
+### API tweaks
+- `chat.js` system prompt is a `.join(' ')` of multiple lines. To add a conditional block, build it as a string (`screenBlock`) that's either `''` or `'\n\n...\n'`, then splice into the array. Empty string joins cleanly without affecting other lines.
+- Size-cap all client-supplied strings before injecting into the prompt: `zoneId.slice(0, 60)`, `visibleText.slice(0, 800)`. Defends against an injected zone label trying to override the system prompt.
+
+### Audio gating in test contexts
+- Chrome MCP automation runs in a sandbox where user gestures don't fire — audio stays `unlocked=false` until something actually clicks the audio-unlock primer. The Humphrey debug log shows `SKIP audio (gate failed)` for every `say()` call. **This is expected and not a bug** — on Nigel's tablet, the first tap anywhere unlocks audio.
+- The bubble + visual aid logic runs regardless of the audio gate — `showBubble()` is called BEFORE the gate check.
+
+---
+
+## 6 — Tool / resource inventory
+
+| Resource | Identifier |
+|---|---|
+| Repo | `github.com/jemelike-lab/hero-academy` |
+| Live URL | `hero-academy-jemelike-6356s-projects.vercel.app` |
+| Vercel projectId | `prj_oqgpbeK3B8E4t69aV8AcNdLp6sPw` |
+| Vercel teamId | `team_fASanR2j8wd8bhOUYS07f3NL` |
+| Supabase project | `yofqeuguxgujgqnaejmw` |
+| Supabase URL | `https://yofqeuguxgujgqnaejmw.supabase.co` |
+| Nigel `child_id` | `2e0e51c5-f120-4152-8aa1-041eeecc8165` |
+| VPS | Hostinger `srv1641066`, IP `2.24.68.106`, deploy path `/tmp/hero-deploy` |
+| Zap (Saturday email) | id `366816761`, hook `https://hooks.zapier.com/hooks/catch/27395227/4bruass/` |
+| Cron schedule | `0 12 * * 6` UTC (Sat 8am ET DST) |
+| Ms. Humphrey ElevenLabs agent | `agent_5901kssbzjm1e0yvd0kdwxa3r49m` |
+| Ms. Humphrey voice (Emory) | `aNGh7D6DrhhIlad2U6Fg`, model `eleven_flash_v2_5` |
+| Parent emails | `bianca.parker92@gmail.com`, `jemelike@gmail.com` |
+| Healthcheck (Saturday cron) | `https://healthchecks.io/checks/ec0311a8-d63a-4f89-828f-8d985dd28889/` |
+
+---
+
+## 7 — File-by-file summary of SW v73 changes
+
+| File | Before | After |
+|---|---|---|
+| `sw.js` | `hero-academy-v72` | `hero-academy-v73` |
+| `js/humphrey.js` | hide bubble on speech end always | sticky flag persists bubble when image attached; tap-to-dismiss; `clearVisualAid()` API |
+| `js/humphrey-qna.js` | sent only `kidName, grade, history, profile, recentSummaries` | also sends `zoneId, zoneLabel, pageTitle, visibleText` via new `sniffPageContext()` |
+| `js/humphrey-chat.js` | request body had 5–7 fields | request body has up to 11 fields (4 new page-context fields) |
+| `api/humphrey/chat.js` | system prompt: warmth + notebook + activeProblem rule | system prompt: warmth + notebook + **screen content block** + activeProblem rule |
+| `js/discovery-dome.js` | `text: card.fact` | `text: card.fact + '   ' + card.question` |
+
+---
+
+*End of handoff. Last update: 2026-06-04 ~22:00 ET (after live UI test of SW v73).*
