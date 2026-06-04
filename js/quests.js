@@ -93,6 +93,46 @@
       .catch(function () { return null; });
   }
 
+  // Build #7 v3: fetch the quest streak and surface it in the tile sub-text.
+  // The RPC returns { current_streak, longest_streak, last_quest_date }.
+  // Non-blocking — if it fails the tile stays on the default sub-text.
+  function loadStreak() {
+    var T = (window.HeroAcademy && window.HeroAcademy.Telemetry) || null;
+    if (!T || typeof T.rpc !== 'function' || typeof T.childId !== 'function') return Promise.resolve(null);
+    return T.rpc('ha_quest_streak', { p_child_id: T.childId() })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) {
+        // PostgREST returns jsonb as a JSON value (object) — not wrapped in array.
+        state.streak = s || null;
+        applyStreakToTile();
+        return s;
+      })
+      .catch(function () { return null; });
+  }
+
+  function applyStreakToTile() {
+    var tile = state.tile;
+    var s = state.streak;
+    if (!tile || !s) return;
+    var sub = tile.querySelector('.quest-tile-sub');
+    var title = tile.querySelector('.quest-tile-title');
+    var emoji = tile.querySelector('.quest-tile-emoji');
+    if (!sub) return;
+    var cur = s.current_streak | 0;
+    if (cur >= 2) {
+      // Multi-day streak — celebratory.
+      if (emoji) emoji.textContent = '\ud83d\udd25';
+      if (title) title.textContent = cur + '-day quest streak \u2014 keep it going!';
+      sub.textContent = 'Tap to do today\u2019s quest from Ms. Humphrey.';
+    } else if (cur === 1) {
+      // First day or restarted — encourage continuation.
+      if (emoji) emoji.textContent = '\u2728';
+      if (title) title.textContent = 'You\u2019re on a 1-day streak \u2014 keep it alive!';
+      sub.textContent = 'Tap to do today\u2019s quest from Ms. Humphrey.';
+    }
+    // cur === 0: leave the default copy in place ("Go find something in your house…")
+  }
+
   function pickByKey(key) {
     return QUESTS.find(function (q) { return q.key === key; }) || null;
   }
@@ -112,6 +152,8 @@
     stream:           null,    // MediaStream from getUserMedia
     snapshotDataUrl:  null,    // captured frame as data:image/jpeg;base64,...
     snapshotMediaType: 'image/jpeg',
+    // Build #7 v3 — quest streak fetched once on init for tile copy
+    streak:           null,    // { current_streak, longest_streak, last_quest_date }
   };
 
   // ---- Modal UI -------------------------------------------------------------
@@ -599,6 +641,10 @@
       T.rpc('ha_complete_quest', {
         p_quest_id: state.questId,
         p_answer:   answer,
+      }).then(function () {
+        // Build #7 v3: streak may have just ticked up. Refresh so the tile
+        // updates next time the user returns to the home screen.
+        loadStreak();
       }).catch(function () {});
     } catch (e) {}
   }
@@ -629,6 +675,8 @@
     });
     // Build #5 v2: warm the requested-category cache. Best effort — silent fail.
     loadActiveDirectives();
+    // Build #7 v3: fetch streak and update tile sub-text. Best effort.
+    loadStreak();
   }
 
   function openRandom() {

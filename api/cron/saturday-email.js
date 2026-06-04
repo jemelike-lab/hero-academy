@@ -224,10 +224,29 @@ async function sb({ SB_URL, SB_KEY, path, headers }) {
   return r.json();
 }
 
+// Build #7 v3: POST RPC helper for invoking SECURITY DEFINER functions via PostgREST.
+async function sbRpc({ SB_URL, SB_KEY, fn, args }) {
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(args || {}),
+  });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`supabase rpc/${fn} -> ${r.status} ${body.slice(0, 200)}`);
+  }
+  return r.json();
+}
+
 async function pullWeek({ SB_URL, SB_KEY, since }) {
   const childFilter = `child_id=eq.${NIGEL_ID}`;
 
-  const [sessions, attempts, topicMastery, charUnlocks, topics, fridayQuiz, activeDirectives, recentDirectives] = await Promise.all([
+  const [sessions, attempts, topicMastery, charUnlocks, topics, fridayQuiz, activeDirectives, recentDirectives, weekQuests, streakRow] = await Promise.all([
     sb({ SB_URL, SB_KEY, path: `ha_sessions?${childFilter}&started_at=gte.${since}&order=started_at.asc&limit=500` }),
     sb({ SB_URL, SB_KEY, path: `ha_attempts?${childFilter}&attempted_at=gte.${since}&order=attempted_at.asc&limit=2000` }),
     sb({ SB_URL, SB_KEY, path: `ha_topic_mastery?${childFilter}&limit=200` }),
@@ -239,6 +258,10 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
     sb({ SB_URL, SB_KEY, path: `ha_parent_directives?${childFilter}&active=eq.true&order=created_at.desc&limit=20` }).catch(() => []),
     // Build #5 v2: every directive (active OR deactivated) created in the window — narrative context for Haiku.
     sb({ SB_URL, SB_KEY, path: `ha_parent_directives?${childFilter}&created_at=gte.${since}&order=created_at.desc&limit=30` }).catch(() => []),
+    // Build #7 v3: real-world quests completed this week.
+    sb({ SB_URL, SB_KEY, path: `ha_real_world_quests?${childFilter}&completed_at=gte.${since}&order=completed_at.desc&limit=50` }).catch(() => []),
+    // Build #7 v3: current/longest streak. Service-role can invoke the RPC via RPC POST.
+    sbRpc({ SB_URL, SB_KEY, fn: 'ha_quest_streak', args: { p_child_id: NIGEL_ID } }).catch(() => null),
   ]);
 
   const topicMap = {};
@@ -294,6 +317,34 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
   const totalCorrect = attempts.filter((a) => a.correct).length;
   const accuracyPct = totalAttempts > 0 ? Math.round((100 * totalCorrect) / totalAttempts) : 0;
 
+  // Build #7 v3 — split quests into photo highlights (the show-and-tell rows
+  // where `answer` is prefixed `[photo]` with Humphrey's vision reaction) and
+  // text quests (counting answers, etc.).  Photos are the email's beating
+  // heart; text quests get rolled up into a count.
+  const photoHighlights = [];
+  const textQuests = [];
+  for (const q of (weekQuests || [])) {
+    const ans = q.answer || '';
+    if (ans.startsWith('[photo]')) {
+      photoHighlights.push({
+        quest_key: q.quest_key,
+        quest_text: q.quest_text,
+        category: q.category,
+        completed_at: q.completed_at,
+        reaction: ans.replace(/^\[photo\]\s*/, '').trim(),
+      });
+    } else if (ans) {
+      textQuests.push({
+        quest_key: q.quest_key,
+        quest_text: q.quest_text,
+        category: q.category,
+        completed_at: q.completed_at,
+        answer: ans,
+      });
+    }
+  }
+  const questsCount = (weekQuests || []).length;
+
   return {
     since,
     sessions,
@@ -306,6 +357,10 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
     // Build #5 v2 — parent directives
     activeDirectives: Array.isArray(activeDirectives) ? activeDirectives : [],
     recentDirectives: Array.isArray(recentDirectives) ? recentDirectives : [],
+    // Build #7 v3 — real-world quests
+    photoHighlights,
+    textQuests,
+    questStreak: streakRow || { current_streak: 0, longest_streak: 0, last_quest_date: null },
     summary: {
       sessions_total: sessions.length,
       total_minutes: Math.round(totalSeconds / 60),
@@ -313,6 +368,9 @@ async function pullWeek({ SB_URL, SB_KEY, since }) {
       accuracy_pct: accuracyPct,
       zones_visited: Object.keys(byZone),
       days_active: new Set(sessions.map((s) => (s.started_at || '').slice(0, 10))).size,
+      // Build #7 v3 — quest tallies surfaced on the briefing
+      quests_completed: questsCount,
+      photo_quests: photoHighlights.length,
     },
   };
 }
@@ -357,6 +415,19 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
       created_at: d.created_at,
       still_active: d.active === true,
     })),
+    // Build #7 v3 — real-world quest activity. The photo reactions are
+    // separately rendered in the email as their own gallery; here we just
+    // give Haiku enough to mention them naturally in the letter.
+    real_world_quests: {
+      total_completed: data.summary.quests_completed || 0,
+      photo_quests: data.summary.photo_quests || 0,
+      current_streak_days: data.questStreak ? (data.questStreak.current_streak || 0) : 0,
+      longest_streak_days: data.questStreak ? (data.questStreak.longest_streak || 0) : 0,
+      highlights: (data.photoHighlights || []).slice(0, 3).map((h) => ({
+        quest: h.quest_text,
+        humphrey_said: (h.reaction || '').slice(0, 200),
+      })),
+    },
   }, null, 2);
 
   const systemPrompt = [
@@ -381,6 +452,12 @@ async function draftBriefing({ ANTHROPIC_KEY, data }) {
     '  - Do NOT mention parent directives in any other section.',
     '  - Do NOT quote `note_for_humphrey` text verbatim \u2014 paraphrase the intent.',
     '  - If `parent_directives_this_week` is empty, skip this entirely.',
+    '',
+    'About real-world quests (`real_world_quests`):',
+    '  - The email separately renders a "Show & Tell" gallery card below the letter \u2014 you do NOT need to retell each photo reaction (the parents will see them).',
+    '  - DO mention quests in "What went well" if `current_streak_days >= 2` OR there were photo quests \u2014 a streak or show-and-tell is one of the most concrete wins. E.g. "Nigel kept a 3-day quest streak going, including a drawing he wanted to show me."',
+    '  - If there were zero quests this week and the streak is 0, do NOT mention quests at all.',
+    '  - Never invent quest details; the highlights array is the only source.',
     '',
     'Voice and structure:',
     '  - Warm but specific. Lead with one real win from the week.',
@@ -631,6 +708,55 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
           </table>
         </td></tr>` : '';
 
+  // Build #7 v3 — real-world quest highlights. Show photo reactions in
+  // their own card, plus a streak badge if there's an active run.
+  const photoCards = (data.photoHighlights || [])
+    .slice(0, 4)
+    .map((h) => {
+      const dateStr = (() => {
+        try {
+          const d = new Date(h.completed_at);
+          return d.toLocaleDateString('en-US', { weekday: 'long' });
+        } catch (e) { return ''; }
+      })();
+      return `
+      <tr>
+        <td style="padding:6px 0;">
+          <table role="presentation" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="width:100%;background:#ffffff;border-radius:12px;border:1px solid #d8b4fe;border-collapse:separate;">
+            <tr>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px;font-weight:700;"><font color="#7c3aed">\u{1F4F8} ${escapeHtml(dateStr || 'Show &amp; Tell')}</font></div>
+                <div class="ha-text-dark" style="font-size:13px;color:#0a0b2e;font-weight:600;margin-bottom:4px;line-height:1.4;"><font color="#0a0b2e">${escapeHtml(h.quest_text || h.quest_key || 'A real-world moment')}</font></div>
+                <div class="ha-text-dark" style="font-size:13px;color:#0a0b2e;line-height:1.5;font-style:italic;"><font color="#0a0b2e">\u201C${escapeHtml(h.reaction || '')}\u201D</font></div>
+                <div style="font-size:11px;color:#7c3aed;margin-top:6px;"><font color="#7c3aed">\u2014 Ms. Humphrey</font></div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    })
+    .join('\n');
+  const streakNum = (data.questStreak && data.questStreak.current_streak) | 0;
+  const longestNum = (data.questStreak && data.questStreak.longest_streak) | 0;
+  const streakBadge = streakNum >= 2 ? `
+            <div style="margin:0 0 12px 0;padding:12px 16px;background:linear-gradient(135deg,#fff7ed,#fed7aa);border-radius:12px;border:1px solid #fb923c;">
+              <div class="ha-text-dark" style="font-size:14px;color:#7c2d12;font-weight:700;"><font color="#7c2d12">\u{1F525} ${streakNum}-day quest streak${longestNum > streakNum ? ' (personal best: ' + longestNum + ')' : ''}</font></div>
+              <div class="ha-text-dark" style="font-size:12px;color:#9a3412;margin-top:2px;"><font color="#9a3412">Nigel showed up for a real-world quest every day this run.</font></div>
+            </div>` : '';
+  const totalQuests = (data.summary && data.summary.quests_completed) | 0;
+  const textQuestsLine = (data.textQuests && data.textQuests.length) ? `
+            <div class="ha-text-dark" style="margin:6px 4px 4px 4px;font-size:12px;color:#475569;"><font color="#475569">Plus ${data.textQuests.length} other ${data.textQuests.length === 1 ? 'quest' : 'quests'} \u2014 counting, observing, exploring.</font></div>` : '';
+  const questBlock = (photoCards || streakBadge || totalQuests > 0) ? `
+        <!-- REAL-WORLD QUESTS (Build #7 v3) -->
+        <tr><td bgcolor="#ffffff" style="padding:8px 24px 8px 24px;background:#ffffff;">
+          <div class="ha-text-dark" style="margin:8px 4px 4px 4px;font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;"><font color="#7c3aed">Show &amp; tell this week</font></div>
+          ${streakBadge}
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;">
+            ${photoCards}
+          </table>
+          ${textQuestsLine}
+        </td></tr>` : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -692,6 +818,8 @@ function renderHtmlEmail({ briefing, data, audio_url }) {
         </td></tr>
 
         ${directiveBlock}
+
+        ${questBlock}
 
         ${zoneCards ? `
         <!-- BY ZONE -->
@@ -755,6 +883,30 @@ function renderTextEmail({ briefing, data, audio_url }) {
       }
       lines.push('  - From ' + by + ': ' + txt);
     });
+    lines.push('');
+  }
+
+  // Build #7 v3 — real-world quests + streak.
+  const streak = (data.questStreak && data.questStreak.current_streak) | 0;
+  const photoH = data.photoHighlights || [];
+  const textQ = data.textQuests || [];
+  if (streak >= 2 || photoH.length > 0 || textQ.length > 0) {
+    lines.push('SHOW & TELL THIS WEEK');
+    if (streak >= 2) {
+      const longest = (data.questStreak && data.questStreak.longest_streak) | 0;
+      lines.push('  Streak: ' + streak + ' days in a row' + (longest > streak ? ' (best ever: ' + longest + ')' : ''));
+    }
+    photoH.slice(0, 4).forEach((h) => {
+      const day = (() => {
+        try { return new Date(h.completed_at).toLocaleDateString('en-US', { weekday: 'long' }); }
+        catch (e) { return ''; }
+      })();
+      lines.push('  ' + (day ? day + ' \u2014 ' : '') + (h.quest_text || h.quest_key || 'A real-world moment'));
+      lines.push('     Ms. Humphrey said: "' + String(h.reaction || '').slice(0, 220) + '"');
+    });
+    if (textQ.length > 0) {
+      lines.push('  Plus ' + textQ.length + ' other ' + (textQ.length === 1 ? 'quest' : 'quests') + ' (counting, observing, exploring).');
+    }
     lines.push('');
   }
 
