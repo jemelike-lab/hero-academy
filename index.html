@@ -152,7 +152,9 @@
     }
     // Build #3 — Hero Level tile. Fetches server episode progress, computes
     // the level + chapters-earned, and reveals the tile. Hidden on error.
-    if (window.HeroAcademy && window.HeroAcademy.Characters) {
+    if (window.HeroAcademy && window.HeroAcademy.Characters &&
+        typeof window.HeroAcademy.Characters.heroLevel === 'function' &&
+        typeof window.HeroAcademy.Characters.totalEpisodesEarned === 'function') {
       (async function () {
         const NS3 = window.HeroAcademy.Characters;
         let episodes = {};
@@ -166,7 +168,10 @@
           (total === 0 ? ' — start your journey!' : '');
         const within = Math.max(0, total - lvl.floor);
         const span = Math.max(1, lvl.ceiling - lvl.floor);
-        const pct = Math.min(100, Math.round((within / span) * 100));
+        // Use a small minimum so the bar always reads as "present" — a
+        // freshly-leveled-up player sees a sliver, not an empty rail.
+        const rawPct = Math.round((within / span) * 100);
+        const pct = total === 0 ? 0 : Math.max(4, Math.min(100, rawPct));
         document.getElementById('heroLevelTileBar').style.width = pct + '%';
         document.getElementById('heroLevelTileSub').textContent =
           total + '/15 hero chapters' +
