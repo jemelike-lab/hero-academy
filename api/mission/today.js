@@ -206,8 +206,9 @@ async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZ
   if (focusSkill && SKILL_LABELS[focusSkill]) {
     const targetZone = SKILL_TO_ZONE[focusSkill];
     parentLines.push(
-      '  - Parent wants extra focus on ' + SKILL_LABELS[focusSkill] +
-      (targetZone ? ' (lives in zone: ' + targetZone + ' — use it as the stretch if possible).' : '.')
+      targetZone
+        ? '  - PARENT OVERRIDE \u2014 focus on ' + SKILL_LABELS[focusSkill] + ': the stretch MUST be "' + targetZone + '" today. Parents know about the homework rule and are explicitly overriding it.'
+        : '  - Parent wants extra focus on ' + SKILL_LABELS[focusSkill] + '.'
     );
   }
   if (skipSet.size > 0) {
@@ -231,7 +232,9 @@ async function generateWithHaiku({ ANTHROPIC_KEY, dayName, zoneProgress, recentZ
     '  - All three must come from the allowed pool.',
     '  - Cover at least 2 different subjects across the 3 picks.',
     '  - Avoid picking the same zone Nigel did most recently as the warmup, unless nothing else fits.',
-    '  - If homework_due is true, the stretch MUST be \"number-lab\" (homework is math).',
+    focusSkill && SKILL_TO_ZONE[focusSkill]
+      ? '  - If homework_due is true, normally the stretch would be "number-lab" \u2014 but the PARENT OVERRIDE below takes precedence today.'
+      : '  - If homework_due is true, the stretch MUST be "number-lab" (homework is math).',
     parentLines.length > 0 ? '\nParent guidance for today (Bianca/Josh sent these in the co-pilot — respect them):\n' + parentLines.join('\n') : '',
     '  - Each blurb is ONE short sentence written TO Nigel (\"Practice your ch- words with Webly.\") \u2014 not to parents.',
     '  - Minutes per step should be realistic: warmup ~5\u20137, stretch ~8\u201310, win ~3\u20136. Total close to 25.',
