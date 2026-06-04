@@ -127,7 +127,14 @@ let state = {
 // === Voice ===
 // TODO: swap for ElevenLabs TTS via Miss Humphrey agent (agent_5901kssbzjm1e0yvd0kdwxa3r49m)
 function speak(text) {
-  if (state.muted || !window.speechSynthesis) return;
+  if (state.muted) return;
+  // Prefer Ms. Humphrey's voice (ElevenLabs Emory) when the module is loaded —
+  // keeps Nigel hearing the same teacher across every zone instead of a robotic
+  // system voice. Falls back to speechSynthesis if Humphrey isn't available.
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey && typeof window.HeroAcademy.Humphrey.say === 'function') {
+    try { window.HeroAcademy.Humphrey.say('try-again-reading', { kidName: 'Nigel', text: text }); return; } catch (e) {}
+  }
+  if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.rate = 0.95; u.pitch = 1.1; u.volume = 0.9;

@@ -137,9 +137,13 @@ let state = {
 };
 
 // === Voice ===
-// TODO: swap for ElevenLabs TTS via Miss Humphrey (agent_5901kssbzjm1e0yvd0kdwxa3r49m)
+// Resolved: now delegates to Ms. Humphrey's ElevenLabs voice when loaded.
 function speak(text) {
-  if (state.muted || !window.speechSynthesis) return;
+  if (state.muted) return;
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey && typeof window.HeroAcademy.Humphrey.say === 'function') {
+    try { window.HeroAcademy.Humphrey.say('try-again-reading', { kidName: 'Nigel', text: text }); return; } catch (e) {}
+  }
+  if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.rate = 0.95; u.pitch = 1.05; u.volume = 0.9;
