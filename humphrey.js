@@ -1104,14 +1104,16 @@
   }
 
   function stopAudio() {
-    // Build #voicefix: every voice path through this module ultimately runs
-    // on ONE of three engines — (a) the warmed `state.audioEl` used by tryTTS,
-    // (b) a transient `new Audio()` from tryPrerendered, or (c) the browser's
-    // `window.speechSynthesis` used by tryWebSpeech. Each engine carries its
-    // own kill switch. If we only call one of them here, an utterance on a
-    // different engine keeps speaking while the next utterance starts on yet
-    // another engine — that is the "two voices saying different things"
-    // failure mode. So this function fires ALL three kill switches every time.
+    // Build #voicefix v2: minimal, surgical kill switch.
+    // The bug we're fixing: when consecutive utterances land on DIFFERENT
+    // audio engines (warmed Audio element vs window.speechSynthesis),
+    // each engine's local cleanup misses the other one, so two voices end
+    // up speaking different things at the same time.
+    //
+    // The naive fix — pause state.audioEl unconditionally — overshoots:
+    // it interrupts the gesture-warming primer's still-pending play()
+    // promise, and the next utterance's play() also aborts. So we only
+    // touch what's actually playing.
     if (state.currentAudio) {
       try {
         if (typeof state.currentAudio.pause === 'function') state.currentAudio.pause();
@@ -1119,17 +1121,18 @@
       } catch { /* noop */ }
       state.currentAudio = null;
     }
-    // Pause the warmed TTS element explicitly. state.currentAudio may have
-    // pointed at it already (covered above), or at a separate prerendered
-    // Audio, or at a webSpeech wrapper — either way, also hard-pause the
-    // warmed element so no in-flight TTS blob keeps speaking.
-    if (state.audioEl) {
-      try { state.audioEl.pause(); state.audioEl.currentTime = 0; } catch { /* noop */ }
-    }
-    // Cancel any in-flight Web Speech Synthesis (independent engine).
+    // ALWAYS cancel speechSynthesis even if state.currentAudio wasn't
+    // pointing at the wrapper (defensive — the wrapper may have been
+    // overwritten by a subsequent tryTTS call setting state.currentAudio
+    // = state.audioEl while speechSynthesis was still mid-utterance).
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     }
+    // NOTE: we deliberately do NOT pause state.audioEl directly. The case
+    // where state.audioEl was the engine is already covered above via
+    // state.currentAudio === state.audioEl. Pausing it unconditionally
+    // would also abort the gesture-warming primer's pending play(), which
+    // breaks audio start on cold pages.
   }
 
   // --- UI handlers ---------------------------------------------------------
