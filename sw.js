@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v62";
+const CACHE_VERSION = "hero-academy-v63";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -61,6 +61,9 @@ const CORE = [
   "./assets/humphrey/humphrey_base_256.png",
   "./assets/humphrey/humphrey_base_512.webp",
   "./assets/humphrey/humphrey_base_512.png",
+  "./parent.html",
+  "./js/parent.js",
+  "./css/parent.css",
 ];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(CORE))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))))); self.clients.claim(); });

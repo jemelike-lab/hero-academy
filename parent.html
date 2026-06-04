@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a0f2e">
+  <title>Hero Academy — Parent Co-pilot</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/parent.css">
+</head>
+<body class="parent-body">
+
+<!-- Gate: shown to anyone without #bianca or #josh in URL hash. -->
+<section id="gateBlock" class="parent-gate" hidden>
+  <div class="parent-gate-card">
+    <h1>Hero Academy</h1>
+    <p class="parent-gate-msg">This page is for Nigel’s parents.</p>
+    <p class="parent-gate-sub">Ask Josh for the link.</p>
+  </div>
+</section>
+
+<!-- Main dashboard (only revealed if hash matches a known parent) -->
+<main id="dashBlock" class="parent-wrap" hidden>
+
+  <header class="parent-hero">
+    <div class="parent-hero-inner">
+      <h1 class="parent-hero-greet">Hi, <span id="parentName">parent</span>!</h1>
+      <p class="parent-hero-sub">Here’s how Nigel’s last 7 days are going.</p>
+    </div>
+    <a class="parent-hero-home" href="index.html" aria-label="Go to Hero Academy home">← Home</a>
+  </header>
+
+  <!-- Loading -->
+  <section id="loadingBlock" class="parent-loading">
+    <div class="parent-spinner" aria-hidden="true"></div>
+    <p>Pulling Nigel’s week…</p>
+  </section>
+
+  <!-- Error -->
+  <section id="errorBlock" class="parent-error" hidden>
+    <p>Couldn’t load the dashboard. <button type="button" id="retryBtn" class="parent-link-btn">Try again</button></p>
+    <p class="parent-error-detail" id="errorDetail"></p>
+  </section>
+
+  <!-- Content: rendered after dashboard loads -->
+  <section id="contentBlock" hidden>
+
+    <!-- 1. Weekly activity strip -->
+    <section class="parent-card">
+      <header class="parent-card-head">
+        <h2>📊 This week’s activity</h2>
+      </header>
+      <div id="weekStrip" class="parent-week-strip"></div>
+      <p id="weekSummary" class="parent-card-foot"></p>
+    </section>
+
+    <!-- 2. Daily missions -->
+    <section class="parent-card">
+      <header class="parent-card-head">
+        <h2>🎯 Daily missions</h2>
+      </header>
+      <div id="missionsList" class="parent-missions"></div>
+    </section>
+
+    <!-- 3. Quest stories -->
+    <section class="parent-card">
+      <header class="parent-card-head">
+        <h2>📷 Quest stories</h2>
+      </header>
+      <div id="questsList" class="parent-quests"></div>
+    </section>
+
+    <!-- 4. Active directives + new directive form -->
+    <section class="parent-card">
+      <header class="parent-card-head">
+        <h2>📝 Active notes for Ms. Humphrey</h2>
+        <button type="button" id="newDirectiveBtn" class="parent-pill-btn">+ Send a note</button>
+      </header>
+      <div id="directivesList" class="parent-directives"></div>
+    </section>
+
+  </section>
+
+  <footer class="parent-foot">
+    <p>Hero Academy • Parent Co-pilot v1</p>
+  </footer>
+</main>
+
+<!-- Directive composer overlay -->
+<div id="directiveOverlay" class="parent-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="directiveTitle">
+  <div class="parent-overlay-card">
+    <header class="parent-overlay-head">
+      <h2 id="directiveTitle">Send a note</h2>
+      <button type="button" class="parent-overlay-close" data-close-overlay aria-label="Close">×</button>
+    </header>
+
+    <div class="parent-overlay-body">
+
+      <label class="parent-field">
+        <span class="parent-field-label">What kind of note?</span>
+        <select id="directiveType" class="parent-input">
+          <option value="note_for_humphrey">A note for Ms. Humphrey</option>
+          <option value="focus_skill">Focus more on a skill</option>
+          <option value="skip_zone_today">Skip a zone today</option>
+          <option value="request_quest_category">Suggest a real-world quest</option>
+        </select>
+      </label>
+
+      <!-- Payload editor — swaps fields based on type -->
+      <div id="payloadFields"></div>
+
+      <p id="composerError" class="parent-error-detail" hidden></p>
+
+      <div class="parent-overlay-actions">
+        <button type="button" class="parent-secondary-btn" data-close-overlay>Cancel</button>
+        <button type="button" id="composerSubmit" class="parent-primary-btn">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/parent.js" defer></script>
+<script src="js/sw-register.js" defer></script>
+</body>
+</html>

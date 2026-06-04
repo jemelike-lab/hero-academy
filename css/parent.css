@@ -1,0 +1,548 @@
+/* Hero Academy — Parent Co-pilot (Build #5 v1)
+ * Mobile-first. Aligned with design tokens from css/style.css.
+ */
+
+.parent-body {
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(236, 72, 153, 0.18), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(20, 184, 212, 0.18), transparent 55%),
+    linear-gradient(180deg, #1a0f2e 0%, #0e0820 70%);
+  color: #f4eff8;
+  font-family: 'Fredoka', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 400;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===========================================================================
+   Gate (denied screen)
+   ========================================================================= */
+.parent-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.parent-gate-card {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 40px 28px;
+  max-width: 360px;
+}
+.parent-gate-card h1 {
+  font-size: 28px;
+  margin: 0 0 16px;
+  color: var(--gold, #ffd147);
+  font-weight: 600;
+}
+.parent-gate-msg { font-size: 18px; margin: 0 0 8px; }
+.parent-gate-sub { font-size: 14px; opacity: 0.7; margin: 0; }
+
+/* ===========================================================================
+   Layout
+   ========================================================================= */
+.parent-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 16px 48px;
+}
+
+.parent-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 12px 20px;
+  margin-bottom: 12px;
+}
+.parent-hero-inner { flex: 1; min-width: 0; }
+.parent-hero-greet {
+  margin: 0 0 4px;
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--gold, #ffd147);
+}
+#parentName { color: var(--magenta, #ec4899); }
+.parent-hero-sub {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.75;
+}
+.parent-hero-home {
+  flex-shrink: 0;
+  color: var(--cyan, #14b8d4);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(20, 184, 212, 0.08);
+  border: 1px solid rgba(20, 184, 212, 0.2);
+  transition: background 0.15s;
+}
+.parent-hero-home:hover { background: rgba(20, 184, 212, 0.15); }
+
+/* ===========================================================================
+   Cards
+   ========================================================================= */
+.parent-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px 18px;
+  margin-bottom: 16px;
+}
+.parent-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.parent-card-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: #fff;
+}
+.parent-card-foot {
+  margin: 12px 0 0;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.parent-empty {
+  margin: 0;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+/* ===========================================================================
+   Loading + error
+   ========================================================================= */
+.parent-loading {
+  text-align: center;
+  padding: 48px 16px;
+  opacity: 0.7;
+}
+.parent-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 209, 71, 0.2);
+  border-top-color: var(--gold, #ffd147);
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  animation: parent-spin 0.9s linear infinite;
+}
+@keyframes parent-spin { to { transform: rotate(360deg); } }
+.parent-error {
+  text-align: center;
+  padding: 24px 16px;
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.25);
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+.parent-error-detail {
+  font-size: 12px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  opacity: 0.6;
+  margin-top: 8px;
+  word-break: break-all;
+}
+.parent-link-btn {
+  background: none;
+  border: none;
+  color: var(--cyan, #14b8d4);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+/* ===========================================================================
+   Week strip
+   ========================================================================= */
+.parent-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  align-items: end;
+  padding: 8px 0 4px;
+}
+.parent-week-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  opacity: 0.4;
+  text-align: center;
+  min-width: 0;
+}
+.parent-week-col.has-data { opacity: 1; }
+.parent-week-bar-frame {
+  width: 100%;
+  height: 64px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.parent-week-bar {
+  width: 70%;
+  min-height: 3px;
+  background: linear-gradient(180deg, var(--cyan, #14b8d4), var(--magenta, #ec4899));
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s;
+}
+.parent-week-col:not(.has-data) .parent-week-bar {
+  background: rgba(255, 255, 255, 0.1);
+}
+.parent-week-sessions {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gold, #ffd147);
+  margin-top: 2px;
+}
+.parent-week-col:not(.has-data) .parent-week-sessions { color: rgba(255, 255, 255, 0.3); }
+.parent-week-weekday { font-size: 11px; }
+.parent-week-date { font-size: 10px; opacity: 0.6; }
+.parent-week-pct {
+  font-size: 10px;
+  color: var(--cyan, #14b8d4);
+  font-weight: 500;
+}
+
+/* ===========================================================================
+   Missions
+   ========================================================================= */
+.parent-missions { display: flex; flex-direction: column; gap: 10px; }
+.parent-mission-row {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.parent-mission-row.is-complete {
+  background: rgba(255, 209, 71, 0.08);
+  border-color: rgba(255, 209, 71, 0.25);
+}
+.parent-mission-date {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.parent-mission-date-main {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+.parent-mission-progress {
+  font-size: 13px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+.parent-mission-zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.parent-mission-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+.parent-mission-chip.is-done {
+  background: rgba(20, 184, 212, 0.15);
+  border-color: rgba(20, 184, 212, 0.35);
+  color: #fff;
+}
+.parent-mission-foot {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.parent-mission-foot-muted { opacity: 0.4; }
+
+/* ===========================================================================
+   Quests
+   ========================================================================= */
+.parent-quests { display: flex; flex-direction: column; gap: 12px; }
+.parent-quest-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 14px;
+}
+.parent-quest-card.is-photo {
+  background: linear-gradient(135deg, rgba(20, 184, 212, 0.08), rgba(34, 197, 94, 0.06));
+  border-color: rgba(20, 184, 212, 0.2);
+}
+.parent-quest-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  opacity: 0.7;
+  margin-bottom: 6px;
+}
+.parent-quest-cat {
+  letter-spacing: 0.5px;
+  color: var(--cyan, #14b8d4);
+  font-weight: 500;
+}
+.parent-quest-prompt {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.parent-quest-answer {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--gold, #ffd147);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.parent-quest-answer-label {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.parent-quest-answer-body {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.parent-quest-answer-meta {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-top: 6px;
+  text-align: right;
+}
+.parent-quest-pending {
+  font-size: 13px;
+  opacity: 0.5;
+  font-style: italic;
+}
+
+/* ===========================================================================
+   Directives
+   ========================================================================= */
+.parent-pill-btn {
+  background: linear-gradient(135deg, var(--magenta, #ec4899), var(--orange, #ff8b3d));
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font: 500 13px 'Fredoka', sans-serif;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.parent-pill-btn:active { transform: scale(0.95); }
+.parent-directives { display: flex; flex-direction: column; gap: 10px; }
+.parent-directive-card {
+  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(236, 72, 153, 0.2);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.parent-directive-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+.parent-directive-by { text-transform: capitalize; color: var(--magenta, #ec4899); }
+.parent-directive-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.parent-directive-note {
+  margin-top: 6px;
+  font-size: 13px;
+  font-style: italic;
+  opacity: 0.85;
+  line-height: 1.45;
+}
+.parent-directive-deactivate {
+  margin-top: 10px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+  font: 12px 'Fredoka', sans-serif;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.parent-directive-deactivate:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* ===========================================================================
+   Composer overlay
+   ========================================================================= */
+.parent-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 5, 25, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 1000;
+  animation: parent-overlay-fade 0.2s ease-out;
+}
+@keyframes parent-overlay-fade { from { opacity: 0; } }
+body.parent-overlay-open { overflow: hidden; }
+.parent-overlay-card {
+  background: linear-gradient(180deg, #261439 0%, #1a0f2e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  animation: parent-overlay-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes parent-overlay-pop {
+  from { transform: scale(0.92); opacity: 0; }
+}
+.parent-overlay-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.parent-overlay-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--gold, #ffd147);
+}
+.parent-overlay-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+.parent-overlay-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+.parent-overlay-body { padding: 18px 20px 22px; }
+
+.parent-field {
+  display: block;
+  margin-bottom: 16px;
+}
+.parent-field-label {
+  display: block;
+  font-size: 13px;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+.parent-field-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.55;
+}
+.parent-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: 14px 'Fredoka', sans-serif;
+  box-sizing: border-box;
+}
+.parent-input:focus {
+  outline: none;
+  border-color: var(--cyan, #14b8d4);
+  background: rgba(20, 184, 212, 0.06);
+}
+.parent-input-text {
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+.parent-overlay-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+.parent-secondary-btn,
+.parent-primary-btn {
+  font: 500 14px 'Fredoka', sans-serif;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s, opacity 0.15s;
+}
+.parent-secondary-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.parent-secondary-btn:hover { background: rgba(255, 255, 255, 0.06); color: white; }
+.parent-primary-btn {
+  background: linear-gradient(135deg, var(--gold, #ffd147), var(--orange, #ff8b3d));
+  color: #1a0f2e;
+}
+.parent-primary-btn:active { transform: scale(0.97); }
+.parent-primary-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ===========================================================================
+   Footer
+   ========================================================================= */
+.parent-foot {
+  text-align: center;
+  margin-top: 32px;
+  font-size: 11px;
+  opacity: 0.4;
+}
+
+/* ===========================================================================
+   Responsive — desktop tweaks
+   ========================================================================= */
+@media (min-width: 600px) {
+  .parent-hero-greet { font-size: 36px; }
+  .parent-card { padding: 24px 22px; }
+  .parent-week-bar-frame { height: 80px; }
+  .parent-week-weekday { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parent-spinner,
+  .parent-overlay,
+  .parent-overlay-card,
+  .parent-week-bar {
+    animation: none;
+    transition: none;
+  }
+}
