@@ -830,6 +830,15 @@
 
   function speak(utterance) {
     return new Promise((resolve) => {
+      // Build #voicefix: every new utterance must hard-stop any prior audio
+      // before starting its own. Otherwise, when consecutive utterances land
+      // on different engines (tryTTS on the warmed Audio element vs tryWebSpeech
+      // on SpeechSynthesis), the engine-specific cleanup in the second one
+      // misses the first one's voice — and the kid hears two voices saying
+      // different things at the same time. stopAudio() is engine-agnostic
+      // and idempotent — safe to call here on every speak().
+      stopAudio();
+
       setExpression(utterance.expression);
       showBubble(utterance.text);
       state.refs.root.dataset.speaking = 'true';
@@ -929,18 +938,28 @@
   function playAudio(utterance) {
     const prerendered = state.cfg.skipPrerendered
       ? Promise.resolve(false)
-      : tryPrerendered(utterance.audioUrl);
+      : tryPrerendered(utterance.audioUrl, utterance);
     return prerendered.then((played) => {
       if (played) return true;
-      return tryTTS(utterance.text);
+      // Stale-arrival guard: if a newer utterance has taken over before the
+      // prerendered probe finished, don't kick off TTS at all.
+      if (state.currentUtterance && state.currentUtterance !== utterance) {
+        panelLog('playAudio: skipping TTS — utterance no longer current');
+        return false;
+      }
+      return tryTTS(utterance.text, utterance);
     }).then((played) => {
       if (played) return true;
-      if (state.cfg.fallbackToWebSpeech) return tryWebSpeech(utterance.text);
+      if (state.currentUtterance && state.currentUtterance !== utterance) {
+        panelLog('playAudio: skipping WebSpeech — utterance no longer current');
+        return false;
+      }
+      if (state.cfg.fallbackToWebSpeech) return tryWebSpeech(utterance.text, utterance);
       return false;
     });
   }
 
-  function tryPrerendered(url) {
+  function tryPrerendered(url, utteranceRef) {
     return new Promise((resolve) => {
       if (!url) return resolve(false);
       const audio = new Audio();
@@ -948,6 +967,13 @@
       const succeed = () => { if (!settled) { settled = true; resolve(true); } };
       const fail = () => { if (!settled) { settled = true; resolve(false); } };
       audio.addEventListener('canplaythrough', () => {
+        // Build #voicefix: stale-arrival guard — if a newer utterance has
+        // displaced this one while we were probing, don't barge in.
+        if (utteranceRef && state.currentUtterance && state.currentUtterance !== utteranceRef) {
+          panelLog('prerendered stale on canplaythrough — dropping');
+          fail();
+          return;
+        }
         succeed();
         stopAudio();
         state.currentAudio = audio;
@@ -961,8 +987,11 @@
     });
   }
 
-  /** Hit the Vercel TTS proxy (POST text → ElevenLabs → audio/mpeg) */
-  function tryTTS(text) {
+  /** Hit the Vercel TTS proxy (POST text → ElevenLabs → audio/mpeg).
+   *  Accepts the utterance ref so we can detect stale arrivals — if a new
+   *  utterance has displaced this one by the time the network blob lands,
+   *  we silently drop instead of speaking over the new one. */
+  function tryTTS(text, utteranceRef) {
     const endpoint = state.cfg.ttsEndpoint;
     if (!endpoint || !text) { panelLog('TTS skip: no endpoint or text'); return Promise.resolve(false); }
     panelLog('TTS fetch "' + text.slice(0, 30) + '"');
@@ -978,6 +1007,13 @@
       })
       .then((blob) => {
         panelLog('TTS blob ' + blob.size + 'B');
+        // Build #voicefix: stale-arrival guard. If a new utterance has taken
+        // over (state.currentUtterance moved on, or this utterance was
+        // explicitly cleared), drop this audio rather than barge in.
+        if (utteranceRef && state.currentUtterance && state.currentUtterance !== utteranceRef) {
+          panelLog('TTS stale on arrival — dropping (newer utterance is active)');
+          return false;
+        }
         return new Promise((resolve) => {
           const blobUrl = URL.createObjectURL(blob);
           // CRITICAL: reuse the single audio element that was warmed during the
@@ -1043,7 +1079,7 @@
       });
   }
 
-  function tryWebSpeech(text) {
+  function tryWebSpeech(text, _utteranceRef) {
     return new Promise((resolve) => {
       if (typeof window.speechSynthesis === 'undefined') return resolve(false);
       try {
@@ -1068,6 +1104,16 @@
   }
 
   function stopAudio() {
+    // Build #voicefix v2: minimal, surgical kill switch.
+    // The bug we're fixing: when consecutive utterances land on DIFFERENT
+    // audio engines (warmed Audio element vs window.speechSynthesis),
+    // each engine's local cleanup misses the other one, so two voices end
+    // up speaking different things at the same time.
+    //
+    // The naive fix — pause state.audioEl unconditionally — overshoots:
+    // it interrupts the gesture-warming primer's still-pending play()
+    // promise, and the next utterance's play() also aborts. So we only
+    // touch what's actually playing.
     if (state.currentAudio) {
       try {
         if (typeof state.currentAudio.pause === 'function') state.currentAudio.pause();
@@ -1075,7 +1121,18 @@
       } catch { /* noop */ }
       state.currentAudio = null;
     }
-    try { window.speechSynthesis?.cancel?.(); } catch { /* noop */ }
+    // ALWAYS cancel speechSynthesis even if state.currentAudio wasn't
+    // pointing at the wrapper (defensive — the wrapper may have been
+    // overwritten by a subsequent tryTTS call setting state.currentAudio
+    // = state.audioEl while speechSynthesis was still mid-utterance).
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    }
+    // NOTE: we deliberately do NOT pause state.audioEl directly. The case
+    // where state.audioEl was the engine is already covered above via
+    // state.currentAudio === state.audioEl. Pausing it unconditionally
+    // would also abort the gesture-warming primer's pending play(), which
+    // breaks audio start on cold pages.
   }
 
   // --- UI handlers ---------------------------------------------------------
