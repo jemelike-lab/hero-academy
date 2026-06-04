@@ -406,6 +406,97 @@
     },
   };
 
+  // -------- Build #3 — kid-readable criterion strings ----------------------
+  // Each entry mirrors UNLOCK_CRITERIA but returns a friendly progress line.
+  // The helper produces text like "Play 3 more Word Tower games" (4 done of 5)
+  // so Nigel sees exactly what tomorrow is for.
+  function _zoneCount(m, z) { return (m.sessionsByZone && m.sessionsByZone[z]) || 0; }
+  function _zonesCount(m)   { return Object.keys(m.sessionsByZone || {}).length; }
+  function _wellPlayedZones(m) {
+    return Object.keys(m.sessionsByZone || {})
+      .filter(z => (m.sessionsByZone[z] || 0) >= 3).length;
+  }
+  function _remaining(needed, have) {
+    const r = Math.max(0, needed - have);
+    return r;
+  }
+  const CRITERIA_DESCRIPTIONS = {
+    'webly': {
+      1: m => ({ label: 'Visit Word Tower once',                    have: _zoneCount(m, 'wordtower'),  need: 1 }),
+      2: m => ({ label: 'Play 5 Word Tower games',                  have: _zoneCount(m, 'wordtower'),  need: 5 }),
+      3: m => ({ label: 'Play 10 Word Tower games',                 have: _zoneCount(m, 'wordtower'),  need: 10 }),
+    },
+    'carlo': {
+      1: m => ({ label: 'Visit Discovery Dome once',                have: _zoneCount(m, 'discoverydome'), need: 1 }),
+      2: m => ({ label: 'Play 5 Discovery Dome sessions',           have: _zoneCount(m, 'discoverydome'), need: 5 }),
+      3: m => ({ label: 'Play 10 Discovery Dome sessions',          have: _zoneCount(m, 'discoverydome'), need: 10 }),
+    },
+    'aurora': {
+      1: m => ({ label: 'Visit Number Lab once',                    have: _zoneCount(m, 'numberlab'),  need: 1 }),
+      2: m => ({ label: 'Play 5 Number Lab sessions',               have: _zoneCount(m, 'numberlab'),  need: 5 }),
+      3: m => ({ label: 'Master one math skill',                    have: (m.mathSkillsMastered || []).length, need: 1 }),
+    },
+    'toybox-team': {
+      1: m => ({ label: 'Visit Story Lab once',                     have: _zoneCount(m, 'storylab'),   need: 1 }),
+      2: m => ({ label: 'Play 5 Story Lab sessions',                have: _zoneCount(m, 'storylab'),   need: 5 }),
+      3: m => ({ label: 'Play 10 Story Lab sessions',               have: _zoneCount(m, 'storylab'),   need: 10 }),
+    },
+    'shellback-squad': {
+      1: m => ({ label: 'Play in 2 different zones',                have: _zonesCount(m),              need: 2 }),
+      2: m => ({ label: 'Play in 4 different zones',                have: _zonesCount(m),              need: 4 }),
+      3: m => ({ label: 'Play 3+ sessions in 4 different zones',    have: _wellPlayedZones(m),         need: 4 }),
+    },
+  };
+
+  // Describe the "what's next" step for a single character given milestone data.
+  // Returns one of:
+  //   { complete: true, label: '★ SQUAD READY ★' }            — all 3 episodes earned
+  //   { complete: false, episode: N, label, have, need, remaining, almost }
+  function describeNextStep(charKey, milestones, currentEpisode) {
+    const ep = (currentEpisode || 0);
+    if (ep >= 3) return { complete: true, label: '\u2605 SQUAD READY \u2605' };
+    const nextEp = ep + 1;
+    const desc = CRITERIA_DESCRIPTIONS[charKey] && CRITERIA_DESCRIPTIONS[charKey][nextEp];
+    if (!desc) return { complete: false, episode: nextEp, label: 'Keep playing!', have: 0, need: 0, remaining: 0, almost: false };
+    const r = desc(milestones || defaultMilestones());
+    const remaining = _remaining(r.need, r.have);
+    return {
+      complete: false,
+      episode: nextEp,
+      label: r.label,
+      have: r.have,
+      need: r.need,
+      remaining,
+      // "almost" = within one play of unlock — UI can pulse-highlight these
+      almost: remaining > 0 && remaining <= 1,
+    };
+  }
+
+  // Aggregate hero level — derived purely from episode counts so this stays
+  // a function of progression, not arbitrary XP.
+  // Total possible episodes = 5 characters × 3 = 15. Level curve:
+  //   0–1 ep  → Level 1 (Sidekick)
+  //   2–3 ep  → Level 2 (Cadet)
+  //   4–6 ep  → Level 3 (Hero)
+  //   7–9 ep  → Level 4 (Champion)
+  //  10–12 ep → Level 5 (Legend)
+  //  13–15 ep → Level 6 (Mythic)
+  const HERO_TITLES = ['Sidekick', 'Cadet', 'Hero', 'Champion', 'Legend', 'Mythic'];
+  function totalEpisodesEarned(episodesByChar) {
+    if (!episodesByChar || typeof episodesByChar !== 'object') return 0;
+    let n = 0;
+    Object.keys(episodesByChar).forEach(k => { n += Math.min(3, Math.max(0, episodesByChar[k] || 0)); });
+    return n;
+  }
+  function heroLevel(episodes) {
+    if (episodes <= 1)  return { level: 1, title: HERO_TITLES[0], floor: 0,  ceiling: 2 };
+    if (episodes <= 3)  return { level: 2, title: HERO_TITLES[1], floor: 2,  ceiling: 4 };
+    if (episodes <= 6)  return { level: 3, title: HERO_TITLES[2], floor: 4,  ceiling: 7 };
+    if (episodes <= 9)  return { level: 4, title: HERO_TITLES[3], floor: 7,  ceiling: 10 };
+    if (episodes <= 12) return { level: 5, title: HERO_TITLES[4], floor: 10, ceiling: 13 };
+    return                     { level: 6, title: HERO_TITLES[5], floor: 13, ceiling: 15 };
+  }
+
   // -------- Milestones (the local source-of-truth for criteria) -----------
   function defaultMilestones() {
     return {
@@ -712,6 +803,12 @@
     playEpisodeCelebration,
     UNLOCK_CRITERIA,
     readMilestones,
-    readEpisodes
+    readEpisodes,
+    // Build #3 — Journey Map / Hero Levels
+    CRITERIA_DESCRIPTIONS,
+    describeNextStep,
+    heroLevel,
+    totalEpisodesEarned,
+    HERO_TITLES
   };
 })(window);

@@ -72,6 +72,22 @@
         <div class="daily-practice-count" id="dailyPracticeCount">·</div>
       </div>
     </a>
+    <!-- Build #3 — Hero Level tile (populated by inline script below) -->
+    <a href="hero-hall.html" class="hero-level-tile" id="heroLevelTile" hidden aria-label="See your hero journey">
+      <div class="hero-level-tile-row">
+        <div class="hero-level-tile-badge">
+          <div class="hero-level-tile-num" id="heroLevelTileNum">–</div>
+          <div class="hero-level-tile-lbl">LVL</div>
+        </div>
+        <div class="hero-level-tile-body">
+          <p class="hero-level-tile-eyebrow">HERO JOURNEY</p>
+          <p class="hero-level-tile-title" id="heroLevelTileTitle">…</p>
+          <div class="hero-level-tile-bar-frame"><div class="hero-level-tile-bar-fill" id="heroLevelTileBar" style="width:0%"></div></div>
+          <p class="hero-level-tile-sub" id="heroLevelTileSub">…</p>
+        </div>
+        <span class="hero-level-tile-arrow" aria-hidden="true">→</span>
+      </div>
+    </a>
     <section class="daily-banner" aria-label="Today's challenge">
       <div class="daily-icon">⭐</div>
       <div class="daily-content"><p class="daily-label">TODAY'S CHALLENGE</p><p class="daily-text" id="dailyText">Complete 3 training zones to unlock a reward!</p></div>
@@ -126,12 +142,38 @@
   <script src="js/srs.js"></script>
   <script src="js/today-mission.js"></script>
   <script src="js/quests.js"></script>
+  <script src="js/characters.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.TodayMission) {
       window.HeroAcademy.TodayMission.init();
     }
     if (window.HeroAcademy && window.HeroAcademy.Quests) {
       window.HeroAcademy.Quests.init();
+    }
+    // Build #3 — Hero Level tile. Fetches server episode progress, computes
+    // the level + chapters-earned, and reveals the tile. Hidden on error.
+    if (window.HeroAcademy && window.HeroAcademy.Characters) {
+      (async function () {
+        const NS3 = window.HeroAcademy.Characters;
+        let episodes = {};
+        try { episodes = await NS3.getProgress(); } catch (e) { episodes = {}; }
+        const total = NS3.totalEpisodesEarned(episodes);
+        const lvl = NS3.heroLevel(total);
+        const tile = document.getElementById('heroLevelTile');
+        if (!tile) return;
+        document.getElementById('heroLevelTileNum').textContent = lvl.level;
+        document.getElementById('heroLevelTileTitle').textContent = lvl.title +
+          (total === 0 ? ' — start your journey!' : '');
+        const within = Math.max(0, total - lvl.floor);
+        const span = Math.max(1, lvl.ceiling - lvl.floor);
+        const pct = Math.min(100, Math.round((within / span) * 100));
+        document.getElementById('heroLevelTileBar').style.width = pct + '%';
+        document.getElementById('heroLevelTileSub').textContent =
+          total + '/15 hero chapters' +
+          (lvl.level < 6 ? ' \u00b7 ' + Math.max(0, lvl.ceiling - total) + ' more to Lvl ' + (lvl.level + 1)
+                         : ' \u00b7 max level!');
+        tile.hidden = false;
+      })();
     }
     // Daily Practice tile — populate from SRS queue count.
     // On Fridays, swap to "Friday Quiz" framing + ?mode=friday route.
