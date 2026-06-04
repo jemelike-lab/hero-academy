@@ -1,8 +1,8 @@
 # Hero Academy — HANDOFF
 
-**Last updated:** End of session, evening of June 4, 2026 (sticky aid + page-aware Humphrey + question readout).
-**Live SW:** `hero-academy-v73`
-**Latest commit on `main`:** the voice-context fix that shipped tonight (commit hash visible in `git log --oneline | head -1` on VPS — was pushed via Mac terminal SCP, not by Claude).
+**Last updated:** End of session, late evening June 4, 2026 (after SW v74 — zone voice consistency push).
+**Live SW:** `hero-academy-v74`
+**Latest commit on `main`:** `ae5ec65` — `feat: Number Lab problem readout + Cauldron/Diner Humphrey voice (SW v74)`
 
 ---
 
@@ -21,88 +21,64 @@
 | **Target device** | **Android Galaxy Tab running Chrome installed as PWA** (NOT iPad) |
 | **Truth source** | This file (`.claude/HANDOFF.md` on `main`) — read first |
 
-### Deploy pattern (proven again this session)
-1. Claude prepares a bundle as `*.tar.gz` and presents it for SCP.
+### Deploy pattern (now proven 5×)
+1. Claude prepares a bundle as `*.tar.gz` and presents it.
 2. Josh runs `scp ~/Downloads/<bundle>.tar.gz root@2.24.68.106:/tmp/` from Mac terminal.
-3. Josh OR Claude runs (via Chrome MCP VPS terminal): `cd /tmp/hero-deploy && git fetch origin main -q && git reset --hard origin/main -q && tar xzf /tmp/<bundle>.tar.gz && git add -A && git commit -m '<msg>' && git push`
-4. Vercel auto-deploys (~60s). Verify via fetch `/sw.js` first line for cache version match.
-5. Claude runs live UI test via Chrome MCP — navigate with `?bust=vN` cache-bust to force fresh SW activation.
+3. Josh OR Claude (via Chrome MCP VPS terminal) runs: `cd /tmp/hero-deploy && git fetch origin main -q && git reset --hard origin/main -q && tar xzf /tmp/<bundle>.tar.gz && git add -A && git commit -m '<msg>' && git push`
+4. Vercel auto-deploys (~60s). **Verify SW version with cache-busted fetch** to the live URL or the VPS itself, NOT GitHub raw (which has a 5-min CDN cache that lies).
+5. Claude runs live UI test via Chrome MCP — navigate with `?bust=vN` to force fresh SW activation.
 
 ---
 
-## 1 — What shipped this session (June 4 2026, evening)
+## 1 — What shipped THIS session (June 4 2026, late evening)
 
-**One bundle, SW v73, three user-visible fixes — all verified via live UI test on the production URL.**
+**Two bundles tonight. Both verified live via Chrome MCP.**
 
-### Bundle: `sticky-aid-page-awareness-question-readout.tar.gz` ✅ COMPLETE
+### Bundle 1: `sticky-aid-page-awareness-question-readout.tar.gz` (SW v73) ✅
 
-**6 files:**
-- `sw.js` — v72 → v73
-- `js/humphrey.js` — sticky bubble lifecycle (~30 lines added)
-- `js/humphrey-qna.js` — `sniffPageContext()` helper + ctx integration (~80 lines added)
-- `js/humphrey-chat.js` — forwards `zoneId`, `zoneLabel`, `pageTitle`, `visibleText` to API
-- `api/humphrey/chat.js` — parses page-context body fields + injects "WHAT IS ON NIGEL'S SCREEN RIGHT NOW" block into system prompt
-- `js/discovery-dome.js` — concatenates fact + 3-space gap + question in `say()` text
+Three user-visible fixes from a screenshot of the Yangtze turtle card:
 
-### Fix #1 — Sticky visual aid ✅
-**Problem:** Picture popup in Humphrey's speech bubble disappeared as soon as her speech ended — Nigel couldn't refer to the picture while reading the question.
+1. **Sticky visual aid** — `state.stickyBubbleActive` flag in `js/humphrey.js`. When a Wikipedia image attaches mid-`say()`, the bubble persists past speech end. Dismiss: next `say()`, bubble tap, or new `Humphrey.clearVisualAid()` API.
 
-**Solution:** When a Wikipedia visual aid attaches to the bubble during `say()`, set `state.stickyBubbleActive = true`. In `finish()` (timer expiry), check the flag: if sticky, only set `speaking=false` and reset expression to idle, but DON'T call `hideBubble()`.
+2. **Page-aware QnA** — `js/humphrey-qna.js` adds `sniffPageContext()` (zone from `body.className` + URL, visible text from a list of candidate containers). `js/humphrey-chat.js` forwards `zoneId`, `zoneLabel`, `pageTitle`, `visibleText`. `api/humphrey/chat.js` injects a "WHAT IS ON NIGEL'S SCREEN RIGHT NOW" block into the system prompt. **A/B proven:** 4-of-5 vs 0-of-5 eagle-content keywords with vs without context.
 
-**Dismiss paths:**
-- Next `say()` call → `showBubble()` clears the flag and replaces content
-- User taps the bubble → click handler in `init()` calls `hideBubble()`
-- Programmatic: `window.HeroAcademy.Humphrey.clearVisualAid()` (newly exposed)
+3. **Discovery Dome reads question after fact** — `js/discovery-dome.js` `showCard()` changed `text: card.fact` → `text: card.fact + '   ' + card.question`. Three-space gap creates a natural TTS pause.
 
-**Verified:**
-- ✅ Mid-speech: bubble + image + caption + flag all set
-- ✅ After speech ends: speaking=false, expression idle, **bubble + image persist**
-- ✅ Tap-to-dismiss: clears flag, hides bubble + image
-- ✅ Next `say()` cleanly replaces sticky bubble
-- ✅ `clearVisualAid()` API works
-- ✅ Visual confirmation: hummingbird image bubble screenshotted with full fact+question text
+### Bundle 2: `zone-voice-readout-fix.tar.gz` (SW v74) ✅
 
-### Fix #2 — Page-aware Humphrey QnA ✅
-**Problem:** When Nigel tapped the voice button and asked "what is this?", Humphrey gave generic answers because she didn't know what was on screen.
+Audit of every zone revealed the "show on screen but don't read aloud" pattern from Discovery Dome bit two more zones, AND two Phaser zones were using browser system TTS instead of Emory.
 
-**Solution:** `humphrey-qna.js` now calls `sniffPageContext()` before sending to Chat API. Helper reads:
-- `zoneId` from `body.dataset.zone` or `body.className.match(/zone-([a-z0-9-]+)/)`, with URL-based disambiguation
-- `zoneLabel` from a static LABELS map (e.g. `discovery-dome` → `"Discovery Dome (Science)"`)
-- `pageTitle` from `document.title` (Hero Academy suffix stripped)
-- `visibleText` from first non-hidden of: `#problemQuestion`, `#storyPassage`, `.passage-text`, `#wordDisplay`, `.problem-display`, `#problemCard`, `#dailyMissionCard`, `#cardLabel` — capped to 800 chars
+1. **Number Lab now reads every problem** — `js/number-lab.js` `renderCurrentProblem()` adds a `Humphrey.say('try-again-reading', { text: question })` immediately after setting `problemQuestion.textContent`. Whitespace-collapsed for clean speech.
 
-`humphrey-chat.js` forwards all 4 fields in the request body. `api/humphrey/chat.js` parses + size-caps them and, when `visibleText` is non-empty, injects:
+2. **Cauldron Café uses Humphrey's voice** — `cauldron-cafe.html` local `speak()` upgraded to prefer `window.HeroAcademy.Humphrey.say()` when loaded, falling back to `speechSynthesis`. All 4 existing call sites (`startLevel`, `winLevel`, `failLevel`, `winGame`) auto-upgrade.
+
+3. **Diner Lanes uses Humphrey's voice** — same upgrade for `diner-lanes.html`. Closes the prior `TODO: swap for ElevenLabs TTS via Miss Humphrey (agent_5901kssbzjm1e0yvd0kdwxa3r49m)` comment.
+
+**Live A/B evidence for v74 (from production logs):**
+
 ```
-WHAT IS ON NIGEL'S SCREEN RIGHT NOW (use this to ground your answer — if he asks "what is this?" or "read this to me" or anything that depends on what he's looking at, refer to this content. Don't read it back verbatim unless he asked you to; explain it in your own words):
-Zone: <zoneLabel>.
-Page: <pageTitle>.
-Visible content on screen:
-"<visibleText>"
+[Number Lab — after click on GOT IT]
+19:05:04.420 say() try-again-reading → Nigel's soccer team scored 7 goals on Monday. They scored 6 goals on Wednesday. How many goals did they score in all?
+19:05:04.441 TTS fetch "Nigel's soccer team scored 7 g"
+19:05:05.303 TTS resp 200 ct=audio/mpeg
+19:05:05.482 TTS blob 111639B
+19:05:05.528 TTS play started ok
+
+[Cauldron Café — on startLevel(0)]
+19:05:56.400 say() try-again-reading → Wanda the Witch says: I want 3 carrots.
+
+[Diner Lanes — on startLevel(0)]
+19:06:59.653 say() try-again-reading → Mia from California wants 4 fish tacos.
 ```
 
-**Verified — definitive A/B on the eagle card:**
-| | Length | Specific eagle keywords (eyesight/eyes/vision/rabbit/eagle) |
-|---|---|---|
-| **WITH page context** | 296 chars | **4 of 5 hit** |
-| **WITHOUT page context** | 158 chars | **0 of 5 hit** |
-
-WITH ctx: *"this is about eagles, Nigel... their eyes are way [stronger] than ours, and they can spot tiny things like rabbits..."*
-WITHOUT ctx: *"I'd love to help you figure that out, Nigel, but I can't quite see what you're pointing at. Can you tell me what it looks like?"*
-
-### Fix #3 — Discovery Dome reads question after fact ✅
-**Problem:** Discovery Dome showed a fact card AND a question, but Humphrey only spoke the fact. Nigel had to read the question himself to know what to pick.
-
-**Solution:** In `showCard()`, changed `text: card.fact` → `text: card.fact + '   ' + card.question`. Three-space gap creates a natural pause in TTS between the description and the prompt.
-
-**Verified:** Debug log shows `say() try-again-reading → A turtle has a hard shell. The shell grows with the turtle.   Which animal has a hard shell?` — both segments speaking, gap intact.
+**Bonus finding:** Number Lab problems are personalization-aware. The math word problem above ("Nigel's soccer team scored 7 goals") confirms Word-Tower-style profile-folding now reaches Number Lab generation too. Worth confirming where this lives and whether other zones get the same treatment.
 
 ---
 
 ## 2 — Current live state
 
-### Active SW: `hero-academy-v73`
+### Active SW: `hero-academy-v74`
 
-### Active builds (cumulative)
 | Feature | Status |
 |---|---|
 | Daily Mission (Build #1) | Live, persisted, celebration overlay works |
@@ -114,79 +90,92 @@ WITHOUT ctx: *"I'd love to help you figure that out, Nigel, but I can't quite se
 | Quest streaks on home tile (Build #7 v3) | Live |
 | Sat email — Notes from Home (Build #5 v2) | Live, fires naturally Sat |
 | Sat email — Show & Tell highlights (Build #7 v3) | Live, fires naturally Sat |
-| **Sticky visual aid (SW v73)** | **Live, verified via Chrome MCP A/B test** |
-| **Page-aware Humphrey QnA (SW v73)** | **Live, verified via Chrome MCP A/B test** |
-| **Discovery Dome fact + question readout (SW v73)** | **Live, verified via debug log + screenshot** |
+| Sticky visual aid (SW v73) | **Live, verified Chrome MCP A/B** |
+| Page-aware Humphrey QnA (SW v73) | **Live, verified Chrome MCP A/B** |
+| Discovery Dome fact + question readout (SW v73) | **Live, verified debug log + screenshot** |
+| **Number Lab problem readout (SW v74)** | **Live, audio chain to Emory confirmed end-to-end** |
+| **Cauldron Café Humphrey voice (SW v74)** | **Live, speak() delegation verified** |
+| **Diner Lanes Humphrey voice (SW v74)** | **Live, speak() delegation verified, TODO resolved** |
 
-Nigel's Hero Journey state: `aurora=3, carlo=1, shellback-squad=1, toybox-team=1, webly=1` → total 7/15 → Level 4 Champion, 3 more chapters to Level 5.
+Nigel's Hero Journey state: `aurora=3, carlo=1, shellback-squad=1, toybox-team=1, webly=1` → 7/15 → Level 4 Champion.
 
 ---
 
 ## 3 — Pending verification / acceptance items
 
-### 🔴 Galaxy Tab acceptance pass for Build #7 v2 camera — deferred 3× now
+### 🔴 Galaxy Tab acceptance pass for Build #7 v2 camera — DEFERRED 3× NOW
 **Highest priority before any new build.** Test plan:
 - Open Hero Academy as PWA on Galaxy Tab
-- Tap the Real-world Quest tile until a "SHOW AND TELL • 📸" quest appears
-- Tap Start → "I'm back!" → Allow camera permission
-- Confirm rear camera (not selfie) activates and video plays
-- Aim at something → "📸 Snap!" → preview shows → optionally Retake → Send
-- Confirm Humphrey reaction text appears + voice plays
-- Watch DB row land in `ha_real_world_quests` via Supabase MCP
+- Tap Real-world Quest tile until "SHOW AND TELL • 📸" quest appears
+- Start → "I'm back!" → Allow camera → confirm rear camera + video plays
+- Snap → preview → Send → Humphrey reaction text + voice plays
+- Watch DB row land in `ha_real_world_quests`
 
-### 🟡 Real-device test of tonight's three fixes
-The chrome automation A/B tests prove the logic works end-to-end, but real device acceptance is the only way to confirm:
-- The sticky bubble layout doesn't break in portrait/landscape on the actual Galaxy Tab viewport
-- The fact + question readout flows naturally at Emory's voice pace (3-space gap might need tuning to longer)
-- The page-aware "what is this?" works on a fresh card before audio-unlock vs after
+### 🔴 Galaxy Tab device check of SW v73 + v74 features
+Chrome MCP A/B passes proved the logic, but real device acceptance is the only way to confirm:
+- **Sticky bubble:** layout doesn't break portrait/landscape on Galaxy Tab viewport
+- **Fact + question readout (Discovery Dome):** flows at natural Emory pace; 3-space gap may need tuning
+- **Page-aware "what is this?":** works on a fresh card before audio-unlock vs after
+- **Number Lab problem readout chatty-check:** with Humphrey reading every problem AND reacting to every answer, is the talking pace right? If too much, easy tune: gate on `session.problemsAttempted === 0` (first-of-skill only) or on question length > 15 chars (word problems only)
+- **Cauldron/Diner Humphrey voice swap:** confirm Emory voice on order announce vs the prior robotic system TTS
 
-### 🟡 Saturday June 6 email watch
-- Does the Show & Tell block render with Nigel's real quest data?
-- Does the streak badge appear if he has any quests this week?
-- Does the Notes from Home block consume any active directives correctly?
+### 🟡 Saturday June 7 email watch
+- Show & Tell block renders with Nigel's real quest data
+- Streak badge appears if he has any quests this week
+- Notes from Home consumes any active parent directives
 
-### 🟢 Quest streak ≥2 branch verification (cosmetic)
-DOM-simulated only so far. First time Nigel hits a real 2-day streak, confirm the 🔥 emoji + "N-day quest streak" copy renders.
+### 🟡 Personalization audit
+This session surprised me — Number Lab is folding Nigel's family/friends/interests into word problems (saw "Nigel's soccer team scored 7 goals on Monday"). Worth confirming:
+- Where exactly this happens (likely Haiku generator endpoint with profile context)
+- That it's consistent across skills, not just one type
+- That the rate is appropriate (Word Tower aims for ~30%)
+- Whether Cauldron Café / Diner Lanes / Discovery Dome benefit from the same treatment
 
-### 🟢 Hero Hall `is_almost` pulse-glow (cosmetic)
-Code exists but no character is currently within 1 play of next unlock — verify naturally when Nigel approaches a milestone.
+### 🟢 Quest streak ≥2 branch — cosmetic
+DOM-simulated only. Verify naturally when Nigel hits a real 2-day streak.
+
+### 🟢 Hero Hall `is_almost` pulse-glow — cosmetic
+Code exists but no character within 1 play of next unlock yet.
 
 ---
 
 ## 4 — Open items for next session
 
 ### Priority order
-1. **Galaxy Tab acceptance for Build #7 v2 camera** — deferred 3×. Highest priority.
-2. **Tablet device check of SW v73 features** — pictures stick around correctly, both fact and question are spoken with good pacing, page-aware QnA grounds answers in screen content.
-3. **Watch Sat June 6 email** — confirm Show & Tell + streak rendering with real data.
+1. **Galaxy Tab acceptance — Build #7 v2 camera + tonight's SW v73 + v74 features.** Deferred 3×; one device session covers acceptance for ALL the recent work. This is the bottleneck.
+2. **Watch Sat June 7 email** — confirm Show & Tell + streak rendering with real data.
+3. **Tune Number Lab readout chattiness if needed** — based on tablet test feedback. Heuristic flags ready: first-of-skill only OR word-problem-only.
 4. **MUST BUILD #6 v3** — base-10 blocks for `place_value` + 2-digit ops. More skill visuals.
 5. **Remaining placeholder zones** — Sound Stage, Training Gym, Creation Studio still stubs.
-6. **Story arc / character progression** — Surprise Squad infrastructure is loaded but the narrative progression is unwired. Identified earlier as high-priority moat feature.
-7. **Apply Fix #3 (question readout) to other zones** — Currently only Discovery Dome reads the question. Number Lab problems, Cauldron Café word problems, Story Lab comprehension questions could all benefit from the same `fact + question` pattern. Audit per zone.
+6. **Story arc / character progression** — Surprise Squad infrastructure loaded but narrative progression unwired. High-priority moat feature.
+7. **Personalization audit** (see §3) — if Number Lab is folding in Nigel's profile, audit which other zones do and standardize.
 
 ---
 
 ## 5 — Key technical learnings (this session)
 
-### Chrome MCP test patterns
-- **`await` requires async IIFE** — `(async () => { ... })()` wrapper. Bare top-level `await` fails with "await is only valid in async functions".
-- **`window.__live` caching pattern** — store complex objects on window, then re-query with simple boolean reductions in a second call. The chat UI's safety filter blocks results that look like cookie/query strings (e.g. raw `swVer` strings with `=` signs).
-- **`?bust=vN` cache-bust** — append to URL to force fresh SW activation. Required after every deploy to verify new code is actually serving.
-- **Page reloads mid-test** — when the SW activates a new version, `sw-register.js` auto-reloads the tab. Lost `window.__*` caches. Re-run setup in single-round-trip when possible. (Bit me twice tonight.)
-- **A/B with monkey-patched fetch** — intercept `/api/humphrey/chat` POSTs to verify the request body shape end-to-end. Cleaner than blind regex on the response.
+### GitHub raw CDN lies for ~5 minutes after push
+`raw.githubusercontent.com/.../sw.js?cb=<ts>` returns a STALE cached file for up to `max-age=300` regardless of query string. To verify a deploy actually landed on `main`:
+- Either check via the **VPS terminal** (`head -1 sw.js && git log --oneline -3` in `/tmp/hero-deploy`),
+- OR fetch the **live Vercel URL** (`https://hero-academy-jemelike-6356s-projects.vercel.app/sw.js`) which uses Vercel's own cache (much fresher).
+- DON'T trust GitHub raw for the first few minutes after a push. Bit me tonight — sent Josh on a false-alarm sw.js-bump fix.
 
-### Humphrey internals
-- `state.stickyBubbleActive` lives on the Humphrey state object alongside `currentUtterance`, `speaking`, `queue`, etc. Reset at every `showBubble()` (so a new utterance always wins) and set true inside the visual-aid `.then()` callback once an image actually attaches.
-- `fetchVisualAid` is async. By the time the timer-based `finish()` fires, the image may or may not have attached. The sticky flag is only meaningful if the image DID land — otherwise the bubble hides normally.
-- `say()` returns immediately; the bubble's display duration is computed from text length via `computeDuration(text)` (clamped to min/max). Three-space gaps add 3 chars × `msPerCharacter` to the timer.
+### Bundle deploy gotcha
+If Josh re-extracts an older bundle on top of a newer one (e.g. re-running an older SCP command), files unique to the older bundle revert while files unique to the newer bundle stay. Symptom tonight: `sw.js` went back to v73 while `number-lab.js`/`cauldron-cafe.html`/`diner-lanes.html` stayed at v74. Turned out to be the GitHub raw cache issue above, not actually a deploy problem, but worth noting because the failure mode IS possible if SCP commands get reused. **Fix pattern:** when in doubt, SSH the VPS, `head -1 sw.js`, and just `sed -i` + commit + push the version line directly if it's the only mismatch.
 
-### API tweaks
-- `chat.js` system prompt is a `.join(' ')` of multiple lines. To add a conditional block, build it as a string (`screenBlock`) that's either `''` or `'\n\n...\n'`, then splice into the array. Empty string joins cleanly without affecting other lines.
-- Size-cap all client-supplied strings before injecting into the prompt: `zoneId.slice(0, 60)`, `visibleText.slice(0, 800)`. Defends against an injected zone label trying to override the system prompt.
+### Chrome MCP click affordances
+`computer.left_click` with coordinates can miss buttons if the page repaints between screenshot and click. Two more reliable alternatives:
+- `find` → returns a `ref_*`, then use it (but `click_element` is NOT a valid action name — that one threw an error tonight).
+- `document.getElementById('btnId').click()` via `javascript_tool` — bulletproof, no coordinate issues. **Use this by default.**
 
-### Audio gating in test contexts
-- Chrome MCP automation runs in a sandbox where user gestures don't fire — audio stays `unlocked=false` until something actually clicks the audio-unlock primer. The Humphrey debug log shows `SKIP audio (gate failed)` for every `say()` call. **This is expected and not a bug** — on Nigel's tablet, the first tap anywhere unlocks audio.
-- The bubble + visual aid logic runs regardless of the audio gate — `showBubble()` is called BEFORE the gate check.
+### Number Lab is heavily minified
+`js/number-lab.js` is one-line-per-function. To edit, find a unique short string anchor (e.g. `problemQuestion.textContent=session.currentProblem.question`) and replace with the same string + injected logic on one line. Always `node -c` syntax-check after.
+
+### Phaser zones use a local `speak()` wrapper
+Both Cauldron Café and Diner Lanes have an inline `speak()` function (system TTS) defined before the Phaser scene class. To make them use Humphrey, just upgrade the wrapper — keep all call sites intact, change the implementation to prefer Humphrey when loaded. Cleanest 1-spot fix.
+
+### TTS audio gating in test contexts
+Chrome MCP automation has `state.audioUnlocked === false` until a real user gesture. `speak gate: ... unlocked=false` followed by `SKIP audio (gate failed)` is **expected and not a bug** — the `Humphrey.say()` still routes correctly and the bubble still shows. Audio playback resumes after the first user click. Number Lab test caught this clearly: after my click on "GOT IT" (user gesture), the next say() showed `unlocked=true` → `TTS resp 200` → `TTS play started ok`.
 
 ---
 
@@ -201,27 +190,36 @@ Code exists but no character is currently within 1 play of next unlock — verif
 | Supabase project | `yofqeuguxgujgqnaejmw` |
 | Supabase URL | `https://yofqeuguxgujgqnaejmw.supabase.co` |
 | Nigel `child_id` | `2e0e51c5-f120-4152-8aa1-041eeecc8165` |
-| VPS | Hostinger `srv1641066`, IP `2.24.68.106`, deploy path `/tmp/hero-deploy` |
+| VPS | Hostinger `srv1641066`, `2.24.68.106`, `/tmp/hero-deploy` |
 | Zap (Saturday email) | id `366816761`, hook `https://hooks.zapier.com/hooks/catch/27395227/4bruass/` |
 | Cron schedule | `0 12 * * 6` UTC (Sat 8am ET DST) |
 | Ms. Humphrey ElevenLabs agent | `agent_5901kssbzjm1e0yvd0kdwxa3r49m` |
-| Ms. Humphrey voice (Emory) | `aNGh7D6DrhhIlad2U6Fg`, model `eleven_flash_v2_5` |
+| Ms. Humphrey voice (Emory) | `aNGh7D6DrhhIlad2U6Fg`, `eleven_flash_v2_5` |
 | Parent emails | `bianca.parker92@gmail.com`, `jemelike@gmail.com` |
 | Healthcheck (Saturday cron) | `https://healthchecks.io/checks/ec0311a8-d63a-4f89-828f-8d985dd28889/` |
 
 ---
 
-## 7 — File-by-file summary of SW v73 changes
+## 7 — Cumulative file diff for SW v73 + v74
 
+### SW v73 (sticky-aid + page-aware + Discovery Dome readout)
 | File | Before | After |
 |---|---|---|
 | `sw.js` | `hero-academy-v72` | `hero-academy-v73` |
 | `js/humphrey.js` | hide bubble on speech end always | sticky flag persists bubble when image attached; tap-to-dismiss; `clearVisualAid()` API |
-| `js/humphrey-qna.js` | sent only `kidName, grade, history, profile, recentSummaries` | also sends `zoneId, zoneLabel, pageTitle, visibleText` via new `sniffPageContext()` |
-| `js/humphrey-chat.js` | request body had 5–7 fields | request body has up to 11 fields (4 new page-context fields) |
-| `api/humphrey/chat.js` | system prompt: warmth + notebook + activeProblem rule | system prompt: warmth + notebook + **screen content block** + activeProblem rule |
+| `js/humphrey-qna.js` | sent `kidName, grade, history, profile, recentSummaries` | also sends `zoneId, zoneLabel, pageTitle, visibleText` via `sniffPageContext()` |
+| `js/humphrey-chat.js` | request body 5–7 fields | request body up to 11 fields |
+| `api/humphrey/chat.js` | system prompt: warmth + notebook + activeProblem rule | also injects screen content block |
 | `js/discovery-dome.js` | `text: card.fact` | `text: card.fact + '   ' + card.question` |
+
+### SW v74 (zone voice consistency)
+| File | Before | After |
+|---|---|---|
+| `sw.js` | `hero-academy-v73` | `hero-academy-v74` |
+| `js/number-lab.js` | problem rendered silently | `Humphrey.say('try-again-reading', { text: question })` on render |
+| `cauldron-cafe.html` | inline `speak()` → `speechSynthesis` | inline `speak()` → Humphrey if loaded, fallback to speechSynthesis |
+| `diner-lanes.html` | inline `speak()` → `speechSynthesis` + TODO comment | inline `speak()` → Humphrey if loaded, TODO resolved |
 
 ---
 
-*End of handoff. Last update: 2026-06-04 ~22:00 ET (after live UI test of SW v73).*
+*End of handoff. Last update: 2026-06-04 ~23:15 ET (after live UI test of SW v74).*
