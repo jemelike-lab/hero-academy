@@ -42,12 +42,19 @@ export default async function handler(req, res) {
   if (!body || typeof body !== 'object') body = {};
 
   const rawImage = body.image;
-  const targetLetter = String(body.target_letter || '').trim().slice(0, 2);
+  // v102: target now can be a multi-digit number ("25", "100"), so we accept
+  // 1-3 chars and validate the kind separately.
+  const targetLetter = String(body.target_letter || '').trim().slice(0, 3);
+  const targetKind = String(body.target_kind || 'upper').trim().toLowerCase();
+  const ALLOWED_KINDS = new Set(['upper', 'lower', 'digit', 'multi-digit']);
   if (!rawImage || typeof rawImage !== 'string') {
     return res.status(400).json({ error: 'no_image' });
   }
-  if (!targetLetter || !/^[A-Za-z0-9]$/.test(targetLetter)) {
+  if (!targetLetter || !/^[A-Za-z0-9]{1,3}$/.test(targetLetter)) {
     return res.status(400).json({ error: 'no_letter' });
+  }
+  if (!ALLOWED_KINDS.has(targetKind)) {
+    return res.status(400).json({ error: 'bad_kind', detail: targetKind });
   }
 
   let imageData = rawImage;
@@ -68,31 +75,61 @@ export default async function handler(req, res) {
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'no_api_key' });
 
+  // v102: per-kind description so Haiku grades against the correct target.
+  // We DO NOT uppercase lower-case targets — case matters for grading.
+  let targetDescription;
+  let targetNoun;
+  if (targetKind === 'upper') {
+    targetDescription = `the capital letter "${targetLetter.toUpperCase()}"`;
+    targetNoun = 'letter';
+  } else if (targetKind === 'lower') {
+    targetDescription = `the lowercase letter "${targetLetter.toLowerCase()}". Lowercase letters often have descenders below the baseline (g, j, p, q, y) and ascenders above (b, d, f, h, k, l, t).`;
+    targetNoun = 'letter';
+  } else if (targetKind === 'digit') {
+    targetDescription = `the number "${targetLetter}"`;
+    targetNoun = 'number';
+  } else if (targetKind === 'multi-digit') {
+    targetDescription = `the number "${targetLetter}" (a multi-digit number — check that BOTH digits are present, in the correct left-to-right order, and that each digit is shaped correctly)`;
+    targetNoun = 'number';
+  } else {
+    targetDescription = `the character "${targetLetter}"`;
+    targetNoun = 'character';
+  }
+
   // System prompt — warm, encouraging, specific. NEVER harsh. NEVER critical
   // of effort. This is practice, not a quiz. The 7-year-old is forming
   // identity around writing; harsh feedback now causes long-term avoidance.
   const systemPrompt = [
-    'You are Ms. Humphrey, a warm 2nd-grade homeschool tutor working with Nigel (age 7, in Maryland). Nigel just hand-drew a letter on a digital drawing board, with his finger, and is showing it to you.',
+    'You are Ms. Humphrey, a warm 2nd-grade homeschool tutor working with Nigel (age 7, in Maryland). Nigel just hand-drew a ' + targetNoun + ' on a digital drawing board, with his finger, and is showing it to you.',
     '',
-    `Nigel was asked to write the capital letter "${targetLetter.toUpperCase()}".`,
+    'Nigel was asked to write ' + targetDescription + '.',
     '',
     'Your job: look at his drawing and give him warm, specific feedback. This is PRACTICE, not a test. Even if he drew something wrong, your response must be encouraging and never disappointing. Children form their relationship with writing at this age — be the kind of teacher who makes them WANT to try again.',
     '',
     'Rules:',
     '- Reply in plain spoken language Nigel can hear out loud (Ms. Humphrey speaks her response). 1-2 short sentences. ~25 words max.',
     '- Name a SPECIFIC observation about his drawing (not generic praise). Mention shape, size, line, curve, slant, or stroke quality.',
-    `- If the drawing is clearly the correct letter (${targetLetter.toUpperCase()}), celebrate warmly and specifically.`,
-    `- If it is close but slightly off (e.g. mirrored, missing a stroke, sloppy), point out ONE thing he can adjust next time, gently.`,
-    `- If it looks like a completely different letter or just a scribble, name what you see kindly ("That looks more like a J — for ${targetLetter.toUpperCase()}, remember it has..."), then describe the target letter\'s key feature in one short phrase. NEVER say "that\'s wrong" or "no" — instead say "almost" or "let\'s try once more."`,
+    '- If the drawing is clearly the correct ' + targetNoun + ', celebrate warmly and specifically.',
+    '- If it is close but slightly off (e.g. mirrored, missing a stroke, sloppy), point out ONE thing he can adjust next time, gently.',
+    '- If it looks like a completely different ' + targetNoun + ' or just a scribble, name what you see kindly ("That looks more like a 6 — for ' + targetLetter + ', remember it has..."), then describe the target ' + targetNoun + '\'s key feature in one short phrase. NEVER say "that\'s wrong" or "no" — instead say "almost" or "let\'s try once more."',
+    targetKind === 'multi-digit'
+      ? '- For multi-digit numbers: if he drew the digits in the WRONG ORDER (e.g. 52 instead of 25), gently note this — "I see a 5 and a 2, but for 25 the 2 comes first."'
+      : '',
+    targetKind === 'lower'
+      ? '- For lowercase letters: if he drew a CAPITAL instead, gently note this — "That\'s a capital ' + targetLetter.toUpperCase() + '! For lowercase ' + targetLetter.toLowerCase() + ', it looks like..."'
+      : '',
+    targetKind === 'upper'
+      ? '- For capital letters: if he drew a LOWERCASE instead, gently note this — "That\'s a lowercase ' + targetLetter.toLowerCase() + '! For capital ' + targetLetter.toUpperCase() + ', it looks like..."'
+      : '',
     '- Use Nigel\'s name once, naturally. Sound like a caring teacher, not a robot.',
     '- Do NOT mention pixels, photos, images, AI, or your role as a tutor. You are just looking at his drawing.',
-    '- NEVER comment on anything beyond the letter shape (no remarks on the canvas, the page, his hand, etc.).',
+    '- NEVER comment on anything beyond the ' + targetNoun + ' shape (no remarks on the canvas, the page, his hand, etc.).',
     '',
     'Return ONLY a JSON object on a single line with this exact shape (no markdown, no commentary):',
     '{"reaction": "<your spoken response>", "correct": <true|false>, "score": <integer 0-5>}',
     '',
-    'Score guide: 5 = a beautiful, clearly correct letter. 4 = correct but a bit sloppy. 3 = recognizable as the target but with a notable issue. 2 = close but with a clear mistake (mirror, wrong segment). 1 = looks like a different letter. 0 = no recognizable letter / scribble.',
-  ].join('\n');
+    'Score guide: 5 = beautiful, clearly correct. 4 = correct but a bit sloppy. 3 = recognizable as the target but with a notable issue. 2 = close but with a clear mistake (mirror, wrong segment, wrong digit order). 1 = looks like a different ' + targetNoun + '. 0 = no recognizable ' + targetNoun + ' / scribble.',
+  ].filter(Boolean).join('\n');
 
   const userContent = [
     {
@@ -101,7 +138,7 @@ export default async function handler(req, res) {
     },
     {
       type: 'text',
-      text: `This is Nigel\'s attempt at the capital letter "${targetLetter.toUpperCase()}". Give him your warm, specific feedback as JSON.`,
+      text: 'This is Nigel\'s attempt at ' + targetDescription + '. Give him your warm, specific feedback as JSON.',
     },
   ];
 
@@ -174,6 +211,7 @@ export default async function handler(req, res) {
     reaction:      reaction,
     correct:       correct,
     score:         score,
-    target_letter: targetLetter.toUpperCase(),
+    target_letter: targetLetter,
+    target_kind:   targetKind,
   });
 }

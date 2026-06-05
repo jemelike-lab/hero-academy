@@ -55,7 +55,14 @@
              data-ll-humphrey-portrait>
         <p class="ll-result-text" data-ll-reaction></p>
         <div class="ll-result-actions">
-          <button class="ll-btn ll-btn--primary" type="button" data-ll-next hidden>Next letter →</button>
+          <!-- v102: struggle-recovery flow. After first wrong attempt, Watch
+               appears instead of Next; tap Watch → Humphrey draws the target
+               on her canvas layer → "My turn again" button clears and lets
+               him retry the same target. On second attempt, just advance. -->
+          <button class="ll-btn ll-btn--primary" type="button" data-ll-watch hidden>👁️ Watch Ms. Humphrey draw it</button>
+          <button class="ll-btn ll-btn--ghost"   type="button" data-ll-skip  hidden>Skip →</button>
+          <button class="ll-btn ll-btn--primary" type="button" data-ll-retry hidden>🖊️ My turn again</button>
+          <button class="ll-btn ll-btn--primary" type="button" data-ll-next  hidden>Next →</button>
           <button class="ll-btn ll-btn--primary" type="button" data-ll-finish hidden>🎉 All done!</button>
         </div>
       </div>

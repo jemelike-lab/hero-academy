@@ -231,3 +231,15 @@
   .ll-actions { grid-template-columns: 1fr; }
   .ll-canvas-wrap { aspect-ratio: 1 / 1; }
 }
+
+
+/* v102 — struggle-recovery action buttons. Watch is the primary CTA on a
+   first-wrong attempt; Skip is the deemphasized alternative; Retry is the
+   primary CTA after a demo. */
+.ll-result-actions [data-ll-watch],
+.ll-result-actions [data-ll-retry] {
+  min-width: 220px;
+}
+.ll-result-actions [data-ll-skip] {
+  min-width: 100px;
+}
