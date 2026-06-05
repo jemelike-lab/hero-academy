@@ -714,6 +714,19 @@
     var parent = readParent();
     if (!parent) {
       $('#gateBlock').hidden = false;
+      // v83: wire the parent-picker buttons on the gate. Tap → set hash → boot.
+      $$('#gateBlock .parent-gate-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var who = btn.getAttribute('data-parent');
+          if (who && PARENTS[who]) {
+            // Setting hash fires hashchange below — but we boot fully fresh
+            // so all the event handlers wire up cleanly.
+            window.location.hash = who;
+            $('#gateBlock').hidden = true;
+            boot();
+          }
+        });
+      });
       return;
     }
     state.parent = parent;

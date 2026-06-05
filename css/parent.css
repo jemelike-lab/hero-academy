@@ -40,7 +40,38 @@
   font-weight: 600;
 }
 .parent-gate-msg { font-size: 18px; margin: 0 0 8px; }
-.parent-gate-sub { font-size: 14px; opacity: 0.7; margin: 0; }
+.parent-gate-sub { font-size: 14px; opacity: 0.7; margin: 16px 0 0; }
+
+/* v83: parent picker on the gate */
+.parent-gate-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.parent-gate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-display, 'Fredoka', sans-serif);
+  color: #fff;
+  background: linear-gradient(135deg, #5a1a5e 0%, #3a1d6e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+.parent-gate-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--gold, #ffd147);
+  box-shadow: 0 6px 18px rgba(255, 209, 71, 0.20);
+}
+.parent-gate-btn:active { transform: translateY(0); }
+.parent-gate-btn-emoji { font-size: 20px; line-height: 1; }
 
 /* ===========================================================================
    Layout
@@ -408,6 +439,10 @@
   z-index: 1000;
   animation: parent-overlay-fade 0.2s ease-out;
 }
+/* v83: respect the [hidden] attribute. Without this, .parent-overlay's
+   display:grid wins over the user-agent [hidden] rule, so the composer
+   bleeds through the page even when JS thinks it's closed. */
+.parent-overlay[hidden] { display: none !important; }
 @keyframes parent-overlay-fade { from { opacity: 0; } }
 body.parent-overlay-open { overflow: hidden; }
 .parent-overlay-card {

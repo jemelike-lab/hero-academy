@@ -11,12 +11,26 @@
 </head>
 <body class="parent-body">
 
-<!-- Gate: shown to anyone without #bianca or #josh in URL hash. -->
+<!-- Gate: shown to anyone without #bianca or #josh in URL hash.
+     v83: includes parent-picker buttons so someone landing here from a
+     bare /parent.html URL can self-identify and continue. The hash gate
+     is soft security against Nigel; real privacy comes from the page
+     being hard for a 7-year-old to find at all. -->
 <section id="gateBlock" class="parent-gate" hidden>
   <div class="parent-gate-card">
     <h1>Hero Academy</h1>
-    <p class="parent-gate-msg">This page is for Nigel’s parents.</p>
-    <p class="parent-gate-sub">Ask Josh for the link.</p>
+    <p class="parent-gate-msg">Welcome — which parent are you?</p>
+    <div class="parent-gate-picker">
+      <button type="button" class="parent-gate-btn" data-parent="josh">
+        <span class="parent-gate-btn-emoji" aria-hidden="true">👨</span>
+        <span>I'm Josh</span>
+      </button>
+      <button type="button" class="parent-gate-btn" data-parent="bianca">
+        <span class="parent-gate-btn-emoji" aria-hidden="true">👩</span>
+        <span>I'm Bianca</span>
+      </button>
+    </div>
+    <p class="parent-gate-sub">Not a parent? This page only shows Nigel's progress reports.</p>
   </div>
 </section>
 
