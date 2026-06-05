@@ -1,0 +1,306 @@
+/**
+ * Hero Academy — Letter Strokes (v103)
+ *
+ * Stroke-by-stroke character animations for Ms. Humphrey's "Watch me draw it"
+ * demo. Letters and digits are defined as ordered sequences of strokes,
+ * where each stroke is a polyline (array of {x,y} points). The animator uses
+ * canvas.js's humphreyDrawLine to animate each segment in turn, chained as
+ * promises — pen-lift pause between strokes.
+ *
+ * COORDINATE SYSTEM:
+ *   Each character is defined in a centered "letter box":
+ *     x in [-200, 200], y in [-250, 250]  (y is DOWN; -250 is top)
+ *   At render time the animator scales + translates to the canvas. Default
+ *   render position is (500, 375) in canvas virtual coords (1000 wide x 750
+ *   tall). For multi-digit numbers, scale is 0.65 and centers shift apart.
+ *
+ * SHIP SCOPE (v103):
+ *   - All 10 digits (0-9)   <-- Josh's stated focus
+ *   - Uppercase A, B, C, D, E
+ *   Other characters fall back to humphreyDrawText (v102 behavior).
+ *
+ * PUBLIC API:
+ *   HeroAcademy.LetterStrokes.has(char)              -> boolean
+ *   HeroAcademy.LetterStrokes.animate(char, opts)    -> Promise
+ *   HeroAcademy.LetterStrokes.animateSequence(chars, opts) -> Promise
+ *
+ *   opts:
+ *     cx, cy           - center in canvas virtual coords (def 500, 375)
+ *     scale            - scale factor (def 1)
+ *     color            - pen color (def #ec4899 magenta)
+ *     strokeDuration   - ms per stroke (def 800)
+ *     interStrokePause - ms pause between strokes (def 250)
+ */
+(function () {
+  'use strict';
+  var NS = window.HeroAcademy = window.HeroAcademy || {};
+  if (NS.LetterStrokes) return;
+
+  // -------- Curve helpers --------
+  // arc(cx, cy, rx, ry, startAngle, endAngle, n) -> polyline of n+1 points.
+  // Angles in radians: 0=right, pi/2=down, pi=left, -pi/2=up (canvas y-down).
+  function arc(cx, cy, rx, ry, sA, eA, n) {
+    var pts = [];
+    for (var i = 0; i <= n; i++) {
+      var t = sA + (eA - sA) * i / n;
+      pts.push({ x: cx + rx * Math.cos(t), y: cy + ry * Math.sin(t) });
+    }
+    return pts;
+  }
+  function line(x1, y1, x2, y2) { return [{x:x1,y:y1}, {x:x2,y:y2}]; }
+
+  // -------- Character stroke definitions --------
+  var STROKES = {
+    // ========== DIGITS ==========
+    '0': {
+      strokes: [
+        arc(0, 0, 130, 220, -Math.PI/2, 3*Math.PI/2, 28)
+      ],
+      voiceLines: ['Start at the top and go around in an oval.'],
+    },
+    '1': {
+      strokes: [
+        line(-70, -180, 0, -240),
+        line(0, -240, 0, 230),
+        line(-90, 230, 90, 230),
+      ],
+      voiceLines: ['Little flag, tall line down, then a line on the bottom.'],
+    },
+    '2': {
+      strokes: [
+        // Top hump (left→top→right) + smooth S-bend down to bottom-left + bottom horizontal.
+        // Note: the lead-in point (-120, -160) matches arc[0] exactly (no jump).
+        arc(0, -160, 120, 80, Math.PI, 2*Math.PI, 10)
+          .concat([
+            {x:120, y:-100},  {x:90,  y:-40},   {x:30,   y:30},
+            {x:-50, y:110},   {x:-130,y:200},   {x:-140, y:230},
+            {x:140, y:230}
+          ])
+      ],
+      voiceLines: ['Curve around the top, slide down, then a line across the bottom.'],
+    },
+    '3': {
+      strokes: [
+        // Two bumps stacked. Top semicircle (left to right through top) +
+        // middle pinch + bottom semicircle (right to left through bottom).
+        // No lead-in points — let the polyline begin at the arc's start.
+        arc(0, -120, 130, 110, -Math.PI, 0, 12)
+          .concat([{x:60, y:0}])
+          .concat(arc(0, 120, 130, 110, 0, Math.PI, 12))
+      ],
+      voiceLines: ['Two bumps stacked, like a backwards letter B.'],
+    },
+    '4': {
+      strokes: [
+        line(-80, -200, -150, 50),
+        line(-150, 50, 150, 50),
+        line(80, -230, 80, 230),
+      ],
+      voiceLines: ['Slant down, line across, then a tall line straight down on the right.'],
+    },
+    '5': {
+      strokes: [
+        line(130, -230, -120, -230),
+        line(-120, -230, -120, -20),
+        // Bottom semicircle — arc centered so the TOP of the arc lines up
+        // exactly with the bottom of the left vertical (-120, -20). No jump.
+        arc(-120, 100, 130, 120, -Math.PI/2, Math.PI/2, 14)
+      ],
+      voiceLines: ['Line across the top, line down the side, then a curve around the bottom.'],
+    },
+    '6': {
+      strokes: [
+        // One continuous "snail-shell" stroke: swoop from upper-right around
+        // to the bottom-left, then loop at the bottom. Hand-crafted to avoid
+        // any pen-jump artifacts.
+        [
+          {x:120, y:-220},  {x:40,  y:-240}, {x:-30, y:-225},
+          {x:-100,y:-185},  {x:-150,y:-115}, {x:-170,y:-30},
+          {x:-160,y:60},    {x:-130,y:140},  {x:-80, y:200},
+          {x:-10, y:230},   {x:60,  y:225},  {x:125, y:195},
+          {x:160, y:140},   {x:165, y:75},   {x:140, y:20},
+          {x:85,  y:-10},   {x:15,  y:-15},  {x:-55, y:5},
+          {x:-115,y:45},    {x:-150,y:100}
+        ]
+      ],
+      voiceLines: ['Curve down from the top, then make a loop at the bottom.'],
+    },
+    '7': {
+      strokes: [
+        line(-130, -230, 130, -230),
+        line(130, -230, -40, 230),
+      ],
+      voiceLines: ['Line across the top, then a slant all the way down.'],
+    },
+    '8': {
+      strokes: [
+        arc(0, -110, 95, 105, -Math.PI/2, 3*Math.PI/2, 18),
+        arc(0, 130, 125, 115, -Math.PI/2, 3*Math.PI/2, 20),
+      ],
+      voiceLines: ['Small circle on top, then a bigger circle on the bottom.'],
+    },
+    '9': {
+      strokes: [
+        // Circle on top + tail. Arc starts and ends at the right side
+        // (angle 0 → -2π = full CCW circle). Tail continues straight down
+        // from the exact endpoint — no pen jump.
+        arc(0, -100, 115, 125, 0, -2*Math.PI, 20)
+          .concat([{x:115, y:230}])
+      ],
+      voiceLines: ['Circle on the top, then a long tail going down.'],
+    },
+
+    // ========== UPPERCASE ==========
+    'A': {
+      strokes: [
+        line(0, -230, -150, 230),
+        line(0, -230, 150, 230),
+        line(-100, 80, 100, 80),
+      ],
+      voiceLines: ['Up the hill, down the hill, then a line across the middle.'],
+    },
+    'B': {
+      strokes: [
+        line(-130, -230, -130, 230),
+        [{x:-130, y:-230}].concat(arc(-130, -115, 130, 115, -Math.PI/2, Math.PI/2, 12)),
+        [{x:-130, y:0}].concat(arc(-130, 115, 140, 115, -Math.PI/2, Math.PI/2, 12)),
+      ],
+      voiceLines: ['Line down, bump at the top, bump at the bottom.'],
+    },
+    'C': {
+      strokes: [
+        // C opens right: traverse the LEFT half of the oval from top-right
+        // opening, through the left side, ending at bottom-right opening.
+        // Angles decrease from -π/2+0.5 through -π (LEFT) to -3π/2+0.5.
+        arc(0, 0, 170, 230, -Math.PI/2 + 0.5, -3*Math.PI/2 + 0.5, 20)
+      ],
+      voiceLines: ['One big curve, like a smile on its side.'],
+    },
+    'D': {
+      strokes: [
+        line(-130, -230, -130, 230),
+        [{x:-130, y:-230}].concat(arc(-130, 0, 230, 230, -Math.PI/2, Math.PI/2, 16))
+      ],
+      voiceLines: ['Line down, then one big bump out to the right.'],
+    },
+    'E': {
+      strokes: [
+        line(-130, -230, -130, 230),
+        line(-130, -230, 130, -230),
+        line(-130, 0, 90, 0),
+        line(-130, 230, 130, 230),
+      ],
+      voiceLines: ['Line down, then three lines across the top, middle, and bottom.'],
+    },
+  };
+
+  // -------- Animator --------
+  function has(char) { return STROKES.hasOwnProperty(char); }
+
+  function animate(char, opts) {
+    opts = opts || {};
+    var cx = opts.cx == null ? 500 : opts.cx;
+    var cy = opts.cy == null ? 375 : opts.cy;
+    var scale = opts.scale == null ? 1 : opts.scale;
+    var color = opts.color || '#ec4899';
+    var strokeDuration = opts.strokeDuration == null ? 800 : opts.strokeDuration;
+    var interStrokePause = opts.interStrokePause == null ? 250 : opts.interStrokePause;
+
+    var data = STROKES[char];
+    if (!data) return Promise.reject(new Error('No stroke data for ' + char));
+    if (!NS.Canvas || !NS.Canvas.humphreyDrawLine) return Promise.reject(new Error('Canvas not ready'));
+
+    function project(p) { return { x: cx + p.x * scale, y: cy + p.y * scale }; }
+
+    var promiseChain = Promise.resolve();
+    data.strokes.forEach(function (polyline, strokeIdx) {
+      promiseChain = promiseChain.then(function () {
+        return animatePolyline(polyline.map(project), color, strokeDuration);
+      });
+      if (strokeIdx < data.strokes.length - 1) {
+        promiseChain = promiseChain.then(function () {
+          return new Promise(function (r) { setTimeout(r, interStrokePause); });
+        });
+      }
+    });
+    return promiseChain;
+  }
+
+  // Animate one polyline: draw each segment via humphreyDrawLine in turn.
+  // Total time = totalDuration; each segment proportional to its length.
+  function animatePolyline(points, color, totalDuration) {
+    if (points.length < 2) return Promise.resolve();
+
+    var lengths = [];
+    var totalLength = 0;
+    for (var i = 0; i < points.length - 1; i++) {
+      var dx = points[i+1].x - points[i].x;
+      var dy = points[i+1].y - points[i].y;
+      var len = Math.sqrt(dx*dx + dy*dy);
+      lengths.push(len);
+      totalLength += len;
+    }
+    if (totalLength === 0) return Promise.resolve();
+
+    var chain = Promise.resolve();
+    for (var i = 0; i < points.length - 1; i++) {
+      (function (i) {
+        var p1 = points[i], p2 = points[i+1];
+        var segDuration = Math.max(20, totalDuration * lengths[i] / totalLength);
+        chain = chain.then(function () {
+          return NS.Canvas.humphreyDrawLine(p1.x, p1.y, p2.x, p2.y, {
+            color: color,
+            duration: segDuration,
+            width: 6,  // thicker pen for visibility
+          });
+        });
+      })(i);
+    }
+    return chain;
+  }
+
+  // Multi-char sequence: scale down + lay out side by side.
+  function animateSequence(chars, opts) {
+    opts = opts || {};
+    var n = chars.length;
+    if (n === 0) return Promise.resolve();
+    if (n === 1) return animate(chars[0], opts);
+
+    var scale, spacing;
+    if (n === 2)      { scale = 0.65; spacing = 300; }
+    else if (n === 3) { scale = 0.45; spacing = 220; }
+    else              { scale = 0.35; spacing = 170; }
+
+    var firstCx = 500 - spacing * (n - 1) / 2;
+    var cy = opts.cy == null ? 375 : opts.cy;
+    var perCharPause = 400;
+
+    var chain = Promise.resolve();
+    chars.forEach(function (char, i) {
+      chain = chain.then(function () {
+        return animate(char, {
+          cx: firstCx + i * spacing,
+          cy: cy,
+          scale: scale,
+          color: opts.color,
+          strokeDuration: opts.strokeDuration,
+          interStrokePause: opts.interStrokePause,
+        });
+      });
+      if (i < n - 1) {
+        chain = chain.then(function () {
+          return new Promise(function (r) { setTimeout(r, perCharPause); });
+        });
+      }
+    });
+    return chain;
+  }
+
+  NS.LetterStrokes = {
+    has: has,
+    animate: animate,
+    animateSequence: animateSequence,
+    // expose for debugging / future tooling
+    _STROKES: STROKES,
+  };
+})();

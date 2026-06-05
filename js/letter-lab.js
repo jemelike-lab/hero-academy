@@ -6,6 +6,13 @@
  * gives warm, specific feedback. If he gets the first attempt wrong, she
  * offers to DEMONSTRATE the target by drawing it on her own canvas layer.
  *
+ * v103: stroke-by-stroke demo animations via js/letter-strokes.js.
+ *   When stroke data exists for the target (currently all 10 digits + A,B,C,D,E),
+ *   Ms. Humphrey draws the letter one stroke at a time using the canvas's
+ *   humphreyLayer. Multi-digit numbers animate each digit in sequence at
+ *   smaller scale. Characters without stroke data fall back to the v102
+ *   text-fade behavior.
+ *
  * v102 changes:
  *   - Unified target pool: uppercase letters, lowercase letters, single
  *     digits, and double-digit numbers (Josh's son struggles with numbers).
@@ -330,16 +337,51 @@
     humphreySay('letter_lab_demo', spoken, 'encouraging');
 
     NS.Canvas.humphreyClear();
+
+    // v103: prefer stroke-by-stroke animation when stroke data is available.
+    // For multi-digit targets, every digit must have stroke data; otherwise
+    // we fall back to the v102 text-fade behavior. Single chars are checked
+    // against LetterStrokes.has().
+    var LS = NS.LetterStrokes;
+    var canStroke = false;
+    if (LS) {
+      if (target.kind === 'multi-digit') {
+        var allDigitsCovered = target.char.split('').every(function (c) { return LS.has(c); });
+        canStroke = allDigitsCovered;
+      } else {
+        canStroke = LS.has(target.char);
+      }
+    }
+
     setTimeout(function () {
-      var fontSize = target.kind === 'multi-digit' ? 280 : 360;
-      NS.Canvas.humphreyDrawText(500, 375, target.char, {
-        color: '#ec4899',
-        font:  'bold ' + fontSize + 'px "Fredoka", "SF Pro Rounded", system-ui, sans-serif',
-        duration: 1400,
-        align: 'center',
-        baseline: 'middle',
-      });
+      if (canStroke) {
+        // Stroke-by-stroke demo
+        var p;
+        if (target.kind === 'multi-digit') {
+          p = LS.animateSequence(target.char.split(''), { color: '#ec4899' });
+        } else {
+          p = LS.animate(target.char, { color: '#ec4899' });
+        }
+        p.catch(function (err) {
+          // Defensive: if stroke animation fails mid-flight, fall back to text.
+          NS.Canvas.humphreyClear();
+          fallbackTextDemo(target);
+        });
+      } else {
+        fallbackTextDemo(target);
+      }
     }, 700);
+  }
+
+  function fallbackTextDemo(target) {
+    var fontSize = target.kind === 'multi-digit' ? 280 : 360;
+    NS.Canvas.humphreyDrawText(500, 375, target.char, {
+      color: '#ec4899',
+      font:  'bold ' + fontSize + 'px "Fredoka", "SF Pro Rounded", system-ui, sans-serif',
+      duration: 1400,
+      align: 'center',
+      baseline: 'middle',
+    });
   }
 
   function retryCurrentTarget() {
