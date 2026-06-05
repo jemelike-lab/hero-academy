@@ -194,6 +194,7 @@
       '      <video class="quest-overlay__camera-video" data-quest-video autoplay playsinline muted></video>',
       '      <canvas class="quest-overlay__camera-canvas" data-quest-snapshot-canvas hidden></canvas>',
       '      <img class="quest-overlay__camera-preview" data-quest-snapshot-img hidden alt="">',
+      '      <div class="quest-overlay__camera-diag" data-quest-camdiag hidden style="background:rgba(0,0,0,0.7);color:#cfcfff;padding:6px;font:11px ui-monospace,Menlo,monospace;max-height:160px;overflow:auto;border-radius:6px;margin-top:6px;"></div>',
       '    </div>',
       '    <div class="quest-overlay__camera-actions" data-quest-camera-actions>',
       '      <button type="button" class="quest-overlay__cta quest-overlay__snap" data-quest-snap>\ud83d\udcf8 Snap!</button>',
@@ -204,6 +205,7 @@
       '    </div>',
       '    <div class="quest-overlay__camera-error" data-quest-camera-error hidden>',
       '      <div class="quest-overlay__camera-error-msg" data-quest-camera-error-msg>Couldn\u2019t open the camera.</div>',
+      '      <button type="button" class="quest-overlay__cta quest-overlay__cta--ghost" data-quest-camera-retry>\ud83d\udd04 Try Again</button>',
       '      <button type="button" class="quest-overlay__cta" data-quest-fallback-text>Tell me about it instead</button>',
       '    </div>',
       '  </div>',
@@ -246,6 +248,8 @@
     $('[data-quest-retake]').addEventListener('click', retakePhoto);
     $('[data-quest-send]').addEventListener('click', sendPhoto);
     $('[data-quest-fallback-text]').addEventListener('click', fallbackToText);
+    var retryBtn = $('[data-quest-camera-retry]');
+    if (retryBtn) retryBtn.addEventListener('click', retryCameraPhase);
     $('[data-quest-vision-close]').addEventListener('click', closeOverlay);
     return ov;
   }
@@ -399,6 +403,28 @@
   }
 
   // ---- Phase 3b: Camera capture (photo quests only) -------------------------
+  // v96: Camera flow now exposes every step in an on-page diagnostic panel so
+  // we can see what's failing on Josh's tablet (where the camera never prompts
+  // and we get no error callback either). Logs to console too, but the panel
+  // survives DevTools-off + PWA standalone mode.
+  function camDbg(msg, kind) {
+    try {
+      console.log('[quest-cam] ' + msg);
+      var ov = state.overlay;
+      if (!ov) return;
+      var diag = ov.querySelector('[data-quest-camdiag]');
+      if (!diag) return;
+      var line = document.createElement('div');
+      var ts = new Date().toLocaleTimeString();
+      line.style.cssText = 'color:' + (kind === 'err' ? '#ff8b8b' : kind === 'ok' ? '#9eff9e' : '#cfcfff') +
+                          ';font:11px ui-monospace,SFMono-Regular,Menlo,monospace;margin:2px 0;';
+      line.textContent = '[' + ts + '] ' + msg;
+      diag.appendChild(line);
+      diag.scrollTop = diag.scrollHeight;
+      diag.hidden = false;
+    } catch (e) {}
+  }
+
   function startCameraPhase() {
     var ov = state.overlay;
     ov.querySelector('[data-quest-camera-block]').hidden = false;
@@ -410,13 +436,35 @@
     vid.hidden = false;
     img.hidden = true;
 
+    // v96: clear and show the diagnostic panel so we can see what happens.
+    var diag = ov.querySelector('[data-quest-camdiag]');
+    if (diag) { diag.innerHTML = ''; diag.hidden = false; }
+
+    camDbg('startCameraPhase entered', 'ok');
+    camDbg('isSecureContext=' + window.isSecureContext +
+           ' displayMode=' + (window.matchMedia('(display-mode: standalone)').matches ? 'standalone(PWA)' : 'browser') +
+           ' UA=' + navigator.userAgent.slice(0, 60));
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showCameraError('Your browser can\u2019t open the camera. No worries \u2014 you can tell me about it instead!');
+      camDbg('navigator.mediaDevices.getUserMedia is unavailable', 'err');
+      showCameraError('Your browser can\u2019t open the camera. (mediaDevices missing.)');
       return;
     }
+    camDbg('mediaDevices.getUserMedia is available', 'ok');
 
-    // Prefer rear camera on tablets/phones for "show me your drawing".
-    // Fall back to any camera if rear is unavailable (e.g. desktop laptop).
+    // v96: proactive permission state check.
+    var permsP;
+    if (navigator.permissions && navigator.permissions.query) {
+      permsP = navigator.permissions.query({ name: 'camera' }).then(
+        function (p) { camDbg('permission state: ' + p.state, p.state === 'granted' ? 'ok' : (p.state === 'denied' ? 'err' : 'normal')); return p.state; },
+        function (e) { camDbg('permission query failed: ' + (e && e.message), 'err'); return 'unknown'; }
+      );
+    } else {
+      camDbg('navigator.permissions not available — proceeding blind');
+      permsP = Promise.resolve('unknown');
+    }
+
+    // Prefer rear camera on tablets/phones. Fall back to any camera.
     var constraints = {
       video: {
         facingMode: { ideal: 'environment' },
@@ -426,36 +474,61 @@
       audio: false,
     };
 
-    navigator.mediaDevices.getUserMedia(constraints)
-      .catch(function (err) {
-        // Retry without facingMode preference (some devices reject 'environment' exact)
-        if (err && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
-          return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        }
-        throw err;
-      })
-      .then(function (stream) {
+    permsP.then(function (permState) {
+      camDbg('calling getUserMedia(' + JSON.stringify(constraints).slice(0, 120) + ')');
+
+      // v96: timeout guard — if the promise neither resolves nor rejects in
+      // 12 seconds, treat as hung (which is what happens in some PWA modes).
+      var settled = false;
+      var timeoutP = new Promise(function (_, rej) {
+        setTimeout(function () {
+          if (!settled) {
+            camDbg('TIMEOUT: getUserMedia did not respond in 12s', 'err');
+            rej(new Error('CameraTimeout: getUserMedia never resolved or rejected'));
+          }
+        }, 12000);
+      });
+
+      var gum = navigator.mediaDevices.getUserMedia(constraints)
+        .catch(function (err) {
+          camDbg('first getUserMedia rejected: ' + (err && err.name) + ' (' + (err && err.message || '').slice(0, 80) + ')', 'err');
+          // Retry without facingMode preference (some devices reject 'environment')
+          if (err && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
+            camDbg('retrying with video:true (no facingMode)');
+            return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+          throw err;
+        });
+
+      return Promise.race([gum, timeoutP]).then(function (stream) {
+        settled = true;
+        camDbg('stream obtained: ' + stream.id + ' tracks=' + stream.getTracks().map(function(t){return t.kind+'/'+t.label.slice(0,20)+'/'+t.readyState;}).join(','), 'ok');
         state.stream = stream;
         try {
           vid.srcObject = stream;
-          // Android Chrome usually auto-plays muted videos; iOS Safari needs an explicit play()
+          camDbg('vid.srcObject assigned');
           var p = vid.play();
-          if (p && p.catch) p.catch(function () { /* ignore — user-gesture already happened */ });
+          if (p && p.then) p.then(function () { camDbg('vid.play() ok', 'ok'); }, function (e) { camDbg('vid.play() rejected: ' + (e && e.message), 'err'); });
         } catch (e) {
+          camDbg('vid.srcObject assignment threw: ' + (e && e.message), 'err');
           showCameraError('Couldn\u2019t connect to the camera. Want to tell me about it instead?');
         }
-      })
-      .catch(function (err) {
+      }).catch(function (err) {
+        settled = true;
+        camDbg('FINAL ERROR: ' + (err && err.name || 'unknown') + ' — ' + (err && err.message || '').slice(0, 100), 'err');
         var msg;
         if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
-          msg = 'Camera permission was denied. Tap "Tell me about it instead" or allow camera in your browser settings.';
+          msg = 'Camera permission was denied. Tap the lock icon by the URL and Allow camera, then tap Try Again.';
         } else if (err && err.name === 'NotFoundError') {
           msg = 'No camera found on this device. Let\u2019s describe it with words instead!';
+        } else if (err && err.message && err.message.indexOf('CameraTimeout') === 0) {
+          msg = 'Camera took too long to respond. Try the regular Chrome browser instead of the installed app, or tap Try Again.';
         } else {
-          msg = 'Camera couldn\u2019t start (' + (err && err.name || 'unknown') + '). Tell me about it in words?';
+          msg = 'Camera couldn\u2019t start (' + (err && err.name || 'unknown') + '). Tap Try Again.';
         }
         showCameraError(msg);
       });
+    });
   }
 
   function showCameraError(msg) {
@@ -465,6 +538,15 @@
     var errBlock = ov.querySelector('[data-quest-camera-error]');
     ov.querySelector('[data-quest-camera-error-msg]').textContent = msg;
     errBlock.hidden = false;
+    // v96: keep the diagnostic panel visible so we can see why it failed.
+    var diag = ov.querySelector('[data-quest-camdiag]');
+    if (diag) diag.hidden = false;
+  }
+
+  function retryCameraPhase() {
+    camDbg('retryCameraPhase: clearing state and re-entering startCameraPhase');
+    stopStream();
+    startCameraPhase();
   }
 
   function fallbackToText() {
