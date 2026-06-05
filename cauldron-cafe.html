@@ -545,10 +545,85 @@ class CauldronScene extends Phaser.Scene {
     this.updateCauldronDisplay();
     this.refreshVeggieBadges();
 
-    this.time.delayedCall(600, () => speak(`${lvl.name} says: ${orderStr.spoken}`));
+    // v90: Sequenced order narration — each veggie button pulses as Humphrey
+    // names it, so Nigel SEES the item she's SAYING. Falls back to the plain
+    // single-line speak() if HumphreyChoices isn't loaded.
+    this.time.delayedCall(600, () => this.speakOrderSequenced(lvl, orderStr));
 
     // Switch to thinking after order is spoken
     this.time.delayedCall(2400, () => this.setRalphieState('thinking'));
+  }
+
+  // v90: read each order item aloud while pulsing the matching veggie button.
+  // Falls back to the plain speak() if HumphreyChoices isn't on the page.
+  speakOrderSequenced(lvl, orderStr) {
+    var HC = window.HeroAcademy && window.HeroAcademy.HumphreyChoices;
+    if (!HC || typeof HC.speakSequence !== 'function') {
+      speak(`${lvl.name} says: ${orderStr.spoken}`);
+      return;
+    }
+
+    var order = lvl.order || {};
+    var keys = Object.keys(order).filter(k => order[k] > 0);
+    var scene = this;
+    var segments = [];
+
+    segments.push({
+      event: 'cauldron-order-intro',
+      text: `${lvl.name} says, I want`,
+      expression: 'encouraging',
+      priority: 'high',
+    });
+
+    keys.forEach(function (id, idx) {
+      var v = VEGGIES.find(function (x) { return x.id === id; });
+      if (!v) return;
+      var count = order[id];
+      var label = count === 1 ? v.label.slice(0, -1).toLowerCase() : v.label.toLowerCase();
+      var isLast  = idx === keys.length - 1;
+      var hasMore = keys.length > 1;
+      var connector = (hasMore && isLast) ? 'and ' : '';
+      var trailing  = isLast ? '.' : ',';
+      var btn = scene.veggieButtons[id];
+
+      segments.push({
+        event: 'cauldron-order-item',
+        text: `${connector}${count} ${label}${trailing}`,
+        expression: 'encouraging',
+        onStart: function () {
+          if (!btn) return;
+          scene.tweens.killTweensOf(btn.emoji);
+          btn.emoji.setScale(1);
+          scene.tweens.add({
+            targets: btn.emoji,
+            scale: { from: 1, to: 1.35 },
+            duration: 280, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+          });
+          if (btn._haGlow) { btn._haGlow.destroy(); btn._haGlow = null; }
+          btn._haGlow = scene.add.circle(btn.x, btn.y, 70, 0xffd147, 0.35);
+          btn._haGlow.setStrokeStyle(4, 0xffd147, 0.8);
+          btn._haGlow.setDepth(-1);
+          scene.tweens.add({
+            targets: btn._haGlow,
+            alpha: { from: 0.55, to: 0.15 },
+            scale: { from: 0.9, to: 1.1 },
+            duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+          });
+        },
+        onEnd: function () {
+          if (!btn) return;
+          scene.tweens.killTweensOf(btn.emoji);
+          btn.emoji.setScale(1);
+          if (btn._haGlow) {
+            scene.tweens.killTweensOf(btn._haGlow);
+            btn._haGlow.destroy();
+            btn._haGlow = null;
+          }
+        },
+      });
+    });
+
+    HC.speakSequence(segments);
   }
 
   formatOrder(order) {
@@ -577,6 +652,7 @@ class CauldronScene extends Phaser.Scene {
   }
 
   addVeggie(id, fromX, fromY) {
+    try { if (window.HeroAcademy && window.HeroAcademy.HumphreyChoices && window.HeroAcademy.HumphreyChoices.cancel) window.HeroAcademy.HumphreyChoices.cancel(); } catch (e) {}
     if (state.busy) return;
     state.cauldron[id]++;
 
@@ -594,6 +670,7 @@ class CauldronScene extends Phaser.Scene {
   }
 
   removeVeggie(id) {
+    try { if (window.HeroAcademy && window.HeroAcademy.HumphreyChoices && window.HeroAcademy.HumphreyChoices.cancel) window.HeroAcademy.HumphreyChoices.cancel(); } catch (e) {}
     if (state.busy) return;
     if (state.cauldron[id] <= 0) return;
     state.cauldron[id]--;
@@ -880,6 +957,7 @@ new Phaser.Game(config);
 
 <script src="js/telemetry.js"></script>
 <script src="js/humphrey.js"></script>
+<script src="js/humphrey-choices.js"></script>
 <script>
   if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
     window.HeroAcademy.Humphrey.init({

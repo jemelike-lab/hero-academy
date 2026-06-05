@@ -159,8 +159,77 @@
     clearAll(containerSel || null, choiceSel || '.review-choice');
   }
 
+  /**
+   * v90: framework-agnostic sequenced read.
+   * Speaks each segment in order, calling onStart() before and onEnd() after.
+   * Works for any UI — Phaser sprite tweens, DOM class toggles, etc.
+   *
+   *   HeroAcademy.HumphreyChoices.speakSequence([
+   *     { event: 'cauldron-intro', text: 'Sunny says, I want', priority: 'high' },
+   *     { event: 'cauldron-item',  text: '3 tomatoes,',
+   *       onStart: () => pulse(tomatoBtn),
+   *       onEnd:   () => unpulse(tomatoBtn) },
+   *     { event: 'cauldron-item',  text: 'and 2 carrots.',
+   *       onStart: () => pulse(carrotBtn),
+   *       onEnd:   () => unpulse(carrotBtn) },
+   *   ]);
+   *
+   * Each segment is { event, text, expression?, priority?, onStart?, onEnd? }.
+   * Returns a token that can be passed to cancel() to abort + run remaining onEnds.
+   */
+  function speakSequence(segments) {
+    var H = getH();
+    if (!H || !Array.isArray(segments) || segments.length === 0) return null;
+
+    globalSeq++;
+    var mySeq = globalSeq;
+    runSegment(segments, 0, mySeq);
+    return mySeq;
+  }
+
+  function runSegment(segments, i, mySeq) {
+    if (mySeq !== globalSeq) return;
+    if (i >= segments.length) return;
+
+    var seg = segments[i] || {};
+    var H = getH();
+    if (!H) return;
+
+    // Fire onStart BEFORE the say() so the visual lights up as audio starts.
+    try { if (typeof seg.onStart === 'function') seg.onStart(); } catch (e) {}
+
+    var payload = {
+      text: String(seg.text || ''),
+      expression: seg.expression || 'encouraging',
+    };
+    if (seg.priority) payload.priority = seg.priority;
+    if (seg.image)    payload.image    = seg.image;
+
+    var p;
+    try { p = H.say(seg.event || 'humphrey-sequence', payload); }
+    catch (e) {
+      try { if (typeof seg.onEnd === 'function') seg.onEnd(); } catch (_e) {}
+      return;
+    }
+
+    var advance = function () {
+      try { if (typeof seg.onEnd === 'function') seg.onEnd(); } catch (e) {}
+      if (mySeq !== globalSeq) return;
+      runSegment(segments, i + 1, mySeq);
+    };
+
+    if (p && typeof p.then === 'function') {
+      p.then(advance);
+    } else {
+      // Approximate duration if Humphrey doesn't return a promise.
+      var ms = Math.max(600, 60 * String(payload.text).length + 300);
+      setTimeout(advance, ms);
+    }
+  }
+
   NS.HumphreyChoices = {
     speakWithHighlights: speakWithHighlights,
+    speakSequence: speakSequence,
     cancel: cancel,
     clearHighlights: clearHighlights,
   };

@@ -555,6 +555,14 @@ class DinerScene extends Phaser.Scene {
   // ===== Bowling =====
 
   bowlAtPin(pinContainer) {
+    try { if (window.HeroAcademy && window.HeroAcademy.HumphreyChoices && window.HeroAcademy.HumphreyChoices.cancel) window.HeroAcademy.HumphreyChoices.cancel(); } catch (e) {}
+    // Also clean up any active pulse glows on pins (cancel doesn't know about Phaser objects).
+    try {
+      (state.pins || []).forEach(function (p) {
+        if (p._haGlow) { p._haGlow.destroy(); p._haGlow = null; }
+        if (p && p.setScale) p.setScale(1);
+      });
+    } catch (e) {}
     if (state.busy) return;
     if (pinContainer.getData('knocked')) return;
 
@@ -723,8 +731,80 @@ class DinerScene extends Phaser.Scene {
     this.ralphieSpeech.setText("Let's bowl!");
 
     // Speak the order
-    this.time.delayedCall(600, () => speak(`${c.name} from ${c.state} wants ${c.count} ${c.label}.`));
+    // v90: Sequenced order narration — pins matching the customer's emoji pulse
+    // while Humphrey says the food. Falls back to plain speak() if no helper.
+    this.time.delayedCall(600, () => this.speakOrderSequenced(c));
     this.time.delayedCall(2800, () => this.setRalphieState('thinking'));
+  }
+
+  // v90: read the customer's order aloud while pulsing all pins with the
+  // matching food emoji. Falls back to plain speak() if HumphreyChoices isn't on.
+  speakOrderSequenced(c) {
+    var HC = window.HeroAcademy && window.HeroAcademy.HumphreyChoices;
+    if (!HC || typeof HC.speakSequence !== 'function') {
+      speak(`${c.name} from ${c.state} wants ${c.count} ${c.label}.`);
+      return;
+    }
+    var scene = this;
+    var pulseTargets = (state.pins || []).filter(function (pin) {
+      return pin.getData('emoji') === c.emoji;
+    });
+
+    var segments = [
+      // Intro — sets the scene, no highlight (no specific target).
+      {
+        event: 'diner-intro',
+        text: `Hi! I'm ${c.name} from ${c.state}.`,
+        expression: 'encouraging',
+        priority: 'high',
+      },
+      // Order — during this, pulse all pins matching the food emoji.
+      {
+        event: 'diner-order',
+        text: `My family of ${c.count} would love ${c.label}!`,
+        expression: 'encouraging',
+        onStart: function () {
+          pulseTargets.forEach(function (pin) {
+            scene.tweens.killTweensOf(pin);
+            scene.tweens.add({
+              targets: pin,
+              scale: { from: 1, to: 1.25 },
+              duration: 340,
+              yoyo: true,
+              repeat: -1,
+              ease: 'Sine.easeInOut',
+            });
+            // Glow ring beneath the pin for extra "look here" emphasis.
+            if (pin._haGlow) { pin._haGlow.destroy(); pin._haGlow = null; }
+            pin._haGlow = scene.add.circle(pin.x, pin.y + 8, 50, 0xffd147, 0.4);
+            pin._haGlow.setStrokeStyle(4, 0xffd147, 0.85);
+            pin._haGlow.setDepth(pin.depth - 1);
+            scene.tweens.add({
+              targets: pin._haGlow,
+              alpha: { from: 0.6, to: 0.15 },
+              scale: { from: 0.85, to: 1.15 },
+              duration: 620,
+              yoyo: true,
+              repeat: -1,
+              ease: 'Sine.easeInOut',
+            });
+          });
+        },
+        onEnd: function () {
+          pulseTargets.forEach(function (pin) {
+            scene.tweens.killTweensOf(pin);
+            pin.setScale(1);
+            if (pin._haGlow) {
+              scene.tweens.killTweensOf(pin._haGlow);
+              pin._haGlow.destroy();
+              pin._haGlow = null;
+            }
+          });
+        },
+      },
+    ];
+
+    HC.speakSequence(segments);
   }
 
   checkWin() {
@@ -939,6 +1019,7 @@ new Phaser.Game(config);
 
 <script src="js/telemetry.js"></script>
 <script src="js/humphrey.js"></script>
+<script src="js/humphrey-choices.js"></script>
 <script>
   if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
     window.HeroAcademy.Humphrey.init({
