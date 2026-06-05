@@ -153,6 +153,71 @@
 
     $('reviewFeedback').hidden = true;
     $('reviewNextBtn').hidden = true;
+
+    // v84: Ms. Humphrey reads every question aloud (Emory voice). This is the
+    // core philosophy — Nigel is 7, and many quiz items use vocabulary above
+    // his read-on-his-own level. She narrates question + choices on every
+    // render so he can listen and tap. If audio is muted, this is a no-op.
+    speakItem(item, row);
+  }
+
+  /**
+   * Compose a natural-sounding spoken version of the current item and hand
+   * it to Ms. Humphrey. Strips the leading emoji + subject prefix that
+   * normalizeItem prepended for the visual badge, then prepends a spoken
+   * subject intro and reads the choices aloud at the end.
+   */
+  function speakItem(item, srsRow) {
+    if (!NS.Humphrey || typeof NS.Humphrey.say !== 'function') return;
+    // Respect the user's mute toggle (the speech-pipeline checks this too,
+    // but bailing early avoids a queue churn).
+    if (typeof NS.Humphrey.isMuted === 'function' && NS.Humphrey.isMuted()) return;
+
+    var visual = String(item.question || '');
+    // Strip leading emoji (and any ZWJ sequences) + the "Reading — " style
+    // subject prefix. We re-introduce subject naturally in the spoken intro.
+    var spoken = visual
+      .replace(/^[\uD83C-\uDBFF\uDC00-\uDFFF\u2600-\u27BF\uFE0F\u200D]+\s*/, '')
+      .replace(/^(Reading|Math|Writing|Science|Social Studies|Social)\s+[\u2014\-]\s+/i, '');
+
+    var subj = item.subject || zoneToSubject(srsRow && srsRow.source_table);
+    var intro = subjectIntro(subj);
+
+    // Read choices for non-self-report items. (kind === 'word' is the Word
+    // Tower read-aloud yes/no — choices there are meta and shouldn't be read.)
+    var choicesText = '';
+    if (item.kind !== 'word' && Array.isArray(item.choices) && item.choices.length >= 2) {
+      var c = item.choices.map(function (x) { return String(x); });
+      if (c.length === 2) {
+        choicesText = ' Your choices are: ' + c[0] + ', or ' + c[1] + '.';
+      } else {
+        choicesText = ' Your choices are: ' + c.slice(0, -1).join(', ') + ', or ' + c[c.length - 1] + '.';
+      }
+    }
+
+    try {
+      NS.Humphrey.say('review-question', {
+        text: intro + spoken + choicesText,
+        expression: 'encouraging',
+        priority: 'high',   // interrupt the prior "Yes!"/"Almost" so the next Q starts cleanly
+      });
+    } catch (e) { /* never break the UI for narration */ }
+  }
+
+  function subjectIntro(subj) {
+    if (subj === 'reading') return 'Reading question. ';
+    if (subj === 'math')    return 'Math question. ';
+    if (subj === 'writing') return 'Writing question. ';
+    if (subj === 'science') return 'Science question. ';
+    if (subj === 'social')  return 'Social studies question. ';
+    return 'Question: ';
+  }
+  function zoneToSubject(srcTable) {
+    if (srcTable === 'ha_math_problems')      return 'math';
+    if (srcTable === 'ha_discovery_cards')    return 'science';
+    if (srcTable === 'ha_word_tower_items')   return 'reading';
+    // ha_quiz_bank and ha_weekly_quiz_items surface subject via item.subject directly.
+    return null;
   }
 
   // ------------------------------------------------------------------
