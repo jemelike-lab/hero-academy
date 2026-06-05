@@ -196,6 +196,346 @@
       ],
       voiceLines: ['Line down, then three lines across the top, middle, and bottom.'],
     },
+    'F': {
+      strokes: [
+        line(-100, -250, -100, 230),
+        line(-100, -250, 130, -250),
+        line(-100, 0, 90, 0),
+      ],
+      voiceLines: ['Tall line down, then two lines across the top and middle.'],
+    },
+    'G': {
+      strokes: [
+        arc(0, 0, 140, 230, -Math.PI*0.18, -Math.PI*1.82, 22),
+        [{x:130, y:42}, {x:130, y:80}, {x:40, y:80}],
+      ],
+      voiceLines: ['Like the letter C, then add a small line across inside.'],
+    },
+    'H': {
+      strokes: [
+        line(-110, -250, -110, 250),
+        line(110, -250, 110, 250),
+        line(-110, 0, 110, 0),
+      ],
+      voiceLines: ['Two tall lines down, then a line across the middle.'],
+    },
+    'I': {
+      strokes: [
+        line(-80, -250, 80, -250),
+        line(0, -250, 0, 250),
+        line(-80, 250, 80, 250),
+      ],
+      voiceLines: ['Line on top, tall line down the middle, line on the bottom.'],
+    },
+    'J': {
+      strokes: [
+        line(-30, -250, 130, -250),
+        [{x:80, y:-250}, {x:80, y:130}].concat(arc(0, 130, 80, 100, 0, Math.PI, 12)),
+      ],
+      voiceLines: ['Line across the top, then down with a curve at the bottom.'],
+    },
+    'K': {
+      strokes: [
+        line(-110, -250, -110, 250),
+        [{x:110, y:-250}, {x:-110, y:0}, {x:130, y:250}],
+      ],
+      voiceLines: ['Tall line down, then a slant in and a slant out.'],
+    },
+    'L': {
+      strokes: [
+        [{x:-100, y:-250}, {x:-100, y:230}, {x:120, y:230}],
+      ],
+      voiceLines: ['Tall line down, then a line across the bottom.'],
+    },
+    'M': {
+      strokes: [
+        [{x:-130, y:250}, {x:-130, y:-250}, {x:0, y:50}, {x:130, y:-250}, {x:130, y:250}],
+      ],
+      voiceLines: ['Line up, slant down to the middle, slant up, line down.'],
+    },
+    'N': {
+      strokes: [
+        [{x:-110, y:250}, {x:-110, y:-250}, {x:110, y:250}, {x:110, y:-250}],
+      ],
+      voiceLines: ['Line up, big slant down, line back up.'],
+    },
+    'O': {
+      strokes: [
+        arc(0, 0, 130, 220, -Math.PI/2, 3*Math.PI/2, 28),
+      ],
+      voiceLines: ['Make a big round oval, like the number zero.'],
+    },
+    'P': {
+      strokes: [
+        line(-110, -250, -110, 250),
+        [{x:-110, y:-250}].concat(arc(-110, -125, 140, 125, -Math.PI/2, Math.PI/2, 14)),
+      ],
+      voiceLines: ['Tall line down, then a bump at the top.'],
+    },
+    'Q': {
+      strokes: [
+        arc(0, 0, 130, 220, -Math.PI/2, 3*Math.PI/2, 28),
+        line(50, 130, 170, 250),
+      ],
+      voiceLines: ['Make an oval like O, then add a little tail at the bottom.'],
+    },
+    'R': {
+      strokes: [
+        line(-110, -250, -110, 250),
+        [{x:-110, y:-250}].concat(arc(-110, -125, 140, 125, -Math.PI/2, Math.PI/2, 14)),
+        line(-110, 0, 130, 250),
+      ],
+      voiceLines: ['Tall line down, bump at the top, then a slanted leg.'],
+    },
+    'S': {
+      strokes: [
+        [
+          {x:130, y:-180}, {x:80, y:-240}, {x:0, y:-250},
+          {x:-80, y:-240}, {x:-130, y:-180}, {x:-100, y:-100},
+          {x:0, y:-30}, {x:60, y:0}, {x:110, y:50},
+          {x:140, y:130}, {x:80, y:230}, {x:0, y:250},
+          {x:-80, y:240}, {x:-140, y:180}
+        ],
+      ],
+      voiceLines: ['Curve like a snake from the top, down, and around.'],
+    },
+    'T': {
+      strokes: [
+        line(-130, -250, 130, -250),
+        line(0, -250, 0, 250),
+      ],
+      voiceLines: ['Line across the top, then a tall line down the middle.'],
+    },
+    'U': {
+      strokes: [
+        [{x:-120, y:-250}]
+          .concat(arc(0, -50, 120, 200, Math.PI, 0, 16))
+          .concat([{x:120, y:-250}]),
+      ],
+      voiceLines: ['Curve down and around, like a smile or a cup.'],
+    },
+    'V': {
+      strokes: [
+        [{x:-130, y:-250}, {x:0, y:250}, {x:130, y:-250}],
+      ],
+      voiceLines: ['Slant down to a point, then slant up.'],
+    },
+    'W': {
+      strokes: [
+        [{x:-140, y:-250}, {x:-70, y:250}, {x:0, y:0}, {x:70, y:250}, {x:140, y:-250}],
+      ],
+      voiceLines: ['Slant down, slant up, slant down, slant up — like two Vs.'],
+    },
+    'X': {
+      strokes: [
+        line(-130, -250, 130, 250),
+        line(130, -250, -130, 250),
+      ],
+      voiceLines: ['Two slanted lines that cross in the middle.'],
+    },
+    'Y': {
+      strokes: [
+        [{x:-130, y:-250}, {x:0, y:0}, {x:130, y:-250}],
+        line(0, 0, 0, 250),
+      ],
+      voiceLines: ['Two slants that meet in the middle, then a line down.'],
+    },
+    'Z': {
+      strokes: [
+        [{x:-130, y:-250}, {x:130, y:-250}, {x:-130, y:250}, {x:130, y:250}],
+      ],
+      voiceLines: ['Line across, slant down, line across the bottom.'],
+    },
+
+    // ========== LOWERCASE ==========
+    'a': {
+      strokes: [
+        arc(0, 80, 90, 100, -Math.PI/2, 3*Math.PI/2, 18),
+        line(90, -20, 90, 180),
+      ],
+      voiceLines: ['Round circle, then a line down the right side.'],
+    },
+    'b': {
+      strokes: [
+        line(-100, -250, -100, 180),
+        arc(-100, 90, 100, 90, -Math.PI/2, Math.PI/2, 12),
+      ],
+      voiceLines: ['Tall line down, then a bump at the bottom.'],
+    },
+    'c': {
+      strokes: [
+        arc(0, 80, 90, 100, -Math.PI/4, -7*Math.PI/4, 18),
+      ],
+      voiceLines: ['Curve open to the right, like a backwards C... wait, just like a C!'],
+    },
+    'd': {
+      strokes: [
+        arc(0, 80, 90, 100, -Math.PI/2, 3*Math.PI/2, 18),
+        line(90, -250, 90, 180),
+      ],
+      voiceLines: ['Round circle, then a tall line down the right side.'],
+    },
+    'e': {
+      strokes: [
+        line(-80, 60, 80, 60),
+        arc(0, 80, 90, 100, -Math.PI/3, -5*Math.PI/3, 16),
+      ],
+      voiceLines: ['Short line across, then a curve like a C.'],
+    },
+    'f': {
+      strokes: [
+        [
+          {x:80, y:-200}, {x:70, y:-230}, {x:40, y:-250}, {x:10, y:-245},
+          {x:-10, y:-220}, {x:-10, y:180}
+        ],
+        line(-80, -20, 60, -20),
+      ],
+      voiceLines: ['Hook at the top, then straight down, with a cross in the middle.'],
+    },
+    'g': {
+      strokes: [
+        arc(0, 80, 90, 100, -Math.PI/2, 3*Math.PI/2, 18),
+        [
+          {x:90, y:-20}, {x:90, y:200},
+          {x:70, y:235}, {x:30, y:250}, {x:-20, y:240}, {x:-50, y:215}
+        ],
+      ],
+      voiceLines: ['Round circle, then a tail that goes down and curves left.'],
+    },
+    'h': {
+      strokes: [
+        line(-90, -250, -90, 180),
+        arc(0, 0, 90, 80, -Math.PI, 0, 10).concat([{x:90, y:180}]),
+      ],
+      voiceLines: ['Tall line down, then a bump on the right side.'],
+    },
+    'i': {
+      strokes: [
+        line(0, -20, 0, 180),
+        arc(0, -155, 14, 14, -Math.PI/2, 3*Math.PI/2, 8),
+      ],
+      voiceLines: ['Short line down, then a dot on top.'],
+    },
+    'j': {
+      strokes: [
+        [{x:30, y:-20}, {x:30, y:200}].concat(arc(0, 200, 30, 50, 0, Math.PI, 8)),
+        arc(30, -155, 14, 14, -Math.PI/2, 3*Math.PI/2, 8),
+      ],
+      voiceLines: ['Line down with a curve at the bottom, then a dot on top.'],
+    },
+    'k': {
+      strokes: [
+        line(-100, -250, -100, 180),
+        [{x:80, y:-20}, {x:-100, y:80}, {x:100, y:180}],
+      ],
+      voiceLines: ['Tall line down, then a slant in and a slant out.'],
+    },
+    'l': {
+      strokes: [
+        line(0, -250, 0, 180),
+      ],
+      voiceLines: ['Just a tall straight line down.'],
+    },
+    'm': {
+      strokes: [
+        line(-130, -20, -130, 180),
+        arc(-65, -20, 65, 50, -Math.PI, 0, 8).concat([{x:0, y:180}]),
+        arc(65, -20, 65, 50, -Math.PI, 0, 8).concat([{x:130, y:180}]),
+      ],
+      voiceLines: ['Line down, then two bumps like little hills.'],
+    },
+    'n': {
+      strokes: [
+        line(-90, -20, -90, 180),
+        arc(0, -20, 90, 50, -Math.PI, 0, 10).concat([{x:90, y:180}]),
+      ],
+      voiceLines: ['Line down, then one bump like a hill.'],
+    },
+    'o': {
+      strokes: [
+        arc(0, 80, 90, 100, -Math.PI/2, 3*Math.PI/2, 18),
+      ],
+      voiceLines: ['Make a small round oval.'],
+    },
+    'p': {
+      strokes: [
+        line(-90, -20, -90, 250),
+        arc(-90, 80, 110, 100, -Math.PI/2, Math.PI/2, 14),
+      ],
+      voiceLines: ['Long line down past the bottom, then a bump on top.'],
+    },
+    'q': {
+      strokes: [
+        arc(0, 80, 90, 100, -Math.PI/2, 3*Math.PI/2, 18),
+        [{x:90, y:-20}, {x:90, y:200}, {x:130, y:240}],
+      ],
+      voiceLines: ['Round circle, then a tail going down and curving right.'],
+    },
+    'r': {
+      strokes: [
+        line(-50, -20, -50, 180),
+        [{x:-50, y:-20}, {x:-30, y:-30}, {x:0, y:-30}, {x:30, y:-20}, {x:40, y:0}],
+      ],
+      voiceLines: ['Line down, then a small hook at the top.'],
+    },
+    's': {
+      strokes: [
+        [
+          {x:60, y:-10}, {x:30, y:-25}, {x:-20, y:-18}, {x:-50, y:10},
+          {x:-30, y:50}, {x:10, y:75}, {x:50, y:100}, {x:60, y:135},
+          {x:40, y:170}, {x:0, y:180}, {x:-50, y:170}, {x:-60, y:145}
+        ],
+      ],
+      voiceLines: ['Curve like a little snake — top, middle, bottom.'],
+    },
+    't': {
+      strokes: [
+        [{x:0, y:-200}, {x:0, y:150}].concat(arc(0, 150, 40, 30, -Math.PI/2, 0, 6)),
+        line(-60, -20, 60, -20),
+      ],
+      voiceLines: ['Line down with a little curve at the bottom, then a cross.'],
+    },
+    'u': {
+      strokes: [
+        [{x:-90, y:-20}, {x:-90, y:80}]
+          .concat(arc(0, 80, 90, 100, Math.PI, 0, 12))
+          .concat([{x:90, y:-20}]),
+        line(90, -20, 90, 180),
+      ],
+      voiceLines: ['Curve down and around like a cup, then a short line down.'],
+    },
+    'v': {
+      strokes: [
+        [{x:-90, y:-20}, {x:0, y:180}, {x:90, y:-20}],
+      ],
+      voiceLines: ['Slant down to a point, then slant up.'],
+    },
+    'w': {
+      strokes: [
+        [{x:-130, y:-20}, {x:-70, y:180}, {x:0, y:30}, {x:70, y:180}, {x:130, y:-20}],
+      ],
+      voiceLines: ['Slant down, slant up, slant down, slant up — like two little vs.'],
+    },
+    'x': {
+      strokes: [
+        line(-80, -20, 80, 180),
+        line(80, -20, -80, 180),
+      ],
+      voiceLines: ['Two slanted lines that cross.'],
+    },
+    'y': {
+      strokes: [
+        line(-90, -20, 0, 130),
+        [{x:90, y:-20}, {x:-50, y:250}],
+      ],
+      voiceLines: ['Short slant down, then a long slant that goes below the line.'],
+    },
+    'z': {
+      strokes: [
+        [{x:-80, y:-20}, {x:80, y:-20}, {x:-80, y:180}, {x:80, y:180}],
+      ],
+      voiceLines: ['Line across, slant down, line across the bottom.'],
+    },
   };
 
   // -------- Animator --------
