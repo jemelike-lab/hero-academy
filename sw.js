@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v97";
+const CACHE_VERSION = "hero-academy-v98";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",

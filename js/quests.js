@@ -49,6 +49,53 @@
     { key: 'show_build',     text: 'Show me something you built (LEGOs, fort, anything!).', category: 'show_and_tell', target_seconds: 240, answer_kind: 'photo' },
     { key: 'show_cool_shape', text: 'Find something with a cool shape and show me!',     category: 'show_and_tell', target_seconds: 180, answer_kind: 'photo' },
     { key: 'show_fav_book',  text: 'Show me one of your favorite books.',                category: 'show_and_tell', target_seconds:  90, answer_kind: 'photo' },
+
+    // ---- v98: expanded seed pool ----------------------------------------
+    // Adds 30 quests across all categories so Nigel sees far less repetition.
+    // All age-7 friendly, indoor, achievable solo in 30s-3 min.
+
+    // Counting (number answer)
+    { key: 'count_pillows',      text: 'Count the pillows on your bed and couch combined.',     category: 'counting',      target_seconds:  90, answer_kind: 'number' },
+    { key: 'count_shoes',        text: 'Count how many shoes are by the front door.',           category: 'counting',      target_seconds:  60, answer_kind: 'number' },
+    { key: 'count_doors',        text: 'Count how many doors are in your house.',               category: 'counting',      target_seconds: 150, answer_kind: 'number' },
+    { key: 'count_clocks',       text: 'Find every clock in your house \u2014 how many?',      category: 'counting',      target_seconds: 120, answer_kind: 'number' },
+    { key: 'count_lamps',        text: 'Count the lamps in your house.',                        category: 'counting',      target_seconds:  90, answer_kind: 'number' },
+    { key: 'count_switches',     text: 'Count the light switches in three rooms.',              category: 'counting',      target_seconds: 120, answer_kind: 'number' },
+    { key: 'count_room_windows', text: 'How many windows are in YOUR bedroom?',                 category: 'counting',      target_seconds:  30, answer_kind: 'number' },
+    { key: 'count_socks',        text: 'Open your sock drawer \u2014 count the pairs.',        category: 'counting',      target_seconds:  90, answer_kind: 'number' },
+
+    // Color hunts (text answer)
+    { key: 'find_red',           text: 'Find something red in your kitchen.',                   category: 'color',         target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_yellow',        text: 'Find something yellow in your room.',                   category: 'color',         target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_green',         text: 'Find something green that is NOT a plant.',             category: 'color',         target_seconds:  90, answer_kind: 'text'   },
+    { key: 'find_purple',        text: 'Find something purple anywhere in your house.',         category: 'color',         target_seconds:  90, answer_kind: 'text'   },
+    { key: 'find_orange',        text: 'Find something orange in your kitchen.',                category: 'color',         target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_rainbow',       text: 'Find something with three or more colors on it.',       category: 'color',         target_seconds:  90, answer_kind: 'text'   },
+
+    // Observation hunts (text answer)
+    { key: 'find_soft',          text: 'Find the SOFTEST thing in your house and tell me what it is.', category: 'observation', target_seconds: 120, answer_kind: 'text' },
+    { key: 'find_smooth',        text: 'Find something perfectly smooth.',                      category: 'observation',   target_seconds:  90, answer_kind: 'text'   },
+    { key: 'find_bumpy',         text: 'Find something with a bumpy texture.',                  category: 'observation',   target_seconds:  90, answer_kind: 'text'   },
+    { key: 'find_metal',         text: 'Find something made of metal.',                         category: 'observation',   target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_wooden',        text: 'Find something made of wood.',                          category: 'observation',   target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_glass',         text: 'Find something made of glass (be careful!).',           category: 'observation',   target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_fluffy',        text: 'Find something fluffy.',                                category: 'observation',   target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_sparkly',       text: 'Find something that sparkles or shines.',               category: 'observation',   target_seconds:  90, answer_kind: 'text'   },
+    { key: 'find_bigger_than',   text: 'Find something BIGGER than you.',                       category: 'observation',   target_seconds:  60, answer_kind: 'text'   },
+    { key: 'find_pinky_size',    text: 'Find something smaller than your pinky finger.',        category: 'observation',   target_seconds:  90, answer_kind: 'text'   },
+
+    // Letter hunts (text answer)
+    { key: 'letter_b',           text: 'Find something that starts with the letter B.',         category: 'letter',        target_seconds:  60, answer_kind: 'text'   },
+    { key: 'letter_t',           text: 'Find something that starts with the letter T.',         category: 'letter',        target_seconds:  60, answer_kind: 'text'   },
+    { key: 'letter_m',           text: 'Find something that starts with the letter M.',         category: 'letter',        target_seconds:  60, answer_kind: 'text'   },
+    { key: 'letter_p',           text: 'Find something that starts with the letter P.',         category: 'letter',        target_seconds:  60, answer_kind: 'text'   },
+    { key: 'letter_c',           text: 'Find something that starts with the letter C.',         category: 'letter',        target_seconds:  60, answer_kind: 'text'   },
+
+    // Show and tell (photo answer)
+    { key: 'show_artwork',       text: 'Show me a piece of art you made \u2014 painting, drawing, anything!', category: 'show_and_tell', target_seconds: 180, answer_kind: 'photo' },
+    { key: 'show_room',          text: 'Stand in your doorway and show me your whole room.',    category: 'show_and_tell', target_seconds:  60, answer_kind: 'photo' },
+    { key: 'show_window_view',   text: 'Show me what you can see out your favorite window.',    category: 'show_and_tell', target_seconds:  60, answer_kind: 'photo' },
+    { key: 'show_smile',         text: 'Show me your biggest happiest smile!',                  category: 'show_and_tell', target_seconds:  30, answer_kind: 'photo' },
   ];
 
   function pickRandom() {
