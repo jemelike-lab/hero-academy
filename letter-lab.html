@@ -63,10 +63,33 @@
 
   </main>
 
-  <!-- Scripts: load shared utilities first, then Humphrey, then Letter Lab itself -->
+  <!-- Scripts: shared utilities → full Humphrey stack → Letter Lab activity.
+       The full Humphrey stack matches what every other zone loads so Nigel
+       can also tap her portrait to ask questions while practicing. -->
   <script src="js/telemetry.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/humphrey.js"></script>
+  <script src="js/humphrey-listener.js"></script>
+  <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-memory.js"></script>
+  <script src="js/humphrey-qna.js"></script>
+  <script src="js/humphrey-choices.js"></script>
+
+  <!-- v101: explicit init() so Humphrey actually mounts. Without this,
+       say() calls queue but never play (pump() bails on !state.mounted).
+       letter-lab.js handles the first speak via humphreySay() inside
+       renderCurrentLetter, so no welcomeEvent is needed here. -->
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        kidName: 'Nigel',
+      });
+    }
+  </script>
+
   <script src="js/letter-lab.js"></script>
   <script src="js/sw-register.js"></script>
 </body>
