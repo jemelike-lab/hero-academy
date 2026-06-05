@@ -75,19 +75,34 @@
    * the SRS engine, then returns due-first items in the same shape as
    * loadDue. Used by review.html when ?mode=friday.
    */
+  /**
+   * Returns this week's 10 Friday-quiz items, generated fresh by Haiku
+   * and themed to Nigel's actual zone activity this week. Lifetime
+   * no-repeat: every question is hashed and tracked in ha_quiz_seen so
+   * future weeks never serve the same one.
+   *
+   * Falls back to ha_quiz_bank items only if Haiku is unreachable.
+   *
+   * Backed by /api/quiz/friday/items. Cached per (child, ISO week) on
+   * the server, so reload mid-quiz resumes the same 10.
+   */
   function loadFridayQuiz(limit) {
     var t = tele();
     if (!t) { log('Telemetry not loaded yet'); return Promise.resolve([]); }
-    return t.rpc('ha_get_friday_quiz_items', {
-      p_child_id: t.childId(),
-      p_limit: typeof limit === 'number' ? limit : 10,
+    return fetch('/api/quiz/friday/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ child_id: t.childId() }),
     })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
-      .then(function (rows) {
-        return Array.isArray(rows) ? rows : [];
+      .then(function (resp) {
+        // Server returns { source, week_start, items: [...] }
+        if (resp && Array.isArray(resp.items)) return resp.items;
+        if (Array.isArray(resp)) return resp; // tolerate raw-array shapes
+        return [];
       })
       .catch(function (e) {
         log('loadFridayQuiz failed:', e && e.message || e);
@@ -201,6 +216,36 @@
         choices: ['YES, I READ IT', 'NOT YET'],
         answer: 'YES, I READ IT',
         helpText: p.sentence || p.hint || null,
+      };
+    }
+
+    if (t === 'ha_quiz_bank' || t === 'ha_weekly_quiz_items') {
+      // v81/v82: cross-subject MCQ items. v81 was static ha_quiz_bank; v82 is
+      // Haiku-generated ha_weekly_quiz_items themed to this week's activity
+      // with lifetime no-repeat. Same payload shape, same render path.
+      // Subject is one of 'reading' | 'math' | 'writing' | 'science' | 'social'.
+      var qbChoices = Array.isArray(p.choices) ? p.choices.slice() : [];
+      var subjectEmoji = ({
+        reading: '\ud83d\udcd6',
+        math:    '\ud83d\udd22',
+        writing: '\u270d\ufe0f',
+        science: '\ud83d\udd2c',
+        social:  '\ud83c\udf0d',
+      })[p.subject] || '\u2728';
+      var subjectLabel = ({
+        reading: 'Reading',
+        math:    'Math',
+        writing: 'Writing',
+        science: 'Science',
+        social:  'Social Studies',
+      })[p.subject] || 'Quiz';
+      return {
+        kind: 'discovery',          // reuse existing 4-button MCQ UI
+        subject: p.subject || null, // lets review-page label per subject
+        question: subjectEmoji + ' ' + subjectLabel + ' — ' + String(p.question || ''),
+        choices: shuffleStable(qbChoices.map(String), srsRow.srs_id || 'x'),
+        answer: String(p.answer || ''),
+        helpText: p.help_text || null,
       };
     }
 

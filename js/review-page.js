@@ -81,14 +81,33 @@
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
-  function zoneKey(sourceTable) {
+  function zoneKey(sourceTable, payload) {
     if (sourceTable === 'ha_math_problems') return 'numberlab';
     if (sourceTable === 'ha_discovery_cards') return 'discovery';
     if (sourceTable === 'ha_word_tower_items') return 'wordtower';
+    // v81: cross-subject quiz bank — bucket by subject so the Friday
+    // results breakdown surfaces writing/social rates cleanly.
+    if (sourceTable === 'ha_quiz_bank' || sourceTable === 'ha_weekly_quiz_items') {
+      var s = payload && payload.subject;
+      if (s === 'reading') return 'wordtower';
+      if (s === 'math')    return 'numberlab';
+      if (s === 'science') return 'discovery';
+      if (s === 'writing') return 'writing';
+      if (s === 'social')  return 'social';
+      return 'quizbank';
+    }
     return 'other';
   }
 
-  function kindLabel(kind) {
+  function kindLabel(kind, subject) {
+    // v81: prefer the explicit subject when normalizeItem provided one.
+    if (subject) {
+      if (subject === 'reading') return 'READING';
+      if (subject === 'math')    return 'MATH';
+      if (subject === 'writing') return 'WRITING';
+      if (subject === 'science') return 'SCIENCE';
+      if (subject === 'social')  return 'SOCIAL';
+    }
     return kind === 'math' ? 'MATH'
       : kind === 'discovery' ? 'SCIENCE'
       : kind === 'word' ? 'READING'
@@ -109,7 +128,7 @@
     }
 
     $('reviewProgress').textContent = 'Item ' + (state.idx + 1) + ' of ' + state.items.length;
-    $('reviewKindTag').textContent = kindLabel(item.kind);
+    $('reviewKindTag').textContent = kindLabel(item.kind, item.subject);
     $('reviewKindTag').className = 'review-kind-tag review-kind-' + item.kind;
     $('reviewQuestion').textContent = item.question || '';
 
@@ -153,7 +172,7 @@
     });
 
     // Track per-zone for Friday quiz summary
-    var zk = zoneKey(srsRow.source_table);
+    var zk = zoneKey(srsRow.source_table, srsRow.payload);
     if (!state.perZone[zk]) state.perZone[zk] = { total: 0, correct: 0 };
     state.perZone[zk].total++;
     if (correct) state.perZone[zk].correct++;
