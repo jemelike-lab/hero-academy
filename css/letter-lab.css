@@ -1,0 +1,233 @@
+/* Hero Academy — Letter Lab (v99)
+   Touch-first layout. Big legible prompt, generous canvas, chunky buttons. */
+
+.ll-body {
+  background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-purple) 60%, var(--bg-mid) 100%);
+  color: var(--text);
+  min-height: 100vh;
+  padding: calc(12px + var(--safe-top)) 16px calc(20px + var(--safe-bottom));
+  font-family: var(--font-body);
+}
+
+/* ---------- Header ---------- */
+.ll-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ll-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.ll-progress {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gold-bright);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-light);
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.back-btn {
+  background: var(--surface-glass);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ---------- Main grid ---------- */
+.ll-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ---------- Prompt panel ---------- */
+.ll-prompt {
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid var(--border-light);
+  border-radius: 22px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+.ll-prompt-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ll-humphrey {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 209, 71, 0.6);
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+.ll-prompt-text {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--text);
+}
+.ll-prompt-text strong {
+  color: var(--gold-bright);
+  font-size: 22px;
+}
+.ll-target-letter {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 84px;
+  line-height: 1;
+  color: var(--gold);
+  text-shadow:
+    0 0 12px rgba(255, 209, 71, 0.55),
+    0 4px 16px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  min-width: 90px;
+}
+
+/* ---------- Canvas wrap ---------- */
+.ll-canvas-wrap {
+  background: rgba(255, 255, 255, 0.97);
+  border: 3px solid var(--cyan);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  /* Aspect makes the canvas big and roughly square — best for letter drawing */
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  overflow: hidden;
+  /* Disable browser touch behaviors so finger draws don't scroll the page */
+  touch-action: none;
+}
+
+/* ---------- Actions ---------- */
+.ll-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 10px;
+}
+.ll-btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  padding: 14px 18px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-bounce);
+}
+.ll-btn:active { transform: scale(0.96); }
+.ll-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ll-btn--ghost {
+  background: var(--surface-glass);
+  color: var(--text);
+  border: 1.5px solid var(--border-light);
+}
+.ll-btn--primary {
+  background: linear-gradient(135deg, var(--gold), var(--gold-deep));
+  color: var(--bg-deep);
+  box-shadow: var(--shadow-gold);
+}
+
+/* ---------- Result phase ---------- */
+.ll-result {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 0 0;
+}
+.ll-result[hidden] { display: none !important; }
+
+.ll-result-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 16px;
+}
+.ll-result-spinner[hidden] { display: none !important; }
+
+.ll-spinner-ring {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: ll-spin 0.9s linear infinite;
+}
+@keyframes ll-spin { to { transform: rotate(360deg); } }
+.ll-spinner-text {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.ll-result-card {
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 209, 71, 0.45);
+  border-radius: 22px;
+  padding: 20px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  max-width: 540px;
+  width: 100%;
+}
+.ll-result-card[hidden] { display: none !important; }
+
+.ll-humphrey--big {
+  width: 112px;
+  height: 112px;
+  border: 3px solid var(--gold);
+  box-shadow: 0 4px 20px rgba(255, 209, 71, 0.35);
+}
+.ll-result-text {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--text);
+  margin: 0;
+}
+.ll-result-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.ll-result-actions .ll-btn { min-width: 180px; }
+.ll-result-actions .ll-btn[hidden] { display: none !important; }
+
+/* ---------- Smaller screens (Galaxy Tab portrait, etc.) ---------- */
+@media (max-width: 480px) {
+  .ll-prompt { grid-template-columns: 1fr; }
+  .ll-target-letter { font-size: 64px; margin-top: 4px; }
+  .ll-actions { grid-template-columns: 1fr; }
+  .ll-canvas-wrap { aspect-ratio: 1 / 1; }
+}

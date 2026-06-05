@@ -43,6 +43,7 @@
     'explorer':    'diner-lanes.html',
     'writing':     'story-lab.html',
     'hero-hall':   'hero-hall.html',
+    'letter-lab':  'letter-lab.html',     // v99: letter practice with Humphrey vision
   };
 
   var ZONE_EMOJI = {
@@ -53,6 +54,7 @@
     'explorer':   '\ud83c\udf0d',
     'writing':    '\u270d\ufe0f',
     'hero-hall':  '\ud83c\udfc6',
+    'letter-lab': '\u270d\ufe0f',       // v99: same pencil glyph as writing
   };
 
   // Subject → presentation. Used for the colored subject badge per step.
@@ -174,9 +176,40 @@
       'discovery':  'science',
       'explorer':   'social',
       'writing':    'writing',
+      'letter-lab': 'writing',
       'hero-hall':  'trophy',
     };
     return map[zoneId] || 'reading';
+  }
+
+  // v99: Inject a Letter Lab step into today's mission on Mon/Wed/Fri.
+  // Server-side mission generator doesn't know about letter-lab yet — this
+  // keeps the rotation working immediately without a DB migration. The step
+  // sits in position 2 (right after the warmup) so it's done early while
+  // Nigel's focus is fresh. Idempotent: if letter-lab already exists in the
+  // mission, do nothing.
+  function injectLetterLabIfDueToday(m) {
+    if (!m || !Array.isArray(m.steps)) return m;
+    var alreadyHas = m.steps.some(function (s) { return s && s.zone_id === 'letter-lab'; });
+    if (alreadyHas) return m;
+    var dow = new Date().getDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
+    var letterDays = [1, 3, 5];    // Mon, Wed, Fri
+    if (letterDays.indexOf(dow) === -1) return m;
+    var step = {
+      zone_id: 'letter-lab',
+      slot:    'writing',
+      subject: 'writing',
+      title:   '\u270d\ufe0f Letter Lab',
+      blurb:   'Practice 3 letters with Ms. Humphrey on the drawing board.',
+      minutes: 5,
+    };
+    // Insert after the first step so the warmup still leads.
+    var newSteps = m.steps.slice();
+    newSteps.splice(1, 0, step);
+    return Object.assign({}, m, {
+      steps: newSteps,
+      total_minutes: (m.total_minutes || 0) + step.minutes,
+    });
   }
 
   function persistMissionToDb(m) {
@@ -250,6 +283,12 @@
 
   function stepDone(step, mission) {
     if (!step || !step.zone_id) return false;
+    // v99: letter-lab tracks completion via its own localStorage flag, not
+    // via zoneProgress (which is scoped to skill-based zones with Telemetry
+    // RPCs). Set once Nigel finishes a 3-letter session.
+    if (step.zone_id === 'letter-lab') {
+      return !!readJSON('ha_letter_lab_' + todayKey());
+    }
     var zp = (ctx.state && ctx.state.zoneProgress) || {};
     var base = (mission.baseline && mission.baseline[step.zone_id]) || 0;
     var cur = zp[step.zone_id] || 0;
@@ -295,6 +334,7 @@
   function render(mission) {
     if (!ctx.container) return;
     mission = normalizeMission(mission);
+    mission = injectLetterLabIfDueToday(mission);
     var steps = Array.isArray(mission.steps) ? mission.steps : [];
     if (steps.length === 0) {
       ctx.container.hidden = true;
