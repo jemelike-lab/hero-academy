@@ -229,7 +229,7 @@ export default async function handler(req, res) {
   }
 
   const reaction = String(parsed.reaction).slice(0, 280);
-  const correct = !!parsed.correct;
+  let correct = !!parsed.correct;  // v105: was const — v104 patch mutates it
   let score = Number(parsed.score);
   if (!Number.isFinite(score)) score = correct ? 4 : 2;
   score = Math.max(0, Math.min(5, Math.round(score)));

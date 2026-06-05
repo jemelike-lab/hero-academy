@@ -68,6 +68,21 @@
   function $(sel) { return document.querySelector(sel); }
   function setHidden(el, hidden) { if (el) el.hidden = !!hidden; }
 
+  // v105: scroll a target element into the visible viewport. On the parent
+  // viewport (desktop laptop) the result card sits below the canvas and
+  // below the fold — Nigel sees the reaction text but the Watch/Skip/Next
+  // buttons are 400+ pixels offscreen. Auto-scroll to fix it. Smooth
+  // scrolling so it doesn't jar him; block: 'center' keeps card mid-screen.
+  function scrollIntoView(el) {
+    if (!el || typeof el.scrollIntoView !== 'function') return;
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (e) {
+      // Older browsers — fallback to instant scroll
+      el.scrollIntoView();
+    }
+  }
+
   function todayKey() {
     var d = new Date();
     return d.getFullYear() + '-' +
@@ -231,6 +246,10 @@
     $('[data-ll-progress]').textContent = (state.index + 1) + ' / ' + state.targets.length;
 
     humphreySay('letter_lab_prompt_' + target.kind + '_' + target.char, spoken, 'encouraging');
+
+    // v105: bring the user back to the top of the page for the new target
+    // (covers the case of advancing after a previous demo scroll).
+    setTimeout(function () { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
   }
 
   // v104: Replay the spoken target on demand. Used by the "Say it again"
@@ -331,6 +350,11 @@
     }
 
     humphreySay('letter_lab_reaction', text, expression);
+
+    // v105: ensure Watch/Skip/Next buttons are in viewport. On wide screens
+    // and tablets the result card lives below the canvas and was 400+ px
+    // below the fold — Nigel saw text but not the path forward.
+    setTimeout(function () { scrollIntoView($('[data-ll-reaction-card]')); }, 120);
   }
 
   function demoCurrentTarget() {
@@ -348,6 +372,9 @@
 
     var spoken = 'Let me show you how to write ' + target.label + '. Watch carefully.';
     humphreySay('letter_lab_demo', spoken, 'encouraging');
+
+    // v105: scroll the canvas into view so Nigel watches the demo
+    setTimeout(function () { scrollIntoView($('[data-ll-canvas-wrap]')); }, 100);
 
     // v104: clear BOTH layers at demo start. Previously we left Nigel's
     // (wrong) drawing visible underneath so he could compare side-by-side.
