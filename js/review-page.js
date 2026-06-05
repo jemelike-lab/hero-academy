@@ -1,20 +1,24 @@
 /**
  * Hero Academy — Review page logic.
  *
- * Mode is read from `?mode=` query param:
- *   daily   (default) — loads SRS due items, up to adaptive count.
- *   friday            — loads the cumulative weekly quiz (Haiku-generated).
+ * v88 — Per-choice highlight sync (the visual-audio pedagogy feature).
+ *   - speakItem now splits TTS into one "question + 'Your choices are:'" call,
+ *     then a chained per-choice call for each answer.
+ *   - Each per-choice call pulses the matching button with `.is-being-read`
+ *     so Nigel SEES which choice he's HEARING. Class clears after the per-
+ *     choice audio finishes.
+ *   - If Nigel taps a choice mid-readthrough, the chain bails (state.itemResolved
+ *     becomes true) and any active highlight is cleared.
+ *   - Word Tower (kind:'word') self-report items bypass the per-choice loop —
+ *     their "YES, I READ IT" / "NOT YET" buttons are meta and not read aloud.
  *
- * v87 — Ms. Humphrey actually "sees" the quiz now.
+ * v87 — Ms. Humphrey actually "sees" the quiz.
  *   - All Humphrey.say() calls pass `{ text, expression, priority }` instead
- *     of bare strings. Previously the string fallthrough hit CATALOG[_default]
- *     ("Hmm, let me think about that one") so EVERY right-or-wrong answer
- *     spoke that single line. Confirmed live via console + sayLog.
- *   - Reactions are now question-aware: they reference `item.answer` and
- *     surface `item.helpText` so Humphrey teaches, not just "Yes!"/"Almost".
- *   - Allows one retry on multi-choice items: a wrong tap only disables the
- *     wrong button. After 2 wrongs (or when only 1 choice remains), the
- *     correct answer reveals and Humphrey explains.
+ *     of bare strings (was hitting CATALOG[_default] → "Hmm, let me think
+ *     about that one").
+ *   - Reactions reference item.answer + item.helpText so she teaches, not
+ *     just "Yes!"/"Almost".
+ *   - Allows one retry on multi-choice items.
  *
  * Quality scoring per item (passed to recordReview):
  *   q=5 first-try correct
@@ -33,19 +37,21 @@
     idx: 0,
     correctCount: 0,
     streak: 0,
-    perZone: {},     // { numberlab: {total, correct}, ... }
+    perZone: {},
     started: 0,
-    // v86: track current item + srs row so the always-visible LISTEN button
-    // can re-fire speakItem on tap.
     currentItem: null,
     currentRow: null,
-    // v87: per-item retry state. Reset on every renderCurrent.
-    attempts: 0,          // count of taps so far (right or wrong)
-    wrongPicks: [],       // text of buttons already marked wrong
-    itemResolved: false,  // true once item is locked (correct or revealed)
+    attempts: 0,
+    wrongPicks: [],
+    itemResolved: false,
+    // v88: monotonic token so an in-flight choice-read sequence can detect that
+    // a newer renderCurrent has replaced it and bail out.
+    speakSeq: 0,
   };
 
   function $(id) { return document.getElementById(id); }
+  function show(id) { var el = $(id); if (el) el.hidden = false; }
+  function hide(id) { var el = $(id); if (el) el.hidden = true; }
 
   function getMode() {
     var params = new URLSearchParams(window.location.search);
@@ -58,9 +64,6 @@
     if (el) el.textContent = text;
   }
 
-  function show(id) { var el = $(id); if (el) el.hidden = false; }
-  function hide(id) { var el = $(id); if (el) el.hidden = true; }
-
   function getH() {
     var H = (window.HeroAcademy && window.HeroAcademy.Humphrey) || null;
     if (!H || typeof H.say !== 'function') return null;
@@ -69,19 +72,18 @@
   }
 
   /**
-   * v87: safe wrapper around Humphrey.say() — always passes an object so
-   * resolveUtterance() picks up our `text` and doesn't fall through to the
-   * "Hmm, let me think about that one" _default. Wrapped in try/catch so
-   * narration never breaks the UI.
+   * Always passes an object so resolveUtterance picks up `text`.
+   * Returns the say() promise so callers can chain.
    */
   function speak(event, text, opts) {
     var H = getH();
-    if (!H) return;
+    if (!H) return Promise.resolve(null);
     var payload = { text: text };
     opts = opts || {};
     if (opts.expression) payload.expression = opts.expression;
     if (opts.priority)   payload.priority   = opts.priority;
-    try { H.say(event, payload); } catch (e) { /* never break UI for narration */ }
+    try { return H.say(event, payload); }
+    catch (e) { return Promise.resolve(null); }
   }
 
   // ------------------------------------------------------------------
@@ -92,9 +94,6 @@
     setEyebrow(state.mode === 'friday' ? 'FRIDAY QUIZ' : 'DAILY PRACTICE');
     state.started = Date.now();
 
-    // v86: wire the always-visible LISTEN button. Tapping it re-reads the
-    // current question + choices. Also doubles as audio-unlock gesture for
-    // PWA contexts where autoplay-policy blocks the auto-fire on Q1.
     var listenBtn = $('reviewListenBtn');
     if (listenBtn) {
       listenBtn.addEventListener('click', function () {
@@ -159,6 +158,10 @@
   }
 
   function renderCurrent() {
+    // Cancel any in-flight choice-read chain from the previous item.
+    state.speakSeq++;
+    clearChoiceHighlights();
+
     if (state.idx >= state.items.length) {
       renderDone();
       return;
@@ -171,7 +174,6 @@
       return;
     }
 
-    // v87: reset per-item retry state.
     state.attempts = 0;
     state.wrongPicks = [];
     state.itemResolved = false;
@@ -195,6 +197,9 @@
       var btn = document.createElement('button');
       btn.className = 'review-choice';
       btn.type = 'button';
+      // v88: store the choice value as a data-attribute so we can find this
+      // button later by value (used by the per-choice highlight loop).
+      btn.setAttribute('data-choice', String(c));
       btn.textContent = c;
       btn.addEventListener('click', function () { handleChoice(c, item, row, btn); });
       choices.appendChild(btn);
@@ -205,25 +210,60 @@
     $('reviewFeedback').className = 'review-feedback';
     $('reviewNextBtn').hidden = true;
 
-    // v86: stash so LISTEN button can re-read on tap.
     state.currentItem = item;
     state.currentRow = row;
 
-    // v84: Ms. Humphrey reads every question aloud (Emory voice). On PWA cold
-    // load this can be blocked by autoplay-policy on Q1 — v86 LISTEN button
-    // is the kid-discoverable fallback.
     speakItem(item, row);
   }
 
+  // ------------------------------------------------------------------
+  // v88: per-choice highlight management
+  // ------------------------------------------------------------------
+  function clearChoiceHighlights() {
+    var nodes = document.querySelectorAll('.review-choice.is-being-read');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].classList.remove('is-being-read');
+    }
+  }
+  function findChoiceButton(choiceText) {
+    // Prefer data-choice match (exact value) — safer than textContent which
+    // may include surrounding whitespace.
+    var byData = document.querySelector('.review-choice[data-choice="' + String(choiceText).replace(/"/g, '\\"') + '"]');
+    if (byData) return byData;
+    var btns = document.querySelectorAll('.review-choice');
+    for (var i = 0; i < btns.length; i++) {
+      if (String(btns[i].textContent) === String(choiceText)) return btns[i];
+    }
+    return null;
+  }
+  function highlightChoice(choiceText) {
+    var btn = findChoiceButton(choiceText);
+    if (!btn) return null;
+    // Don't highlight a button already disabled by a prior tap (re-read via
+    // Listen button after a wrong answer, etc.) — but DO if it's still active.
+    if (btn.disabled) return null;
+    btn.classList.add('is-being-read');
+    return btn;
+  }
+  function unhighlightChoice(btn) {
+    if (btn) btn.classList.remove('is-being-read');
+  }
+
   /**
-   * Compose a natural-sounding spoken version of the current item and hand
-   * it to Ms. Humphrey. Strips the leading emoji + subject prefix that
-   * normalizeItem prepended for the visual badge, then prepends a spoken
-   * subject intro and reads the choices aloud at the end.
+   * Speak the question, then chain through each choice while highlighting
+   * the corresponding button. Bails out if a newer renderCurrent supersedes
+   * this sequence (state.speakSeq) or if the item resolves mid-readthrough.
    */
   function speakItem(item, srsRow) {
     var H = getH();
     if (!H) return;
+
+    // Reset highlights from any prior pass (e.g. tapping Listen mid-read).
+    clearChoiceHighlights();
+
+    // Bump the seq so any prior in-flight chain knows to stop.
+    state.speakSeq++;
+    var mySeq = state.speakSeq;
 
     var visual = String(item.question || '');
     var spoken = visual
@@ -233,20 +273,78 @@
     var subj = item.subject || zoneToSubject(srsRow && srsRow.source_table);
     var intro = subjectIntro(subj);
 
-    var choicesText = '';
-    if (item.kind !== 'word' && Array.isArray(item.choices) && item.choices.length >= 2) {
-      var c = item.choices.map(function (x) { return String(x); });
-      if (c.length === 2) {
-        choicesText = ' Your choices are: ' + c[0] + ', or ' + c[1] + '.';
-      } else {
-        choicesText = ' Your choices are: ' + c.slice(0, -1).join(', ') + ', or ' + c[c.length - 1] + '.';
-      }
+    var hasChoiceList =
+      item.kind !== 'word' &&
+      Array.isArray(item.choices) &&
+      item.choices.length >= 2;
+
+    if (!hasChoiceList) {
+      // Word Tower yes/no etc — single TTS call, no choice highlighting.
+      speak('review-question', intro + spoken, {
+        expression: 'encouraging',
+        priority: 'high',
+      });
+      return;
     }
 
-    speak('review-question', intro + spoken + choicesText, {
+    // Step 1: speak the question + "Your choices are:" preamble.
+    var questionPart = intro + spoken + ' Your choices are:';
+    var p = speak('review-question', questionPart, {
       expression: 'encouraging',
       priority: 'high',
     });
+
+    // Step 2: chain through each choice, highlighting as we go.
+    if (p && typeof p.then === 'function') {
+      p.then(function () {
+        if (mySeq !== state.speakSeq) return;        // newer item rendered
+        if (state.itemResolved) return;              // user already answered
+        speakChoicesSequentially(item.choices, 0, mySeq);
+      });
+    }
+  }
+
+  function speakChoicesSequentially(choices, i, mySeq) {
+    if (mySeq !== state.speakSeq) return;
+    if (state.itemResolved) { clearChoiceHighlights(); return; }
+    if (i >= choices.length) return;
+
+    var c = choices[i];
+    var isLast = (i === choices.length - 1);
+    var text = String(c) + (isLast ? '.' : ',');
+    var btn = highlightChoice(c);
+
+    var H = getH();
+    if (!H) { unhighlightChoice(btn); return; }
+
+    var p;
+    try {
+      // Use a distinct event key so this stream doesn't share variant state
+      // with the main question. No `priority:'high'` here — letting the
+      // queue play sequentially, since we awaited the prior promise.
+      p = H.say('review-question-choice', {
+        text: text,
+        expression: 'encouraging',
+      });
+    } catch (e) {
+      unhighlightChoice(btn);
+      return;
+    }
+
+    if (p && typeof p.then === 'function') {
+      p.then(function () {
+        unhighlightChoice(btn);
+        if (mySeq !== state.speakSeq) return;
+        if (state.itemResolved) { clearChoiceHighlights(); return; }
+        speakChoicesSequentially(choices, i + 1, mySeq);
+      });
+    } else {
+      // Fallback: if no promise, just continue after a short delay.
+      setTimeout(function () {
+        unhighlightChoice(btn);
+        speakChoicesSequentially(choices, i + 1, mySeq);
+      }, 600);
+    }
   }
 
   function subjectIntro(subj) {
@@ -265,23 +363,18 @@
   }
 
   // ------------------------------------------------------------------
-  // v87: question-aware praise + explanation builders.
-  // These reference item.answer and item.helpText so Humphrey speaks the
-  // ACTUAL content, not a generic "Yes!" or "we will see it again soon."
+  // Question-aware praise + explanation builders
   // ------------------------------------------------------------------
   function quoteAnswer(item) {
     var a = String(item.answer || '').trim();
     if (!a) return '';
-    // Math answers are usually numbers — say them naked.
     if (item.kind === 'math' || /^[0-9.,+\-/×÷=]+$/.test(a)) return a;
-    // Word answers ("YES, I READ IT") — skip; they're meta.
     if (item.kind === 'word') return '';
     return '"' + a + '"';
   }
   function trimHelp(text) {
     var s = String(text || '').trim();
     if (!s) return '';
-    // helpText is usually a fact or sentence — keep it short and add period if missing.
     if (!/[.!?]$/.test(s)) s += '.';
     return s;
   }
@@ -299,7 +392,7 @@
     if (!q) return 'You got there, Nigel.' + (help ? ' ' + help : '');
     return 'You got there, Nigel. ' + q + ' is the one.' + (help ? ' ' + help : '');
   }
-  function tryAgainLine(item) {
+  function tryAgainLine() {
     var picks = [
       'Not quite — listen again and try another one.',
       'Hmm, that is not it. Give it one more try, Nigel.',
@@ -318,13 +411,15 @@
   // Grade + advance
   // ------------------------------------------------------------------
   function handleChoice(choiceText, item, srsRow, btn) {
-    if (state.itemResolved) return;  // ignore late taps after lock
+    if (state.itemResolved) return;
+
+    // Tapping a choice cancels the read-along chain and clears highlights.
+    state.speakSeq++;
+    clearChoiceHighlights();
 
     state.attempts++;
     var isCorrect = (String(choiceText) === String(item.answer));
     var totalChoices = (item.choices || []).length;
-    // Force-reveal threshold: max 2 attempts on items with 3+ choices, or as
-    // soon as only the correct one remains for 2-choice items.
     var revealThreshold = (totalChoices <= 2) ? 1 : 2;
 
     if (isCorrect) {
@@ -332,7 +427,6 @@
       return;
     }
 
-    // Wrong tap — mark this one wrong, but maybe allow retry.
     state.wrongPicks.push(String(choiceText));
     btn.disabled = true;
     btn.classList.add('is-wrong');
@@ -342,18 +436,16 @@
     });
 
     if (state.attempts >= revealThreshold || remaining.length <= 1) {
-      // Out of tries (or only correct remains) — reveal + record q=0.
       resolveReveal(item, srsRow);
       return;
     }
 
-    // Allow retry: show a light feedback line, Humphrey says try again.
     var fb = $('reviewFeedback');
     fb.textContent = 'Try again, Nigel — pick a different one.';
     fb.className = 'review-feedback is-wrong';
     fb.hidden = false;
 
-    speak('review-wrong', tryAgainLine(item), {
+    speak('review-wrong', tryAgainLine(), {
       expression: 'concerned',
       priority: 'high',
     });
@@ -362,17 +454,16 @@
   function resolveCorrect(item, srsRow, pickedText) {
     state.itemResolved = true;
 
-    // Highlight the correct button, lock all.
     var btns = document.querySelectorAll('.review-choice');
     btns.forEach(function (b) {
       b.disabled = true;
+      b.classList.remove('is-being-read');
       if (String(b.textContent) === String(item.answer)) b.classList.add('is-correct');
     });
 
     var firstTry = (state.attempts === 1);
     var quality = firstTry ? 5 : (state.attempts === 2 ? 3 : 2);
 
-    // Per-zone tracking (Friday quiz summary).
     var zk = zoneKey(srsRow.source_table, srsRow.payload);
     if (!state.perZone[zk]) state.perZone[zk] = { total: 0, correct: 0 };
     state.perZone[zk].total++;
@@ -403,14 +494,13 @@
   function resolveReveal(item, srsRow) {
     state.itemResolved = true;
 
-    // Highlight correct + lock all.
     var btns = document.querySelectorAll('.review-choice');
     btns.forEach(function (b) {
       b.disabled = true;
+      b.classList.remove('is-being-read');
       if (String(b.textContent) === String(item.answer)) b.classList.add('is-correct');
     });
 
-    // Per-zone tracking — counts as a miss.
     var zk = zoneKey(srsRow.source_table, srsRow.payload);
     if (!state.perZone[zk]) state.perZone[zk] = { total: 0, correct: 0 };
     state.perZone[zk].total++;

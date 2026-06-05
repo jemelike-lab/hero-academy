@@ -715,17 +715,30 @@
     if (!parent) {
       $('#gateBlock').hidden = false;
       // v83: wire the parent-picker buttons on the gate. Tap → set hash → boot.
+      console.log('[parent] gate shown, wiring picker buttons');
       $$('#gateBlock .parent-gate-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
+        function handle(ev) {
+          if (btn._ha_gate_clicked) return;        // prevent double-fire (click + touchend)
+          btn._ha_gate_clicked = true;
+          if (ev && ev.preventDefault) ev.preventDefault();
           var who = btn.getAttribute('data-parent');
+          console.log('[parent] gate tap', who, 'evt=' + (ev && ev.type));
           if (who && PARENTS[who]) {
-            // Setting hash fires hashchange below — but we boot fully fresh
-            // so all the event handlers wire up cleanly.
             window.location.hash = who;
             $('#gateBlock').hidden = true;
             boot();
+          } else {
+            console.warn('[parent] gate tap with unknown parent token:', who);
+            btn._ha_gate_clicked = false;          // allow retry
           }
-        });
+        }
+        // Primary handler — works on every modern browser.
+        btn.addEventListener('click', handle);
+        // v88: Android Chrome PWA fallback. On some installed PWAs the first
+        // click after a hash-only navigation doesn't fire reliably; touchend
+        // bridges the gap. The _ha_gate_clicked flag prevents double-fire when
+        // both events do arrive.
+        btn.addEventListener('touchend', handle, { passive: false });
       });
       return;
     }

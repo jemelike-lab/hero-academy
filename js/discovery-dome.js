@@ -159,20 +159,28 @@
     $('hintBtn').classList.remove('visible');
     $('hintDisplay').hidden = true;
 
-    // Ms. Humphrey reads the fact aloud as soon as the card lands.
+    // v89: Ms. Humphrey reads the fact + question aloud, then sequentially
+    // reads each choice while pulsing the matching button (.is-being-read).
+    // This lets Nigel SEE which choice he's HEARING. Falls back to the
+    // single-utterance pattern if HumphreyChoices isn't loaded.
     var H = NS.Humphrey;
-    if (H && typeof H.say === 'function') {
-      // Use try-again-reading event to pick the right expression. Fact is the
-      // text override so it plays as-written. Light expression: encouraging.
-      // Pass the card title as a visual-aid query — Wikipedia thumbnail will
-      // pop into the speech bubble for tangible things (hummingbirds, rainbows).
-      // Speak the fact AND the question — a tiny pause between them lets Nigel
-      // hear what he's actually being asked to choose. Without the question
-      // being voiced, the buttons appear with no audio cue.
+    var HC = NS.HumphreyChoices;
+    var spokenIntro = card.fact + '   ' + card.question;
+    if (HC && typeof HC.speakWithHighlights === 'function') {
+      HC.speakWithHighlights({
+        event:          'discovery-question',
+        questionText:   spokenIntro,
+        choices:        ordered.map(function (it) { return it.text; }),
+        container:      '#answerChoices',
+        choiceSelector: '.answer-btn',
+        expression:     'encouraging',
+        image:          card.title,
+      });
+    } else if (H && typeof H.say === 'function') {
       H.say('try-again-reading', {
         kidName: 'Nigel',
         expression: 'encouraging',
-        text: card.fact + '   ' + card.question,
+        text: spokenIntro,
         image: card.title,
       });
     }
@@ -198,6 +206,8 @@
   // --- Answer handling -----------------------------------------------------
 
   function handleAnswer(isCorrect, btn) {
+    // v89: cancel any in-flight choice-read sequence + clear pulses.
+    try { if (NS.HumphreyChoices && NS.HumphreyChoices.cancel) NS.HumphreyChoices.cancel(); } catch (e) {}
     document.querySelectorAll('.answer-btn').forEach(function (b) { b.disabled = true; });
     if (isCorrect) handleCorrect(btn);
     else handleWrong(btn);

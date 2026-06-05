@@ -38,7 +38,7 @@
   var ZONE_ROUTES = {
     'word-tower':  'word-tower.html',
     'story-time':  'story-time.html',
-    'number-lab':  'number-lab.html',
+    'number-lab':  'cauldron-cafe.html',  // v88: route to themed Phaser game
     'discovery':   'discovery-dome.html',
     'explorer':    'diner-lanes.html',
     'writing':     'story-lab.html',
@@ -253,9 +253,10 @@
     var zp = (ctx.state && ctx.state.zoneProgress) || {};
     var base = (mission.baseline && mission.baseline[step.zone_id]) || 0;
     var cur = zp[step.zone_id] || 0;
-    if (cur > base) return true;
-    var visited = readJSON('ha_mission_visited_' + todayKey()) || {};
-    return !!visited[step.zone_id];
+    // v89: a step is "done" ONLY when real zoneProgress was made — entering
+    // a zone (markVisited) is no longer enough. This prevents the checkmark
+    // from appearing the instant a kid taps Enter without actually finishing.
+    return cur > base;
   }
 
   function markVisited(zoneId) {

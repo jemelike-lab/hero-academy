@@ -302,3 +302,37 @@
     --ha-h-mute-bg: rgba(40, 35, 25, 0.96);
   }
 }
+
+/* --- v89: cross-zone "Humphrey is reading this choice" pulse ----------
+   Applies to both .review-choice (Friday Quiz, Daily SRS) and .answer-btn
+   (Discovery Dome, Number Lab). The HumphreyChoices helper toggles
+   .is-being-read on the matching button while that choice's TTS plays. */
+.review-choice.is-being-read,
+.answer-btn.is-being-read {
+  position: relative;
+  z-index: 1;
+  border-color: #ffd147 !important;
+  background: linear-gradient(135deg, rgba(255, 209, 71, 0.36), rgba(255, 139, 61, 0.30)) !important;
+  color: #fff !important;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 4px rgba(255, 209, 71, 0.45);
+  animation: ha-choice-read-pulse 900ms ease-in-out infinite;
+}
+@keyframes ha-choice-read-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(255, 209, 71, 0.45);
+    transform: scale(1.05);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(255, 209, 71, 0.12);
+    transform: scale(1.075);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .review-choice.is-being-read,
+  .answer-btn.is-being-read {
+    animation: none;
+    transform: scale(1.02);
+    box-shadow: 0 0 0 4px rgba(255, 209, 71, 0.55);
+  }
+}

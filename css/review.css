@@ -347,3 +347,35 @@
   .review-question { font-size: 19px; }
   .daily-practice { margin-left: 12px; margin-right: 12px; }
 }
+
+/* v88: per-choice highlight while Ms. Humphrey reads it aloud.
+   Pulsed glow + slight scale so Nigel can SEE which choice is being SAID.
+   Cleared automatically when the per-choice TTS completes (or when he taps
+   a button mid-readthrough). */
+.review-choice.is-being-read {
+  background: linear-gradient(135deg, rgba(255, 209, 71, 0.36), rgba(255, 139, 61, 0.30));
+  border-color: #ffd147;
+  color: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 4px rgba(255, 209, 71, 0.45);
+  animation: review-choice-read-pulse 900ms ease-in-out infinite;
+  z-index: 1;
+  position: relative;
+}
+@keyframes review-choice-read-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(255, 209, 71, 0.45);
+    transform: scale(1.05);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(255, 209, 71, 0.12);
+    transform: scale(1.075);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .review-choice.is-being-read {
+    animation: none;
+    transform: scale(1.02);
+    box-shadow: 0 0 0 4px rgba(255, 209, 71, 0.55);
+  }
+}
