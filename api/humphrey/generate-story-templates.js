@@ -201,6 +201,19 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'insert failed', detail: errStr(e), cleaned: clean.length });
   }
 
+  // Threading audit — if struggles existed but Haiku tagged none, we know
+  // the prompt isn't landing. Surfacing this in the response means every
+  // verification run shows the truth without needing log access.
+  const threaded = clean.filter(c => c.linked_struggle_zone || c.linked_struggle_concept);
+  const threading_audit = {
+    struggles_supplied: recentStruggles.length,
+    items_threaded:     threaded.length,
+    threaded_titles:    threaded.map(t => t.title),
+    compliance:         (recentStruggles.length === 0)
+                          ? 'no-struggles-to-thread'
+                          : (threaded.length === 0 ? 'FAILED-haiku-ignored' : 'ok'),
+  };
+
   return res.status(200).json({
     status: 'generated',
     inserted,
@@ -208,6 +221,7 @@ export default async function handler(req, res) {
     cleaned: clean.length,
     raw: items.length,
     pool_unseen_before: unseen,
+    threading_audit,
   });
 }
 
@@ -335,14 +349,40 @@ async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidTheme
     '',
     'If the RECENT STRUGGLES LIST is empty (the line says "no recent struggles"), DO NOT include linked_struggle_zone or linked_struggle_concept on any template.',
     '',
-    'OUTPUT FORMAT — strict JSON only, no markdown fences, no preamble:',
+    'OUTPUT FORMAT — strict JSON only, no markdown fences, no preamble.',
+    'Schema (one example threaded item + one example non-threaded item):',
     '{ "items": [',
-    '  { "title": "...", "emoji": "...", "theme": "...",',
-    '    "slots": [ {"key":"...","kind":"...","prompt":"..."}, ... ],',
-    '    "text_template": "...{slotKey}...",',
-    '    "linked_struggle_zone": "...optional...",',
-    '    "linked_struggle_concept": "...optional 3-7 words..." }',
+    '  {',
+    '    "title": "Skylar Meets the Web Watcher",',
+    '    "emoji": "🕷️",',
+    '    "theme": "spider-discovery",',
+    '    "slots": [',
+    '      {"key":"place","kind":"place","prompt":"Where is Skylar?"},',
+    '      {"key":"animal","kind":"animal","prompt":"What tiny animal does she see?"},',
+    '      {"key":"object","kind":"object","prompt":"What bumps the web?"}',
+    '    ],',
+    '    "text_template": "Skylar tiptoed past the {place}. A tiny {animal} sat on a sticky web. When a {object} bumped the silk, the spider felt the buzz with its tiny leg hairs and zoomed over.",',
+    '    "linked_struggle_zone": "discovery",',
+    '    "linked_struggle_concept": "spiders feel vibrations on their web"',
+    '  },',
+    '  {',
+    '    "title": "Gabriel\\u2019s Lost Tooth",',
+    '    "emoji": "🦷",',
+    '    "theme": "lost-tooth",',
+    '    "slots": [',
+    '      {"key":"feeling","kind":"feeling","prompt":"How does Gabriel feel?"},',
+    '      {"key":"food","kind":"food","prompt":"What was he eating?"},',
+    '      {"key":"place","kind":"place","prompt":"Where did the tooth land?"}',
+    '    ],',
+    '    "text_template": "Gabriel was {feeling} when he bit into the {food}. His tooth popped out and bounced into the {place}!"',
+    '  }',
     '] }',
+    '',
+    'RULES FOR linked_struggle_zone / linked_struggle_concept:',
+    '  • If RECENT STRUGGLES LIST is non-empty, EXACTLY ONE item in the items array MUST include both fields (matching one struggle).',
+    '  • Optionally a SECOND item may include both fields, matching a DIFFERENT struggle. Never more than two.',
+    '  • Items that do NOT thread a struggle MUST OMIT both fields entirely (do not include them as null or empty strings — leave them out).',
+    '  • If RECENT STRUGGLES LIST is empty, NO item should include these fields.',
   ].join('\n');
 
   const user = [
