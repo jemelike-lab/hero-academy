@@ -19,6 +19,10 @@
  *   - Uppercase A, B, C, D, E
  *   Other characters fall back to humphreyDrawText (v102 behavior).
  *
+ * v104: animator now uses Canvas.virtualDims() to dynamically center letters
+ *   in the actual canvas (vertical center varies by aspect ratio — 4:3 vs
+ *   1:1 on mobile) and clamp scale so letters never overflow the canvas.
+ *
  * PUBLIC API:
  *   HeroAcademy.LetterStrokes.has(char)              -> boolean
  *   HeroAcademy.LetterStrokes.animate(char, opts)    -> Promise
@@ -197,11 +201,33 @@
   // -------- Animator --------
   function has(char) { return STROKES.hasOwnProperty(char); }
 
+  // v104: dynamic centering. The canvas is 4:3 on tablets but 1:1 on small
+  // screens (Galaxy Tab portrait), so virtual height varies (750 vs 1000).
+  // Default cy = canvas vertical center, and scale is clamped to ensure the
+  // 500-unit-tall letter fits within the canvas with 60u padding top+bottom.
+  function getCanvasCenterY() {
+    if (NS.Canvas && NS.Canvas.virtualDims) {
+      try { return NS.Canvas.virtualDims().h / 2; } catch (e) {}
+    }
+    return 375;  // fallback: assume 4:3 canvas, height 750
+  }
+  function getCanvasMaxScale() {
+    if (NS.Canvas && NS.Canvas.virtualDims) {
+      try {
+        var h = NS.Canvas.virtualDims().h;
+        // Letter box is 500u tall (y in [-250, 250]). Reserve 60u padding
+        // top+bottom = 120u. Max scale = (h - 120) / 500.
+        return Math.max(0.3, Math.min(1, (h - 120) / 500));
+      } catch (e) {}
+    }
+    return 1;
+  }
+
   function animate(char, opts) {
     opts = opts || {};
     var cx = opts.cx == null ? 500 : opts.cx;
-    var cy = opts.cy == null ? 375 : opts.cy;
-    var scale = opts.scale == null ? 1 : opts.scale;
+    var cy = opts.cy == null ? getCanvasCenterY() : opts.cy;
+    var scale = opts.scale == null ? getCanvasMaxScale() : opts.scale;
     var color = opts.color || '#ec4899';
     var strokeDuration = opts.strokeDuration == null ? 800 : opts.strokeDuration;
     var interStrokePause = opts.interStrokePause == null ? 250 : opts.interStrokePause;
@@ -271,8 +297,13 @@
     else if (n === 3) { scale = 0.45; spacing = 220; }
     else              { scale = 0.35; spacing = 170; }
 
+    // v104: clamp scale against the canvas-fit max so multi-digit numbers
+    // never overflow on a short canvas.
+    var maxScale = getCanvasMaxScale();
+    if (scale > maxScale) scale = maxScale;
+
     var firstCx = 500 - spacing * (n - 1) / 2;
-    var cy = opts.cy == null ? 375 : opts.cy;
+    var cy = opts.cy == null ? getCanvasCenterY() : opts.cy;
     var perCharPause = 400;
 
     var chain = Promise.resolve();

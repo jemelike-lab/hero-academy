@@ -21,16 +21,22 @@
 
   <main class="ll-main">
 
-    <!-- Prompt: target letter + Humphrey portrait -->
+    <!-- v104: Target character is HIDDEN — Nigel must draw from memory after
+         hearing Ms. Humphrey say it. The "Say it again" button lets him hear
+         the prompt repeated if he missed it. The target letter element is
+         intentionally removed; there's no visual reveal until the demo
+         phase (after a wrong attempt). -->
     <section class="ll-prompt" data-ll-prompt-panel>
       <div class="ll-prompt-meta">
         <img class="ll-humphrey" src="assets/humphrey/humphrey_base_256.webp"
              alt="Ms. Humphrey" width="80" height="80">
         <div class="ll-prompt-text" data-ll-prompt-text>
-          Write a big capital <strong data-ll-prompt-letter>B</strong> for me.
+          👂 Listen to Ms. Humphrey, then draw what she says.
         </div>
       </div>
-      <div class="ll-target-letter" data-ll-target aria-hidden="true">B</div>
+      <button class="ll-btn ll-btn--ghost ll-replay" data-ll-replay type="button">
+        🔊 Say it again
+      </button>
     </section>
 
     <!-- Drawing canvas (mounted by canvas.js) -->

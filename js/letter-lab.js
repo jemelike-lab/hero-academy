@@ -62,6 +62,7 @@
     attempts:   0,
     submitting: false,
     showedDemoForCurrent: false,
+    lastSpoken: '',   // v104: cached prompt sentence for the replay button
   };
 
   function $(sel) { return document.querySelector(sel); }
@@ -206,6 +207,10 @@
     $('[data-ll-watch]').addEventListener('click', demoCurrentTarget);
     $('[data-ll-retry]').addEventListener('click', retryCurrentTarget);
     $('[data-ll-skip]').addEventListener('click', advance);
+
+    // v104: replay-prompt button (hidden target → memory practice)
+    var replayBtn = $('[data-ll-replay]');
+    if (replayBtn) replayBtn.addEventListener('click', replayPrompt);
   }
 
   function renderCurrentTarget() {
@@ -217,15 +222,23 @@
 
     resetToDrawingPhase();
 
+    // v104: Target is HIDDEN. Prompt text stays generic ("Listen...") and the
+    // actual target name lives ONLY in the spoken sentence + state.lastSpoken.
     var phrase = PROMPT_PHRASES[Math.floor(Math.random() * PROMPT_PHRASES.length)];
     var spoken = phrase.replace('{label}', target.label);
-    $('[data-ll-prompt-text]').innerHTML =
-      escapeHTML(phrase.replace('{label}', '__LABEL__'))
-        .replace('__LABEL__', '<strong>' + escapeHTML(target.label) + '</strong>');
-    $('[data-ll-target]').textContent = target.char;
+    state.lastSpoken = spoken;
+
     $('[data-ll-progress]').textContent = (state.index + 1) + ' / ' + state.targets.length;
 
     humphreySay('letter_lab_prompt_' + target.kind + '_' + target.char, spoken, 'encouraging');
+  }
+
+  // v104: Replay the spoken target on demand. Used by the "Say it again"
+  // button when Nigel missed what Humphrey said. Falls back gracefully if
+  // there's no cached sentence yet.
+  function replayPrompt() {
+    if (!state.lastSpoken) return;
+    humphreySay('letter_lab_replay', state.lastSpoken, 'encouraging');
   }
 
   function resetToDrawingPhase() {
@@ -336,6 +349,13 @@
     var spoken = 'Let me show you how to write ' + target.label + '. Watch carefully.';
     humphreySay('letter_lab_demo', spoken, 'encouraging');
 
+    // v104: clear BOTH layers at demo start. Previously we left Nigel's
+    // (wrong) drawing visible underneath so he could compare side-by-side.
+    // In practice it overlapped the demo, especially the bottom of letters
+    // on smaller canvases — Humphrey's strokes were obscured. Now the demo
+    // gets a clean canvas; the "My turn again" button still wipes it again
+    // when Nigel retries.
+    if (NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
     NS.Canvas.humphreyClear();
 
     // v103: prefer stroke-by-stroke animation when stroke data is available.

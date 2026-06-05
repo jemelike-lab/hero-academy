@@ -243,3 +243,20 @@
 .ll-result-actions [data-ll-skip] {
   min-width: 100px;
 }
+
+
+/* v104 — Replay button. Big enough to thumb-tap on Galaxy Tab, but visually
+   secondary to the canvas + draw actions. Lives inside the prompt panel. */
+.ll-prompt .ll-replay {
+  margin-left: 16px;
+  font-size: 15px;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .ll-prompt .ll-replay {
+    margin-left: 0;
+    margin-top: 10px;
+    width: 100%;
+  }
+}
