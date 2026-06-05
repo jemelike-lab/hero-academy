@@ -160,6 +160,194 @@
     return H.say('try-again', { kidName: 'Nigel', text: text });
   }
 
+  // -----------------------------------------------------------------------
+  // Mic-help panel — surfaced when getUserMedia fails. Audio TTS may not
+  // play reliably in this state (the same gesture that would unlock audio
+  // is also the one trying to grab the mic), so we put visible guidance on
+  // the screen and Josh/Nigel can act on it without sound.
+  // -----------------------------------------------------------------------
+  function micHelpCopy(detail) {
+    // Returns { heading, steps[], speech }. `speech` is the TTS line we'll
+    // still try in case audio IS unlocked.
+    var isStandalone = false;
+    try {
+      isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || (window.navigator && window.navigator.standalone === true);
+    } catch (_) {}
+
+    if (detail === 'denied-permanent') {
+      return {
+        heading: "I can't reach the microphone — it looks blocked.",
+        steps: isStandalone
+          ? [
+              "Open Android Settings → Apps → Hero Academy → Permissions.",
+              "Turn Microphone ON.",
+              "Come back here and tap Ms. Humphrey again."
+            ]
+          : [
+              "Tap the lock icon (🔒) next to the address bar in Chrome.",
+              "Open Site settings → Microphone → set to Allow.",
+              "Reload the page and tap Ms. Humphrey again."
+            ],
+        speech: "I cannot reach the microphone, Nigel. It looks blocked in your settings. Ask Daddy to turn it on."
+      };
+    }
+    if (detail === 'denied-now') {
+      return {
+        heading: "I need permission to hear you.",
+        steps: [
+          "When Chrome asks if Hero Academy can use the microphone, tap Allow.",
+          "Then tap Ms. Humphrey again."
+        ],
+        speech: "Please tap Allow when Chrome asks for the microphone, Nigel."
+      };
+    }
+    if (detail === 'no-device') {
+      return {
+        heading: "I can't find a microphone on this device.",
+        steps: [
+          "Check that no other app is using the mic (close any call or recorder).",
+          "If you're on a headset, make sure it's plugged in.",
+          "Then tap Ms. Humphrey again."
+        ],
+        speech: "I cannot find a microphone, Nigel. Let's try again in a moment."
+      };
+    }
+    if (detail === 'busy') {
+      return {
+        heading: "Something else is using the microphone right now.",
+        steps: [
+          "Close any other app that might be recording (calls, video, voice notes).",
+          "Then tap Ms. Humphrey again."
+        ],
+        speech: "Another app is using the microphone. Let's try again in a moment."
+      };
+    }
+    if (detail === 'unsupported') {
+      return {
+        heading: "This browser doesn't support microphone input.",
+        steps: [
+          "Open Hero Academy in Chrome.",
+          "Or, if installed as an app, reinstall it from Chrome."
+        ],
+        speech: "This browser cannot hear me yet, Nigel."
+      };
+    }
+    if (detail === 'security') {
+      return {
+        heading: "Microphone is blocked for security reasons.",
+        steps: [
+          "Make sure you're on the https:// version of Hero Academy.",
+          "Tap the lock icon → Site settings → Microphone → Allow."
+        ],
+        speech: "I cannot use the microphone here, Nigel."
+      };
+    }
+    return {
+      heading: "I cannot hear yet.",
+      steps: [
+        "Tap the lock icon next to the address bar → Site settings → Microphone → Allow.",
+        "If installed as an app: Android Settings → Apps → Hero Academy → Permissions → Microphone ON.",
+        "Then tap Ms. Humphrey again."
+      ],
+      speech: "I cannot hear yet, Nigel. Tap allow on the microphone and try me again."
+    };
+  }
+
+  function micHelpSpeechLine(detail) {
+    return micHelpCopy(detail).speech;
+  }
+
+  function showMicHelp(detail) {
+    if (typeof document === 'undefined') return;
+    var copy = micHelpCopy(detail);
+    var existing = document.getElementById('ha-mic-help');
+    if (existing) { try { existing.parentNode.removeChild(existing); } catch (_) {} }
+
+    var wrap = document.createElement('div');
+    wrap.id = 'ha-mic-help';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-label', 'Microphone help');
+    wrap.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:99998',
+      'background:rgba(13,18,38,0.72)',
+      'display:flex', 'align-items:center', 'justify-content:center',
+      'padding:20px', 'font-family:Fredoka,system-ui,sans-serif'
+    ].join(';');
+
+    var card = document.createElement('div');
+    card.style.cssText = [
+      'background:#fff', 'color:#1a1f3a',
+      'border-radius:18px', 'padding:22px 22px 18px',
+      'max-width:440px', 'width:100%',
+      'box-shadow:0 24px 60px rgba(0,0,0,0.35)',
+      'border:3px solid #ffd147'
+    ].join(';');
+
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:1.15rem;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;';
+    h.innerHTML = '<span aria-hidden="true">🎤</span><span></span>';
+    h.lastChild.textContent = copy.heading;
+    card.appendChild(h);
+
+    var ol = document.createElement('ol');
+    ol.style.cssText = 'margin:6px 0 14px 22px;padding:0;font-size:0.98rem;line-height:1.45;';
+    copy.steps.forEach(function (s) {
+      var li = document.createElement('li');
+      li.style.cssText = 'margin:4px 0;';
+      li.textContent = s;
+      ol.appendChild(li);
+    });
+    card.appendChild(ol);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;';
+
+    var retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = 'Try again';
+    retry.style.cssText = [
+      'background:#ec4899', 'color:#fff', 'border:0',
+      'border-radius:10px', 'padding:10px 16px',
+      'font-weight:700', 'font-size:0.98rem', 'cursor:pointer',
+      'font-family:inherit'
+    ].join(';');
+    retry.addEventListener('click', function () {
+      try { wrap.parentNode.removeChild(wrap); } catch (_) {}
+      var b = document.getElementById('humphreyBtn');
+      if (b) { try { b.click(); } catch (_) {} }
+    });
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'Close';
+    close.style.cssText = [
+      'background:#eef0f7', 'color:#1a1f3a', 'border:0',
+      'border-radius:10px', 'padding:10px 16px',
+      'font-weight:600', 'font-size:0.98rem', 'cursor:pointer',
+      'font-family:inherit'
+    ].join(';');
+    close.addEventListener('click', function () {
+      try { wrap.parentNode.removeChild(wrap); } catch (_) {}
+    });
+
+    row.appendChild(close);
+    row.appendChild(retry);
+    card.appendChild(row);
+    wrap.appendChild(card);
+
+    // Tap-outside-to-close
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap) {
+        try { wrap.parentNode.removeChild(wrap); } catch (_) {}
+      }
+    });
+
+    document.body.appendChild(wrap);
+    debug('mic help shown:', detail);
+  }
+
   function isFarewell(transcript) {
     if (!transcript) return false;
     var t = String(transcript).toLowerCase().trim();
@@ -260,10 +448,13 @@
       debug('result transcript=' + JSON.stringify(transcript) + ' err=' + err + ' empty=' + empty);
 
       if (err === 'no-mic') {
+        var micDetail = (rec && rec.detail) || '';
+        debug('no-mic branch: detail=', micDetail);
+        showMicHelp(micDetail);
         setPhase(btn, 'speaking');
-        return speakLine("I cannot hear yet, Nigel. Tap allow on the microphone and try me again.")
+        return speakLine(micHelpSpeechLine(micDetail))
           .then(function () {
-            resetConversation('no-mic');
+            resetConversation('no-mic:' + micDetail);
             setPhase(btn, null);
             inFlight = false;
           });

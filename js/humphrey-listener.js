@@ -31,20 +31,60 @@
 
   function hasMicPermission() { return !!stream; }
 
+  // Last failure reason from ensureMicPermission(), surfaced through listen().
+  // One of: '', 'unsupported', 'denied-permanent', 'denied-now',
+  // 'no-device', 'busy', 'security', 'aborted', 'unknown'.
+  var lastMicFailure = '';
+  function lastMicFailureReason() { return lastMicFailure; }
+
+  // Peek the Permissions API (Chrome/Android supports it). Resolves to
+  // 'granted' | 'denied' | 'prompt' | 'unknown'. Never rejects.
+  function queryMicPermissionState() {
+    if (!navigator.permissions || !navigator.permissions.query) {
+      return Promise.resolve('unknown');
+    }
+    return navigator.permissions.query({ name: 'microphone' })
+      .then(function (status) { return status && status.state ? status.state : 'unknown'; })
+      .catch(function () { return 'unknown'; });
+  }
+
+  // Map a DOMException name from getUserMedia to one of our error codes.
+  // We then combine it with the Permissions API state to tell apart
+  // "denied right now in the prompt" from "denied permanently in settings".
+  function classifyMicError(errName, permState) {
+    if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errName === 'SecurityError') {
+      if (permState === 'denied') return 'denied-permanent';
+      return 'denied-now';
+    }
+    if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') return 'no-device';
+    if (errName === 'NotReadableError' || errName === 'TrackStartError') return 'busy';
+    if (errName === 'AbortError') return 'aborted';
+    if (errName === 'OverconstrainedError') return 'no-device';
+    return 'unknown';
+  }
+
   function ensureMicPermission() {
-    if (stream) return Promise.resolve(true);
+    if (stream) { lastMicFailure = ''; return Promise.resolve(true); }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      lastMicFailure = 'unsupported';
       debug('getUserMedia not supported');
       return Promise.resolve(false);
     }
     return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
       stream = s;
+      lastMicFailure = '';
       debug('mic granted');
       return true;
     }).catch(function (err) {
-      debug('mic denied:', err && err.name);
+      var name = (err && err.name) || 'unknown';
       stream = null;
-      return false;
+      // Race a quick Permissions API peek to distinguish denied-now vs
+      // denied-permanent. Always resolves; never blocks longer than ~50ms.
+      return queryMicPermissionState().then(function (state) {
+        lastMicFailure = classifyMicError(name, state);
+        debug('mic denied:', name, '/ permState=', state, '/ code=', lastMicFailure);
+        return false;
+      });
     });
   }
 
@@ -75,7 +115,7 @@
     }
 
     return ensureMicPermission().then(function (ok) {
-      if (!ok) return { transcript: '', error: 'no-mic' };
+      if (!ok) return { transcript: '', error: 'no-mic', detail: lastMicFailure || 'unknown' };
 
       var mimeType = pickMimeType();
       try {
@@ -239,6 +279,8 @@
     },
     ensureMicPermission: ensureMicPermission,
     hasMicPermission: hasMicPermission,
+    lastMicFailureReason: lastMicFailureReason,
+    queryMicPermissionState: queryMicPermissionState,
     intentOf: intentOf
   };
 })();
