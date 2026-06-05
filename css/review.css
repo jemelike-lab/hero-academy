@@ -242,6 +242,42 @@
   font-size: 14px;
   line-height: 1.4;
 }
+/* v86: always-visible "Hear it again" button. Big enough to tap easily on
+   the Galaxy Tab. Sits between the question + choices so it's impossible
+   to miss. Also serves as the audio-unlock gesture when autoplay-policy
+   blocks the auto-fire on Q1. */
+.review-listen-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 14px 22px;
+  background: linear-gradient(135deg, #ec4899 0%, #b026b0 100%);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  color: #fff;
+  font-family: Fredoka, system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.30);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  min-height: 52px;
+}
+.review-listen-btn:hover,
+.review-listen-btn:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(236, 72, 153, 0.40);
+  outline: none;
+}
+.review-listen-btn:active { transform: translateY(0); }
+.review-listen-btn:active .review-listen-icon { transform: scale(0.92); }
+.review-listen-icon { font-size: 22px; line-height: 1; }
+.review-listen-text { font-size: 16px; }
+
 .review-choices {
   display: grid;
   grid-template-columns: 1fr 1fr;

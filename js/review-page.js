@@ -29,6 +29,10 @@
     streak: 0,
     perZone: {},     // { numberlab: {total, correct}, ... }
     started: 0,
+    // v86: track the current rendered item + its srs row so the always-visible
+    // LISTEN button can re-fire speakItem on tap.
+    currentItem: null,
+    currentRow: null,
   };
 
   function $(id) { return document.getElementById(id); }
@@ -54,6 +58,19 @@
     state.mode = getMode();
     setEyebrow(state.mode === 'friday' ? 'FRIDAY QUIZ' : 'DAILY PRACTICE');
     state.started = Date.now();
+
+    // v86: wire the always-visible LISTEN button. Tapping it re-reads the
+    // current question + choices. Also doubles as the audio-unlock gesture
+    // for PWA contexts where autoplay-policy blocks the auto-fire on Q1.
+    var listenBtn = $('reviewListenBtn');
+    if (listenBtn) {
+      listenBtn.addEventListener('click', function () {
+        if (state.currentItem) {
+          speakItem(state.currentItem, state.currentRow);
+        }
+      });
+    }
+
     if (!NS.SRS) {
       console.warn('[review-page] SRS module not loaded — bailing');
       hide('reviewLoading');
@@ -154,10 +171,16 @@
     $('reviewFeedback').hidden = true;
     $('reviewNextBtn').hidden = true;
 
+    // v86: stash the current item so the LISTEN button can re-read it on tap.
+    state.currentItem = item;
+    state.currentRow = row;
+
     // v84: Ms. Humphrey reads every question aloud (Emory voice). This is the
     // core philosophy — Nigel is 7, and many quiz items use vocabulary above
     // his read-on-his-own level. She narrates question + choices on every
     // render so he can listen and tap. If audio is muted, this is a no-op.
+    // v86: this auto-fire is best-effort; the always-visible LISTEN button is
+    // the reliable manual fallback (PWA autoplay-policy can block this on Q1).
     speakItem(item, row);
   }
 

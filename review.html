@@ -48,6 +48,15 @@
       <div class="review-kind-tag" id="reviewKindTag">MATH</div>
       <h2 class="review-question" id="reviewQuestion"></h2>
       <p class="review-help" id="reviewHelp" hidden></p>
+      <!-- v86: Always-visible "Listen" button so Nigel can tap to hear the
+           question + choices read aloud. Auto-read on render is best-effort
+           (autoplay-policy blocks it on first PWA navigation). This button
+           is the reliable, kid-discoverable way. -->
+      <button type="button" class="review-listen-btn" id="reviewListenBtn"
+              aria-label="Listen to the question">
+        <span class="review-listen-icon" aria-hidden="true">🔊</span>
+        <span class="review-listen-text">Hear it again</span>
+      </button>
       <div class="review-choices" id="reviewChoices" role="list"></div>
       <div class="review-feedback" id="reviewFeedback" hidden></div>
       <button class="review-next-btn" id="reviewNextBtn" hidden>NEXT →</button>
