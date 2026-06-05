@@ -3,17 +3,23 @@
  *
  * Mode is read from `?mode=` query param:
  *   daily   (default) — loads SRS due items, up to adaptive count.
- *   friday            — loads cumulative quiz items (will be wired in next lane).
+ *   friday            — loads the cumulative weekly quiz (Haiku-generated).
  *
- * For each item:
- *   - Renders question + choices via HeroAcademy.SRS.normalizeItem()
- *   - On answer: shows feedback, records review with quality {5, 3, 0}
- *   - q=5 if first-try correct, q=3 if correct after walkthrough,
- *     q=0 if wrong (in v1, single attempt allowed; wrong = q=0)
- *   - Advances on NEXT button click
+ * v87 — Ms. Humphrey actually "sees" the quiz now.
+ *   - All Humphrey.say() calls pass `{ text, expression, priority }` instead
+ *     of bare strings. Previously the string fallthrough hit CATALOG[_default]
+ *     ("Hmm, let me think about that one") so EVERY right-or-wrong answer
+ *     spoke that single line. Confirmed live via console + sayLog.
+ *   - Reactions are now question-aware: they reference `item.answer` and
+ *     surface `item.helpText` so Humphrey teaches, not just "Yes!"/"Almost".
+ *   - Allows one retry on multi-choice items: a wrong tap only disables the
+ *     wrong button. After 2 wrongs (or when only 1 choice remains), the
+ *     correct answer reveals and Humphrey explains.
  *
- * After the last item: shows score card; if mode=friday, posts to
- * ha_record_friday_quiz_result.
+ * Quality scoring per item (passed to recordReview):
+ *   q=5 first-try correct
+ *   q=3 correct after one wrong attempt
+ *   q=0 revealed (2+ wrong, or only-choice-left)
  */
 (function () {
   'use strict';
@@ -29,10 +35,14 @@
     streak: 0,
     perZone: {},     // { numberlab: {total, correct}, ... }
     started: 0,
-    // v86: track the current rendered item + its srs row so the always-visible
-    // LISTEN button can re-fire speakItem on tap.
+    // v86: track current item + srs row so the always-visible LISTEN button
+    // can re-fire speakItem on tap.
     currentItem: null,
     currentRow: null,
+    // v87: per-item retry state. Reset on every renderCurrent.
+    attempts: 0,          // count of taps so far (right or wrong)
+    wrongPicks: [],       // text of buttons already marked wrong
+    itemResolved: false,  // true once item is locked (correct or revealed)
   };
 
   function $(id) { return document.getElementById(id); }
@@ -51,6 +61,29 @@
   function show(id) { var el = $(id); if (el) el.hidden = false; }
   function hide(id) { var el = $(id); if (el) el.hidden = true; }
 
+  function getH() {
+    var H = (window.HeroAcademy && window.HeroAcademy.Humphrey) || null;
+    if (!H || typeof H.say !== 'function') return null;
+    if (typeof H.isMuted === 'function' && H.isMuted()) return null;
+    return H;
+  }
+
+  /**
+   * v87: safe wrapper around Humphrey.say() — always passes an object so
+   * resolveUtterance() picks up our `text` and doesn't fall through to the
+   * "Hmm, let me think about that one" _default. Wrapped in try/catch so
+   * narration never breaks the UI.
+   */
+  function speak(event, text, opts) {
+    var H = getH();
+    if (!H) return;
+    var payload = { text: text };
+    opts = opts || {};
+    if (opts.expression) payload.expression = opts.expression;
+    if (opts.priority)   payload.priority   = opts.priority;
+    try { H.say(event, payload); } catch (e) { /* never break UI for narration */ }
+  }
+
   // ------------------------------------------------------------------
   // Init
   // ------------------------------------------------------------------
@@ -60,14 +93,12 @@
     state.started = Date.now();
 
     // v86: wire the always-visible LISTEN button. Tapping it re-reads the
-    // current question + choices. Also doubles as the audio-unlock gesture
-    // for PWA contexts where autoplay-policy blocks the auto-fire on Q1.
+    // current question + choices. Also doubles as audio-unlock gesture for
+    // PWA contexts where autoplay-policy blocks the auto-fire on Q1.
     var listenBtn = $('reviewListenBtn');
     if (listenBtn) {
       listenBtn.addEventListener('click', function () {
-        if (state.currentItem) {
-          speakItem(state.currentItem, state.currentRow);
-        }
+        if (state.currentItem) speakItem(state.currentItem, state.currentRow);
       });
     }
 
@@ -77,7 +108,6 @@
       show('reviewEmpty');
       return;
     }
-    // Route by mode: daily uses due items, friday uses cumulative quiz set
     var loader = state.mode === 'friday'
       ? NS.SRS.loadFridayQuiz(10)
       : NS.SRS.loadDue(10);
@@ -102,8 +132,6 @@
     if (sourceTable === 'ha_math_problems') return 'numberlab';
     if (sourceTable === 'ha_discovery_cards') return 'discovery';
     if (sourceTable === 'ha_word_tower_items') return 'wordtower';
-    // v81: cross-subject quiz bank — bucket by subject so the Friday
-    // results breakdown surfaces writing/social rates cleanly.
     if (sourceTable === 'ha_quiz_bank' || sourceTable === 'ha_weekly_quiz_items') {
       var s = payload && payload.subject;
       if (s === 'reading') return 'wordtower';
@@ -117,7 +145,6 @@
   }
 
   function kindLabel(kind, subject) {
-    // v81: prefer the explicit subject when normalizeItem provided one.
     if (subject) {
       if (subject === 'reading') return 'READING';
       if (subject === 'math')    return 'MATH';
@@ -144,6 +171,11 @@
       return;
     }
 
+    // v87: reset per-item retry state.
+    state.attempts = 0;
+    state.wrongPicks = [];
+    state.itemResolved = false;
+
     $('reviewProgress').textContent = 'Item ' + (state.idx + 1) + ' of ' + state.items.length;
     $('reviewKindTag').textContent = kindLabel(item.kind, item.subject);
     $('reviewKindTag').className = 'review-kind-tag review-kind-' + item.kind;
@@ -164,23 +196,22 @@
       btn.className = 'review-choice';
       btn.type = 'button';
       btn.textContent = c;
-      btn.addEventListener('click', function () { handleChoice(c, item, row); });
+      btn.addEventListener('click', function () { handleChoice(c, item, row, btn); });
       choices.appendChild(btn);
     });
 
     $('reviewFeedback').hidden = true;
+    $('reviewFeedback').textContent = '';
+    $('reviewFeedback').className = 'review-feedback';
     $('reviewNextBtn').hidden = true;
 
-    // v86: stash the current item so the LISTEN button can re-read it on tap.
+    // v86: stash so LISTEN button can re-read on tap.
     state.currentItem = item;
     state.currentRow = row;
 
-    // v84: Ms. Humphrey reads every question aloud (Emory voice). This is the
-    // core philosophy — Nigel is 7, and many quiz items use vocabulary above
-    // his read-on-his-own level. She narrates question + choices on every
-    // render so he can listen and tap. If audio is muted, this is a no-op.
-    // v86: this auto-fire is best-effort; the always-visible LISTEN button is
-    // the reliable manual fallback (PWA autoplay-policy can block this on Q1).
+    // v84: Ms. Humphrey reads every question aloud (Emory voice). On PWA cold
+    // load this can be blocked by autoplay-policy on Q1 — v86 LISTEN button
+    // is the kid-discoverable fallback.
     speakItem(item, row);
   }
 
@@ -191,14 +222,10 @@
    * subject intro and reads the choices aloud at the end.
    */
   function speakItem(item, srsRow) {
-    if (!NS.Humphrey || typeof NS.Humphrey.say !== 'function') return;
-    // Respect the user's mute toggle (the speech-pipeline checks this too,
-    // but bailing early avoids a queue churn).
-    if (typeof NS.Humphrey.isMuted === 'function' && NS.Humphrey.isMuted()) return;
+    var H = getH();
+    if (!H) return;
 
     var visual = String(item.question || '');
-    // Strip leading emoji (and any ZWJ sequences) + the "Reading — " style
-    // subject prefix. We re-introduce subject naturally in the spoken intro.
     var spoken = visual
       .replace(/^[\uD83C-\uDBFF\uDC00-\uDFFF\u2600-\u27BF\uFE0F\u200D]+\s*/, '')
       .replace(/^(Reading|Math|Writing|Science|Social Studies|Social)\s+[\u2014\-]\s+/i, '');
@@ -206,8 +233,6 @@
     var subj = item.subject || zoneToSubject(srsRow && srsRow.source_table);
     var intro = subjectIntro(subj);
 
-    // Read choices for non-self-report items. (kind === 'word' is the Word
-    // Tower read-aloud yes/no — choices there are meta and shouldn't be read.)
     var choicesText = '';
     if (item.kind !== 'word' && Array.isArray(item.choices) && item.choices.length >= 2) {
       var c = item.choices.map(function (x) { return String(x); });
@@ -218,13 +243,10 @@
       }
     }
 
-    try {
-      NS.Humphrey.say('review-question', {
-        text: intro + spoken + choicesText,
-        expression: 'encouraging',
-        priority: 'high',   // interrupt the prior "Yes!"/"Almost" so the next Q starts cleanly
-      });
-    } catch (e) { /* never break the UI for narration */ }
+    speak('review-question', intro + spoken + choicesText, {
+      expression: 'encouraging',
+      priority: 'high',
+    });
   }
 
   function subjectIntro(subj) {
@@ -239,66 +261,180 @@
     if (srcTable === 'ha_math_problems')      return 'math';
     if (srcTable === 'ha_discovery_cards')    return 'science';
     if (srcTable === 'ha_word_tower_items')   return 'reading';
-    // ha_quiz_bank and ha_weekly_quiz_items surface subject via item.subject directly.
     return null;
+  }
+
+  // ------------------------------------------------------------------
+  // v87: question-aware praise + explanation builders.
+  // These reference item.answer and item.helpText so Humphrey speaks the
+  // ACTUAL content, not a generic "Yes!" or "we will see it again soon."
+  // ------------------------------------------------------------------
+  function quoteAnswer(item) {
+    var a = String(item.answer || '').trim();
+    if (!a) return '';
+    // Math answers are usually numbers — say them naked.
+    if (item.kind === 'math' || /^[0-9.,+\-/×÷=]+$/.test(a)) return a;
+    // Word answers ("YES, I READ IT") — skip; they're meta.
+    if (item.kind === 'word') return '';
+    return '"' + a + '"';
+  }
+  function trimHelp(text) {
+    var s = String(text || '').trim();
+    if (!s) return '';
+    // helpText is usually a fact or sentence — keep it short and add period if missing.
+    if (!/[.!?]$/.test(s)) s += '.';
+    return s;
+  }
+  function praiseLineFirstTry(item) {
+    var q = quoteAnswer(item);
+    var help = trimHelp(item.helpText);
+    var starts = ['Yes!', 'You got it!', 'Right on!', 'Nice memory, Nigel!'];
+    var lead = starts[Math.floor(Math.random() * starts.length)];
+    if (!q) return lead + (help ? ' ' + help : '');
+    return lead + ' ' + q + ' is right.' + (help ? ' ' + help : '');
+  }
+  function praiseLineAfterRetry(item) {
+    var q = quoteAnswer(item);
+    var help = trimHelp(item.helpText);
+    if (!q) return 'You got there, Nigel.' + (help ? ' ' + help : '');
+    return 'You got there, Nigel. ' + q + ' is the one.' + (help ? ' ' + help : '');
+  }
+  function tryAgainLine(item) {
+    var picks = [
+      'Not quite — listen again and try another one.',
+      'Hmm, that is not it. Give it one more try, Nigel.',
+      'Almost — pick a different one.',
+    ];
+    return picks[Math.floor(Math.random() * picks.length)];
+  }
+  function revealLine(item) {
+    var q = quoteAnswer(item);
+    var help = trimHelp(item.helpText);
+    if (!q) return 'The answer is ' + String(item.answer || '') + '.' + (help ? ' ' + help : '') + ' We will see this one again.';
+    return 'The answer is ' + q + '.' + (help ? ' ' + help : '') + ' We will see this one again soon.';
   }
 
   // ------------------------------------------------------------------
   // Grade + advance
   // ------------------------------------------------------------------
-  function handleChoice(choiceText, item, srsRow) {
-    var correct = (String(choiceText) === String(item.answer));
+  function handleChoice(choiceText, item, srsRow, btn) {
+    if (state.itemResolved) return;  // ignore late taps after lock
 
-    // Lock choices
+    state.attempts++;
+    var isCorrect = (String(choiceText) === String(item.answer));
+    var totalChoices = (item.choices || []).length;
+    // Force-reveal threshold: max 2 attempts on items with 3+ choices, or as
+    // soon as only the correct one remains for 2-choice items.
+    var revealThreshold = (totalChoices <= 2) ? 1 : 2;
+
+    if (isCorrect) {
+      resolveCorrect(item, srsRow, choiceText);
+      return;
+    }
+
+    // Wrong tap — mark this one wrong, but maybe allow retry.
+    state.wrongPicks.push(String(choiceText));
+    btn.disabled = true;
+    btn.classList.add('is-wrong');
+
+    var remaining = (item.choices || []).filter(function (c) {
+      return state.wrongPicks.indexOf(String(c)) === -1;
+    });
+
+    if (state.attempts >= revealThreshold || remaining.length <= 1) {
+      // Out of tries (or only correct remains) — reveal + record q=0.
+      resolveReveal(item, srsRow);
+      return;
+    }
+
+    // Allow retry: show a light feedback line, Humphrey says try again.
+    var fb = $('reviewFeedback');
+    fb.textContent = 'Try again, Nigel — pick a different one.';
+    fb.className = 'review-feedback is-wrong';
+    fb.hidden = false;
+
+    speak('review-wrong', tryAgainLine(item), {
+      expression: 'concerned',
+      priority: 'high',
+    });
+  }
+
+  function resolveCorrect(item, srsRow, pickedText) {
+    state.itemResolved = true;
+
+    // Highlight the correct button, lock all.
     var btns = document.querySelectorAll('.review-choice');
     btns.forEach(function (b) {
       b.disabled = true;
-      var matchesAnswer = String(b.textContent) === String(item.answer);
-      var wasPicked = String(b.textContent) === String(choiceText);
-      if (matchesAnswer) b.classList.add('is-correct');
-      else if (wasPicked) b.classList.add('is-wrong');
+      if (String(b.textContent) === String(item.answer)) b.classList.add('is-correct');
     });
 
-    // Track per-zone for Friday quiz summary
+    var firstTry = (state.attempts === 1);
+    var quality = firstTry ? 5 : (state.attempts === 2 ? 3 : 2);
+
+    // Per-zone tracking (Friday quiz summary).
     var zk = zoneKey(srsRow.source_table, srsRow.payload);
     if (!state.perZone[zk]) state.perZone[zk] = { total: 0, correct: 0 };
     state.perZone[zk].total++;
-    if (correct) state.perZone[zk].correct++;
+    state.perZone[zk].correct++;
 
-    // Feedback
+    state.correctCount++;
+    state.streak++;
+    $('reviewStreak').textContent = String(state.streak);
+
     var fb = $('reviewFeedback');
-    if (correct) {
-      state.correctCount++;
-      state.streak++;
-      $('reviewStreak').textContent = String(state.streak);
-      fb.textContent = pick(['Yes!', 'Got it!', 'Right on!', 'Nice work!']);
-      fb.className = 'review-feedback is-correct';
-    } else {
-      state.streak = 0;
-      $('reviewStreak').textContent = '0';
-      fb.textContent = 'Almost — the answer was: ' + item.answer;
-      fb.className = 'review-feedback is-wrong';
-    }
+    fb.textContent = firstTry ? 'Yes!' : 'You got there!';
+    fb.className = 'review-feedback is-correct';
     fb.hidden = false;
 
-    // Record review (v1: q=5 if first-try correct, q=0 if wrong)
     if (NS.SRS && srsRow && srsRow.srs_id) {
-      NS.SRS.recordReview(srsRow.srs_id, correct ? 5 : 0);
+      NS.SRS.recordReview(srsRow.srs_id, quality);
     }
 
-    // Ms. Humphrey light narration (don't block)
-    if (NS.Humphrey && typeof NS.Humphrey.say === 'function') {
-      try {
-        if (correct) NS.Humphrey.say('review-correct', pick(['You got it, Nigel.', 'Nice memory!', 'Yes!']));
-        else NS.Humphrey.say('review-wrong', 'Not quite — we will see it again soon.');
-      } catch (e) { /* silent */ }
-    }
+    speak('review-correct',
+      firstTry ? praiseLineFirstTry(item) : praiseLineAfterRetry(item),
+      { expression: 'cheering', priority: 'high' }
+    );
 
     $('reviewNextBtn').hidden = false;
     $('reviewNextBtn').focus();
   }
 
-  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function resolveReveal(item, srsRow) {
+    state.itemResolved = true;
+
+    // Highlight correct + lock all.
+    var btns = document.querySelectorAll('.review-choice');
+    btns.forEach(function (b) {
+      b.disabled = true;
+      if (String(b.textContent) === String(item.answer)) b.classList.add('is-correct');
+    });
+
+    // Per-zone tracking — counts as a miss.
+    var zk = zoneKey(srsRow.source_table, srsRow.payload);
+    if (!state.perZone[zk]) state.perZone[zk] = { total: 0, correct: 0 };
+    state.perZone[zk].total++;
+
+    state.streak = 0;
+    $('reviewStreak').textContent = '0';
+
+    var fb = $('reviewFeedback');
+    fb.textContent = 'The answer was: ' + String(item.answer || '');
+    fb.className = 'review-feedback is-wrong';
+    fb.hidden = false;
+
+    if (NS.SRS && srsRow && srsRow.srs_id) {
+      NS.SRS.recordReview(srsRow.srs_id, 0);
+    }
+
+    speak('review-wrong', revealLine(item), {
+      expression: 'concerned',
+      priority: 'high',
+    });
+
+    $('reviewNextBtn').hidden = false;
+    $('reviewNextBtn').focus();
+  }
 
   function nextItem() {
     state.idx++;
@@ -335,9 +471,11 @@
       NS.SRS.recordFridayQuiz(total, state.correctCount, state.perZone, weak);
     }
 
-    if (NS.Humphrey && typeof NS.Humphrey.say === 'function') {
-      try { NS.Humphrey.say('review-done', 'All done, Nigel. Great brain workout.'); } catch (e) {}
-    }
+    var doneText = 'All done, Nigel. ' +
+      'You got ' + state.correctCount + ' out of ' + total + '. ' + msg;
+    speak('review-done', doneText, {
+      expression: pct >= 70 ? 'cheering' : 'encouraging',
+    });
   }
 
   NS.ReviewPage = { init: init };
