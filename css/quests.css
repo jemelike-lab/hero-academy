@@ -283,6 +283,32 @@
 }
 
 /* ============================================================
+   v97 — [hidden] override
+   ============================================================
+   Several blocks below (`.quest-overlay__camera`, `.quest-overlay__camera-actions`,
+   `.quest-overlay__camera-preview-actions`, `.quest-overlay__vision-loading`)
+   set `display: flex` / `display: block` directly. That defeats the user-agent
+   `[hidden] { display: none }` rule, so when the JS toggles `.hidden = true`
+   the elements STAY VISIBLE and every phase stacks on top of every other phase
+   (Snap button + Retake + Send + spinner all at once).
+   Same bug we hit on `.parent-gate` in v92. Same fix here.
+   ============================================================ */
+.quest-overlay [hidden],
+.quest-overlay__camera[hidden],
+.quest-overlay__camera-actions[hidden],
+.quest-overlay__camera-preview-actions[hidden],
+.quest-overlay__camera-error[hidden],
+.quest-overlay__vision-loading[hidden],
+.quest-overlay__return[hidden],
+.quest-overlay__timer[hidden],
+.quest-overlay__actions[hidden],
+.quest-overlay__answer-block[hidden],
+.quest-overlay__done[hidden],
+[data-quest-camdiag][hidden] {
+  display: none !important;
+}
+
+/* ============================================================
    Camera capture (Build #7 v2)
    ============================================================ */
 .quest-overlay__camera {
