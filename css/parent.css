@@ -441,8 +441,11 @@
 }
 /* v83: respect the [hidden] attribute. Without this, .parent-overlay's
    display:grid wins over the user-agent [hidden] rule, so the composer
-   bleeds through the page even when JS thinks it's closed. */
-.parent-overlay[hidden] { display: none !important; }
+   bleeds through the page even when JS thinks it's closed.
+   v92: same bug for .parent-gate — gate stayed visible behind the
+   dashboard after the picker click. Same one-line fix. */
+.parent-overlay[hidden],
+.parent-gate[hidden] { display: none !important; }
 @keyframes parent-overlay-fade { from { opacity: 0; } }
 body.parent-overlay-open { overflow: hidden; }
 .parent-overlay-card {

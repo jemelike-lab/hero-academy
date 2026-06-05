@@ -25,6 +25,7 @@
   var DBG_MAX_LINES = 80;
 
   function ensureDbgPanel() {
+    if (!DEBUG_ON) return null;
     if (dbgPanel) return dbgPanel;
     var p = document.createElement('div');
     p.id = '__haDbgPanel';
@@ -70,6 +71,7 @@
     try { (opts.warn ? console.warn : console.log).call(console, '[parent] ' + msg); } catch (e) {}
     try {
       var pnl = ensureDbgPanel();
+      if (!pnl) return;
       var color = opts.error ? '#ff8b8b' : (opts.warn ? '#ffd147' : (opts.ok ? '#9eff9e' : '#cfcfff'));
       var span = document.createElement('div');
       span.style.color = color;
@@ -88,8 +90,14 @@
     dbg('UNHANDLED REJECTION: ' + (msg || 'unknown'), { error: true });
   });
 
-  // Fire a "loaded" line immediately so we can SEE parent.js is running.
-  dbg('parent.js v91 loaded', { ok: true });
+  // v92: opt-in via ?debug=1 query string. Without it, dbg() console.logs but
+  // doesn't render the overlay — so normal parent users don't see the yellow box.
+  var DEBUG_ON = (function () {
+    try { return new URLSearchParams(window.location.search).get('debug') === '1'; }
+    catch (e) { return false; }
+  })();
+
+  dbg('parent.js v92 loaded', { ok: true });
 
   // -------------------------------------------------------------------------
   // Config
