@@ -1,24 +1,34 @@
 /**
- * Hero Academy \u2014 Today\u2019s Mission card.
+ * Hero Academy — Today's Mission card (v2 — N steps, all subjects, 72 min).
  *
  * Lives on the home page only. On init:
  *   1. Look for a mission already generated today in localStorage
- *      (ha_mission_<YYYY-MM-DD>). If found, render it.
- *   2. Otherwise POST /api/mission/today with current context and cache the
- *      response under today\u2019s key.
+ *      (ha_mission_v2_<YYYY-MM-DD>). If found, render it.
+ *   2. Otherwise POST /api/mission/today with current context and cache.
  *
- * Step completion model (V1, intentionally generous):
+ * v2 cache key (ha_mission_v2_*) is intentionally different from v1
+ * (ha_mission_*) so today's existing 3-step missions get regenerated as
+ * 7-step ones immediately after deploy. Old keys are left behind in
+ * localStorage; cheap to ignore.
+ *
+ * Step completion model (unchanged from v1, intentionally generous):
  *   Each step has a baseline zoneProgress recorded at mission-creation time.
- *   A step is \"done\" when current zoneProgress[zone_id] > baseline OR when the
- *   user has visited that zone today after mission creation (tracked via
- *   ha_mission_visited_<YYYY-MM-DD>).
+ *   A step is "done" when current zoneProgress[zone_id] > baseline OR when
+ *   the user has visited that zone today after mission creation
+ *   (ha_mission_visited_<YYYY-MM-DD>).
  *
- * The first step Nigel hasn\u2019t finished gets the gold \"Start\" button.
+ * Render:
+ *   The card shows all steps in mission.steps[] (typically 7), each tagged
+ *   with its subject color and emoji. Tap routes to the zone.
+ *
+ * Back-compat: if a mission lacks `steps[]` (cached pre-v80), the card
+ * synthesizes a fake steps array from warmup/stretch/win so it still
+ * renders cleanly.
  *
  * Public API:
  *   HeroAcademy.TodayMission.init({ container, state })
- *   HeroAcademy.TodayMission.markVisited(zoneId)    \u2014 call from openZoneModal
- *   HeroAcademy.TodayMission.refresh()              \u2014 re-render after a state change
+ *   HeroAcademy.TodayMission.markVisited(zoneId)    — call from openZoneModal
+ *   HeroAcademy.TodayMission.refresh()              — re-render after a state change
  */
 (function () {
   'use strict';
@@ -45,8 +55,20 @@
     'hero-hall':  '\ud83c\udfc6',
   };
 
-  // Local mirror of the reward roster so we don\u2019t have to depend on
-  // HeroAcademy.Characters being loaded before we render.
+  // Subject → presentation. Used for the colored subject badge per step.
+  var SUBJECT_META = {
+    'reading': { label: 'Reading', color: '#14b8d4', emoji: '\ud83d\udcd6' },
+    'math':    { label: 'Math',    color: '#ff8b3d', emoji: '\ud83d\udd22' },
+    'writing': { label: 'Writing', color: '#a855f7', emoji: '\u270d\ufe0f' },
+    'science': { label: 'Science', color: '#2ec27e', emoji: '\ud83d\udd2c' },
+    'social':  { label: 'World',   color: '#ec4899', emoji: '\ud83c\udf0d' },
+    'trophy':  { label: 'Win',     color: '#ffd147', emoji: '\ud83c\udfc6' },
+  };
+  function subjectMeta(subject) {
+    return SUBJECT_META[subject] || { label: '', color: '#ffd147', emoji: '\u2728' };
+  }
+
+  // Reward characters for the celebration overlay.
   var REWARD_CHARACTERS = {
     'carlo':           { name: 'Captain Carlo',       emoji: '\ud83e\udda6', color: '#ef4444', tag: 'Cosmic Plumber' },
     'aurora':          { name: 'Aurora the Aviator',  emoji: '\ud83e\udd89', color: '#14b8d4', tag: 'High Skies Hero' },
@@ -90,26 +112,29 @@
     ctx.state = opts.state || readAppState();
     if (!ctx.container) return;
     loadOrGenerate().then(render).catch(function (e) {
-      // On total failure, hide the card rather than show broken UI
       ctx.container.hidden = true;
       console.warn('[mission] init failed:', e && e.message || e);
     });
   }
 
+  // v2 cache key — keeps us isolated from any v1 mission still in storage.
+  function cacheKey() { return 'ha_mission_v2_' + todayKey(); }
+
   function loadOrGenerate() {
-    var key = 'ha_mission_' + todayKey();
+    var key = cacheKey();
     var cached = readJSON(key);
-    if (cached && cached.warmup && cached.stretch && cached.win) {
-      // Re-persist to DB if we never confirmed (e.g. offline on day-1 load).
+    if (cached && isValidCachedMission(cached)) {
       if (!cached.db_persisted) persistMissionToDb(cached);
       return Promise.resolve(cached);
     }
     return generateForToday().then(function (m) {
-      // Snapshot zone progress at creation time so we can detect deltas
+      // Normalize: ensure we have a steps[] array even from old API responses.
+      m = normalizeMission(m);
+      // Snapshot zone progress at creation time so we can detect deltas.
       m.baseline = {};
       var zp = (ctx.state && ctx.state.zoneProgress) || {};
-      ['warmup', 'stretch', 'win'].forEach(function (slot) {
-        m.baseline[m[slot].zone_id] = zp[m[slot].zone_id] || 0;
+      m.steps.forEach(function (s) {
+        if (s && s.zone_id) m.baseline[s.zone_id] = zp[s.zone_id] || 0;
       });
       m.created_at = new Date().toISOString();
       writeJSON(key, m);
@@ -118,23 +143,66 @@
     });
   }
 
+  // A cached mission is valid if it has a non-empty steps[] (new shape) OR
+  // the legacy warmup/stretch/win triplet (we'll synthesize steps from those).
+  function isValidCachedMission(m) {
+    if (!m) return false;
+    if (Array.isArray(m.steps) && m.steps.length > 0) return true;
+    return !!(m.warmup && m.stretch && m.win);
+  }
+
+  // Ensure mission has a steps[] array. If only legacy anchors exist, build
+  // a 3-step steps array from them (back-compat path).
+  function normalizeMission(m) {
+    if (!m) return m;
+    if (Array.isArray(m.steps) && m.steps.length > 0) return m;
+    // Legacy: synthesize steps from warmup/stretch/win.
+    var steps = [];
+    if (m.warmup)  steps.push(Object.assign({ slot: 'warmup',  subject: subjectForZone(m.warmup.zone_id) }, m.warmup));
+    if (m.stretch) steps.push(Object.assign({ slot: 'math',    subject: subjectForZone(m.stretch.zone_id) }, m.stretch));
+    if (m.win)     steps.push(Object.assign({ slot: 'win',     subject: subjectForZone(m.win.zone_id) }, m.win));
+    m.steps = steps;
+    if (!m.total_minutes) {
+      m.total_minutes = steps.reduce(function (sum, s) { return sum + (s.minutes || 0); }, 0);
+    }
+    return m;
+  }
+  function subjectForZone(zoneId) {
+    var map = {
+      'word-tower': 'reading', 'story-time': 'reading',
+      'number-lab': 'math',
+      'discovery':  'science',
+      'explorer':   'social',
+      'writing':    'writing',
+      'hero-hall':  'trophy',
+    };
+    return map[zoneId] || 'reading';
+  }
+
   function persistMissionToDb(m) {
     // Fire-and-forget. localStorage remains the source of truth for UI.
     try {
       var T = (window.HeroAcademy && window.HeroAcademy.Telemetry) || null;
       if (!T || typeof T.rpc !== 'function') return;
+      // Pack the full steps array into p_warmup.all_steps so the parent
+      // dashboard (which reads via ha_parent_dashboard) can see all 7 steps
+      // without a DB schema migration. The RPC just stores the JSONB as-is.
+      var warmupAnchor = m.warmup || (m.steps && m.steps[0]) || null;
+      var warmupWithSteps = warmupAnchor
+        ? Object.assign({}, warmupAnchor, { all_steps: m.steps || [] })
+        : { all_steps: m.steps || [] };
       T.rpc('ha_record_mission', {
         p_child_id:             T.childId(),
         p_mission_date:         todayKey(),
-        p_warmup:               m.warmup,
-        p_stretch:              m.stretch,
-        p_win:                  m.win,
-        p_total_minutes:        m.total_minutes || 25,
+        p_warmup:               warmupWithSteps,
+        p_stretch:              m.stretch || (m.steps && m.steps[Math.floor((m.steps.length - 1) / 2)]) || null,
+        p_win:                  m.win     || (m.steps && m.steps[m.steps.length - 1]) || null,
+        p_total_minutes:        m.total_minutes || 72,
         p_reward_character_key: m.reward_character_key || 'aurora',
         p_unlock_hint:          m.unlock_hint || '',
       }).then(function (r) {
         if (r && r.ok) {
-          var key = 'ha_mission_' + todayKey();
+          var key = cacheKey();
           var stored = readJSON(key);
           if (stored) { stored.db_persisted = true; writeJSON(key, stored); }
         }
@@ -147,9 +215,6 @@
     var zp = (ctx.state && ctx.state.zoneProgress) || {};
     var dayNum = d.getDay();
     var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-
-    // Recent zones = whatever the state remembers from the last 3 days,
-    // best-effort. For V1 we just use today\u2019s zone progress to weight things.
     var recent = Object.keys(zp).sort(function (a, b) { return (zp[b] || 0) - (zp[a] || 0); }).slice(0, 3);
 
     // Homework signal mirrors js/app.js _haIsHomeworkDay
@@ -177,11 +242,10 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      });
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
   }
 
   function stepDone(step, mission) {
@@ -200,9 +264,6 @@
     var visited = readJSON(key) || {};
     visited[zoneId] = true;
     writeJSON(key, visited);
-    // Fire the RPC so the server knows this zone was tapped from today\u2019s
-    // mission. The response tells us whether *all 3* are now done; we cache
-    // that flag so the home page can show the celebration on next render.
     try {
       var T = (window.HeroAcademy && window.HeroAcademy.Telemetry) || null;
       if (!T || typeof T.rpc !== 'function') return;
@@ -215,8 +276,6 @@
         .then(function (result) {
           if (!result) return;
           if (result.just_completed) {
-            // Stash so when the user returns to the home page, we show the
-            // celebration overlay exactly once.
             writeJSON('ha_mission_just_completed_' + todayKey(), {
               reward_character_key: result.reward_character_key || 'aurora',
               at: Date.now(),
@@ -227,50 +286,71 @@
   }
 
   function refresh() {
-    // Re-read state from localStorage so freshly-updated zoneProgress counts.
     ctx.state = readAppState();
-    var key = 'ha_mission_' + todayKey();
-    var cached = readJSON(key);
+    var cached = readJSON(cacheKey());
     if (cached) render(cached);
   }
 
   function render(mission) {
     if (!ctx.container) return;
-    var slots = ['warmup', 'stretch', 'win'];
-    var allDone = slots.every(function (s) { return stepDone(mission[s], mission); });
+    mission = normalizeMission(mission);
+    var steps = Array.isArray(mission.steps) ? mission.steps : [];
+    if (steps.length === 0) {
+      ctx.container.hidden = true;
+      return;
+    }
 
-    var stepsHtml = slots.map(function (slot, idx) {
-      var step = mission[slot];
+    var doneCount = 0;
+    steps.forEach(function (s) { if (stepDone(s, mission)) doneCount++; });
+    var allDone = doneCount === steps.length;
+
+    var stepsHtml = steps.map(function (step, idx) {
       var done = stepDone(step, mission);
-      var emoji = ZONE_EMOJI[step.zone_id] || '\u2728';
-      var slotIcon = done ? '\u2705' : (idx === 0 ? '\u26a1' : (idx === 1 ? '\ud83c\udfaf' : '\ud83c\udf1f'));
+      var meta = subjectMeta(step.subject);
+      var emoji = ZONE_EMOJI[step.zone_id] || meta.emoji || '\u2728';
+      var slotIcon = done
+        ? '\u2705'
+        : (step.slot === 'win' ? '\ud83c\udf1f' : (step.slot === 'warmup' ? '\u26a1' : '\ud83c\udfaf'));
+      var blurb = step.blurb || '';
       return [
-        '<li class="tm-step' + (done ? ' tm-step--done' : '') + '" data-zone="' + escapeAttr(step.zone_id) + '" data-slot="' + slot + '">',
+        '<li class="tm-step' + (done ? ' tm-step--done' : '') + '" data-zone="' + escapeAttr(step.zone_id) + '" data-slot="' + escapeAttr(step.slot || '') + '">',
         '  <span class="tm-step-icon" aria-hidden="true">' + slotIcon + '</span>',
         '  <div class="tm-step-body">',
-        '    <div class="tm-step-title">' + emoji + ' ' + escapeHtml(step.title) + ' <span class="tm-step-time">' + step.minutes + ' min</span></div>',
-        '    <div class="tm-step-blurb">' + escapeHtml(step.blurb) + '</div>',
+        '    <div class="tm-step-meta">',
+        '      <span class="tm-step-badge" style="--badge:' + meta.color + '">' + meta.emoji + ' ' + escapeHtml(meta.label) + '</span>',
+        '      <span class="tm-step-time">' + (step.minutes || 0) + ' min</span>',
+        '    </div>',
+        '    <div class="tm-step-title">' + emoji + ' ' + escapeHtml(step.title || '') + '</div>',
+        (blurb ? '    <div class="tm-step-blurb">' + escapeHtml(blurb) + '</div>' : ''),
         '  </div>',
         '</li>',
       ].join('');
     }).join('');
 
     var headlineIcon = allDone ? '\ud83c\udf89' : '\ud83c\udfaf';
-    var headline = allDone ? 'Mission complete \u2014 amazing work, Nigel!' : 'Today\u2019s Mission';
-    var hint = allDone ? 'Come back tomorrow for a new mission.' : (mission.unlock_hint || '');
+    var headline = allDone
+      ? 'Mission complete \u2014 amazing work, Nigel!'
+      : 'Today\u2019s Mission';
+    var subhead = allDone
+      ? 'Come back tomorrow for a new mission.'
+      : ('All subjects \u2022 ' + doneCount + ' of ' + steps.length + ' done');
+    var hint = allDone ? '' : (mission.unlock_hint || '');
 
     ctx.container.hidden = false;
     ctx.container.innerHTML =
       '<div class="tm-card' + (allDone ? ' tm-card--complete' : '') + '">' +
         '<div class="tm-head">' +
-          '<span class="tm-eyebrow">' + headlineIcon + ' ' + escapeHtml(headline) + '</span>' +
-          '<span class="tm-total">' + (mission.total_minutes || 25) + ' min</span>' +
+          '<div class="tm-head-left">' +
+            '<div class="tm-eyebrow">' + headlineIcon + ' ' + escapeHtml(headline) + '</div>' +
+            '<div class="tm-subhead">' + escapeHtml(subhead) + '</div>' +
+          '</div>' +
+          '<span class="tm-total">' + (mission.total_minutes || 72) + ' min</span>' +
         '</div>' +
         '<ol class="tm-steps">' + stepsHtml + '</ol>' +
         (hint ? '<div class="tm-hint">' + escapeHtml(hint) + '</div>' : '') +
       '</div>';
 
-    // Wire taps on each step \u2192 route to that zone\u2019s page
+    // Wire taps on each step → route to that zone's page
     Array.prototype.forEach.call(ctx.container.querySelectorAll('.tm-step'), function (el) {
       el.addEventListener('click', function () {
         var zoneId = el.getAttribute('data-zone');
@@ -281,11 +361,7 @@
       });
     });
 
-    // If all three are locally done and we haven\u2019t shown the celebration
-    // overlay for today yet, surface it now. We use the server\u2019s
-    // just_completed flag if available, falling back to local detection
-    // (covers the case where the server is unreachable but we still
-    // detected via zoneProgress delta).
+    // Celebration overlay — fires when all steps done, once per day.
     if (allDone) {
       var celebKey = 'ha_mission_celebrated_' + todayKey();
       if (!localStorage.getItem(celebKey)) {
@@ -293,7 +369,6 @@
         var rewardKey = (stashed && stashed.reward_character_key) ||
                         mission.reward_character_key || 'aurora';
         try { localStorage.setItem(celebKey, String(Date.now())); } catch (e) {}
-        // Delay one frame so the card fade-in renders first.
         setTimeout(function () { showCelebration(rewardKey); }, 250);
       }
     }
@@ -317,7 +392,7 @@
       '  </div>',
       '  <div class="tm-celebrate__emoji" aria-hidden="true">' + ch.emoji + '</div>',
       '  <div class="tm-celebrate__eyebrow">Mission Complete!</div>',
-      '  <div class="tm-celebrate__headline">You crushed all 3 today, Nigel!</div>',
+      '  <div class="tm-celebrate__headline">You crushed every subject today, Nigel!</div>',
       '  <div class="tm-celebrate__unlock">',
       '    <span class="tm-celebrate__unlock-label">Cheering you on today</span>',
       '    <span class="tm-celebrate__unlock-name">' + escapeHtml(ch.name) + '</span>',
@@ -336,12 +411,12 @@
     overlay.querySelector('.tm-celebrate__cta').addEventListener('click', close);
     overlay.querySelector('.tm-celebrate__backdrop').addEventListener('click', close);
 
-    // Ms. Humphrey audio narration (best-effort \u2014 silent if not loaded).
     try {
       var H = (window.HeroAcademy && window.HeroAcademy.Humphrey) || null;
       if (H && typeof H.say === 'function') {
         H.say('mission_complete', {
-          text: 'Wow, Nigel \u2014 you finished all three of today\u2019s mission steps! ' +
+          text: 'Wow, Nigel \u2014 you finished every subject in today\u2019s mission! ' +
+                'Reading, math, writing, science, and social studies \u2014 a full hero day. ' +
                 'I\u2019m so proud of you. Come back tomorrow and we\u2019ll start a fresh one.',
           expression: 'cheering',
         });

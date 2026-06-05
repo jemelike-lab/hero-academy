@@ -546,3 +546,197 @@ body.parent-overlay-open { overflow: hidden; }
     transition: none;
   }
 }
+
+/* ============================================================
+   Today at a glance card — daily report
+   ============================================================ */
+
+.parent-today-card { /* inherits .parent-card */ }
+.parent-today-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.parent-today-body { display: flex; flex-direction: column; gap: 14px; }
+
+.parent-today-headline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.parent-today-bignum {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+.parent-today-bignum-val {
+  font-family: var(--font-display, 'Fredoka', sans-serif);
+  font-weight: 700;
+  font-size: 28px;
+  color: #1f2937;
+  line-height: 1;
+}
+.parent-today-bignum-lbl {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.parent-today-bigpct-frame {
+  flex: 1;
+  min-width: 160px;
+  height: 28px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+}
+.parent-today-bigpct-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8d4 0%, #2ec27e 100%);
+  border-radius: 999px;
+  transition: width 320ms ease;
+}
+.parent-today-bigpct-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display, 'Fredoka', sans-serif);
+  font-weight: 700;
+  font-size: 14px;
+  color: #1f2937;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+}
+
+.parent-today-subjects {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.parent-today-subject-row {
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.parent-today-subject-row.is-done {
+  background: rgba(46, 194, 126, 0.08);
+  border-color: rgba(46, 194, 126, 0.25);
+}
+
+.parent-today-subject-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display, 'Fredoka', sans-serif);
+}
+.parent-today-subject-emoji { font-size: 18px; line-height: 1; }
+.parent-today-subject-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1f2937;
+  flex: 1;
+}
+.parent-today-subject-mins {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.parent-today-subject-bar-frame {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.parent-today-subject-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 320ms ease;
+}
+
+.parent-today-subject-zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.parent-today-zone-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+.parent-today-zone-chip.is-done {
+  background: rgba(46, 194, 126, 0.18);
+  color: #1e7d4f;
+}
+
+/* ============================================================
+   Weekly subject roll-up
+   ============================================================ */
+.parent-week-subjects {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.parent-week-subjects-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+.parent-week-subjects-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.parent-week-subjects-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 70px;
+  gap: 10px;
+  align-items: center;
+}
+.parent-week-subjects-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+.parent-week-subjects-bar-frame {
+  height: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.parent-week-subjects-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 320ms ease;
+}
+.parent-week-subjects-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .parent-today-headline { flex-direction: column; align-items: stretch; }
+  .parent-today-bignum-val { font-size: 24px; }
+  .parent-week-subjects-row { grid-template-columns: 95px 1fr 60px; gap: 8px; }
+}

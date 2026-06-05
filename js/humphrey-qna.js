@@ -587,11 +587,289 @@
     });
   }
 
+  // ===========================================================================
+  // Home-page mission briefing (scripted, no QnA).
+  // ===========================================================================
+  // The home page is for orientation, not chitchat. When Nigel taps Ms.
+  // Humphrey on the dashboard, she:
+  //   - First tap of the day  -> full briefing (greeting + yesterday recap +
+  //                               today's 5-subject plan + "tap the first step")
+  //   - Subsequent taps       -> short pep-talk pointing at the next undone step
+  // She does NOT enter listen mode on the home page; QnA happens inside zones.
+
+  function isHomePage() {
+    try {
+      var p = (location.pathname || '').toLowerCase();
+      if (p === '' || p === '/' || p.endsWith('/index.html')) return true;
+      // Also catch root-relative trailing slash variants
+      if (p.endsWith('/')) return true;
+      return false;
+    } catch (_) { return false; }
+  }
+
+  function todayKeyStr() {
+    var d = new Date();
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function yesterdayKeyStr() {
+    var d = new Date(Date.now() - 86400000);
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function readJSONFromLS(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+
+  function getKidName() {
+    try {
+      var prof = (NS.Memory && typeof NS.Memory.getProfile === 'function')
+        ? NS.Memory.getProfile() : null;
+      if (prof && prof.name) return String(prof.name);
+    } catch (_) {}
+    return 'Nigel';
+  }
+
+  // Subject -> readable phrase for the briefing.
+  function subjectPhrase(slot, subject) {
+    if (slot === 'warmup')  return 'a quick reading warmup';
+    if (slot === 'math')    return 'math';
+    if (slot === 'reading') return 'reading';
+    if (slot === 'writing') return 'writing';
+    if (slot === 'science') return 'science';
+    if (slot === 'social')  return 'social studies';
+    if (slot === 'win')     return 'your hero celebration';
+    return subject || 'a lesson';
+  }
+
+  // Map zone_id -> kid-friendly title for the speech (matches today-mission.js).
+  function zoneTitleFor(zoneId, fallback) {
+    var map = {
+      'word-tower': 'Word Tower',
+      'story-time': 'Story Time',
+      'number-lab': 'Number Lab',
+      'discovery':  'Discovery Dome',
+      'explorer':   "Explorer's Hall",
+      'writing':    'Story Lab',
+      'hero-hall':  'Hero Hall',
+    };
+    return map[zoneId] || fallback || 'your next step';
+  }
+
+  // Find the first incomplete step in today's mission, if any.
+  function nextIncompleteStep(steps, visited, zoneProgress, baseline) {
+    if (!Array.isArray(steps)) return null;
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      if (!s || !s.zone_id) continue;
+      var done = false;
+      if (visited && visited[s.zone_id]) done = true;
+      if (!done) {
+        var base = (baseline && baseline[s.zone_id]) || 0;
+        var cur = (zoneProgress && zoneProgress[s.zone_id]) || 0;
+        if (cur > base) done = true;
+      }
+      if (!done) return s;
+    }
+    return null;
+  }
+
+  function dayOfWeekName() {
+    var names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    return names[new Date().getDay()];
+  }
+
+  // Build the speech text for a FIRST-tap-of-the-day briefing.
+  function composeFullBriefing(kidName, mission, yesterdayMission, yesterdayDone) {
+    var lines = [];
+
+    // Greeting
+    var dow = dayOfWeekName();
+    var weekendGreet = (dow === 'Saturday' || dow === 'Sunday');
+    lines.push('Hi ' + kidName + '! Welcome back.');
+
+    // Yesterday recap (only if we have a record)
+    if (yesterdayMission) {
+      if (yesterdayDone) {
+        lines.push('Yesterday you finished every subject in your mission — amazing work.');
+      } else {
+        var ySteps = (yesterdayMission.steps && yesterdayMission.steps.length) || 3;
+        var yDoneCount = 0;
+        try {
+          var yVisited = readJSONFromLS('ha_mission_visited_' + yesterdayKeyStr()) || {};
+          (yesterdayMission.steps || []).forEach(function (s) {
+            if (s && s.zone_id && yVisited[s.zone_id]) yDoneCount++;
+          });
+        } catch (_) {}
+        if (yDoneCount > 0) {
+          lines.push('Yesterday you got through ' + yDoneCount + ' of your ' + ySteps + ' subjects — great start. Let’s finish the full set today.');
+        } else {
+          lines.push('Yesterday was a quiet day. Let’s have a strong one today.');
+        }
+      }
+    } else {
+      // Fresh start — no yesterday record.
+      lines.push("It's " + dow + ", and we have a brand new mission ready for you.");
+    }
+
+    // Today's plan — summarize subjects, mention total minutes.
+    var steps = (mission && mission.steps) || [];
+    if (steps.length === 0) {
+      lines.push('Tap any training zone below to get started.');
+    } else {
+      var academicSubjects = [];
+      var seen = {};
+      steps.forEach(function (s) {
+        if (!s || s.slot === 'win') return;
+        var sub = s.subject;
+        if (!sub || sub === 'trophy') return;
+        var label;
+        if (sub === 'reading') label = 'reading';
+        else if (sub === 'math') label = 'math';
+        else if (sub === 'writing') label = 'writing';
+        else if (sub === 'science') label = 'science';
+        else if (sub === 'social') label = 'social studies';
+        else label = sub;
+        if (!seen[label]) { seen[label] = true; academicSubjects.push(label); }
+      });
+      var total = mission.total_minutes || 72;
+      if (academicSubjects.length >= 3) {
+        // Format as natural list ending with "and"
+        var listed;
+        if (academicSubjects.length === 2) {
+          listed = academicSubjects.join(' and ');
+        } else {
+          listed = academicSubjects.slice(0, -1).join(', ') + ', and ' + academicSubjects[academicSubjects.length - 1];
+        }
+        lines.push('Today we have five subjects to cover: ' + listed + '. That’s about ' + total + ' minutes of hero training.');
+      } else if (academicSubjects.length > 0) {
+        lines.push("Today's plan covers " + academicSubjects.join(' and ') + ', about ' + total + ' minutes total.');
+      }
+
+      // Point at the first incomplete step.
+      var first = steps[0];
+      if (first && first.zone_id) {
+        lines.push('Let’s start with ' + zoneTitleFor(first.zone_id, first.title) + '. Tap it on the screen and I’ll meet you there.');
+      }
+    }
+
+    // Closer
+    lines.push('If you have questions during a lesson, tap me again from inside that zone.');
+
+    return lines.join(' ');
+  }
+
+  // Build the speech for a SUBSEQUENT tap — pep-talk + next step.
+  function composeNextStepBriefing(kidName, mission, visited, zoneProgress) {
+    var steps = (mission && mission.steps) || [];
+    if (steps.length === 0) {
+      return 'Hi ' + kidName + '! Pick any zone below to get started.';
+    }
+    var baseline = (mission && mission.baseline) || {};
+    var next = nextIncompleteStep(steps, visited, zoneProgress, baseline);
+    var doneCount = 0;
+    steps.forEach(function (s) {
+      if (!s || !s.zone_id) return;
+      if (visited && visited[s.zone_id]) { doneCount++; return; }
+      var base = baseline[s.zone_id] || 0;
+      var cur = (zoneProgress && zoneProgress[s.zone_id]) || 0;
+      if (cur > base) doneCount++;
+    });
+
+    if (!next) {
+      return 'You finished every subject already, ' + kidName + ' — every single one. That’s a perfect hero day. Go celebrate in Hero Hall if you haven’t yet.';
+    }
+
+    var subj = subjectPhrase(next.slot, next.subject);
+    var pep;
+    if (doneCount === 0) {
+      pep = "Let's get started, " + kidName + '!';
+    } else if (doneCount < steps.length / 2) {
+      pep = 'Good work so far, ' + kidName + '. ' + doneCount + ' down, ' + (steps.length - doneCount) + ' to go.';
+    } else {
+      pep = "You're crushing it, " + kidName + '. Almost there.';
+    }
+    return pep + ' Next up: ' + subj + ' in ' + zoneTitleFor(next.zone_id, next.title) + '. Tap it when you’re ready.';
+  }
+
+  function runHomeBriefing() {
+    var H = NS.Humphrey;
+    if (!H || typeof H.say !== 'function') {
+      debug('runHomeBriefing: no Humphrey.say available');
+      return Promise.resolve();
+    }
+    var kidName = getKidName();
+    var todayMission = readJSONFromLS('ha_mission_v2_' + todayKeyStr());
+    var yesterdayMission = readJSONFromLS('ha_mission_v2_' + yesterdayKeyStr());
+
+    // Yesterday completion: either localStorage flag set OR all steps in cached
+    // mission have a corresponding visited record.
+    var yesterdayDone = false;
+    try {
+      if (localStorage.getItem('ha_mission_celebrated_' + yesterdayKeyStr())) yesterdayDone = true;
+      else if (yesterdayMission && Array.isArray(yesterdayMission.steps)) {
+        var yVisited = readJSONFromLS('ha_mission_visited_' + yesterdayKeyStr()) || {};
+        var allDone = yesterdayMission.steps.length > 0 && yesterdayMission.steps.every(function (s) {
+          return s && s.zone_id && !!yVisited[s.zone_id];
+        });
+        if (allDone) yesterdayDone = true;
+      }
+    } catch (_) {}
+
+    var briefingKey = 'ha_mission_briefing_' + todayKeyStr();
+    var alreadyBriefedToday = false;
+    try { alreadyBriefedToday = !!localStorage.getItem(briefingKey); } catch (_) {}
+
+    var text;
+    if (!alreadyBriefedToday) {
+      text = composeFullBriefing(kidName, todayMission, yesterdayMission, yesterdayDone);
+      try { localStorage.setItem(briefingKey, String(Date.now())); } catch (_) {}
+    } else {
+      // Subsequent tap — pep-talk + next step.
+      var visited = readJSONFromLS('ha_mission_visited_' + todayKeyStr()) || {};
+      var appState = readJSONFromLS('hero_academy_state_v1') || {};
+      var zoneProgress = appState.zoneProgress || {};
+      text = composeNextStepBriefing(kidName, todayMission, visited, zoneProgress);
+    }
+
+    debug('briefing text:', text.slice(0, 160));
+
+    return H.say('mission_briefing', {
+      text: text,
+      expression: 'encouraging',
+      priority: 'high',  // clear any queued chatter so the briefing leads
+    });
+  }
+
+  // -- end home-page briefing --------------------------------------------------
+
   function handleClick(btn) {
     if (inFlight) { debug('click ignored: in flight'); return; }
     var now = Date.now();
     if (now - lastActivation < COOLDOWN_MS) { debug('click ignored: cooldown'); return; }
     lastActivation = now;
+
+    // ---- Home-page briefing intercept ---------------------------------------
+    // On the home page, Ms. Humphrey delivers a scripted mission briefing
+    // (recap of yesterday + today's lesson plan) instead of opening QnA.
+    // Random conversation lives inside zones, not on the dashboard.
+    if (isHomePage()) {
+      debug('home-page briefing branch');
+      inFlight = true;
+      setPhase(btn, 'speaking');
+      runHomeBriefing()
+        .catch(function (e) { debug('briefing error:', e && e.message || e); })
+        .then(function () {
+          setPhase(btn, null);
+          inFlight = false;
+        });
+      return;
+    }
+    // -------------------------------------------------------------------------
 
     var staleConvo = convo.active && (now - convo.lastTurnAt > CONVO_TIMEOUT_MS);
     if (!convo.active || staleConvo) {

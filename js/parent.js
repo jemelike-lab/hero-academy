@@ -228,6 +228,209 @@
     $('#weekSummary').textContent = summary;
   }
 
+  // ===========================================================================
+  // Subject helpers (shared by Today card + weekly subject roll-up)
+  // ===========================================================================
+
+  // Zone -> subject mapping. Mirrors api/mission/today.js DAILY_PLAN.
+  var ZONE_TO_SUBJECT = {
+    'word-tower': 'reading',
+    'story-time': 'reading',
+    'number-lab': 'math',
+    'discovery':  'science',
+    'explorer':   'social',
+    'writing':    'writing',
+    'story-lab':  'writing',   // older zone id, treat as writing
+    'hero-hall':  'trophy',
+  };
+
+  // Subject display metadata. Colors match the home card so the family sees
+  // the same scheme on both sides.
+  var SUBJECTS = [
+    { key: 'reading', label: 'Reading',        emoji: '📖', color: '#14b8d4' },
+    { key: 'math',    label: 'Math',           emoji: '🔢', color: '#ff8b3d' },
+    { key: 'writing', label: 'Writing',        emoji: '✍️', color: '#a855f7' },
+    { key: 'science', label: 'Science',        emoji: '🔬', color: '#2ec27e' },
+    { key: 'social',  label: 'Social Studies', emoji: '🌍', color: '#ec4899' },
+  ];
+
+  // Pull the full steps array out of a mission row. Today's Mission packs the
+  // 7-step plan into m.planned[0].all_steps for backward-compatible storage;
+  // legacy 3-anchor missions just use m.planned directly.
+  function extractMissionSteps(m) {
+    if (!m) return [];
+    var planned = m.planned || [];
+    if (planned.length > 0 && planned[0] && Array.isArray(planned[0].all_steps) && planned[0].all_steps.length > 0) {
+      return planned[0].all_steps;
+    }
+    // Fall back to legacy planned[] — add subject inference for older rows.
+    return planned.map(function (p) {
+      return {
+        slot:   p.phase || 'step',
+        zone_id: p.zone_id,
+        title:   p.title,
+        minutes: p.minutes || 0,
+        subject: ZONE_TO_SUBJECT[p.zone_id] || 'other',
+      };
+    });
+  }
+
+  // Today is the most recent mission_date == today's local ISO. Missions array
+  // is server-sorted newest-first.
+  function findTodayMission(missions) {
+    if (!Array.isArray(missions) || missions.length === 0) return null;
+    var d = new Date();
+    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    for (var i = 0; i < missions.length; i++) {
+      if (missions[i].mission_date === iso) return missions[i];
+    }
+    return null;
+  }
+
+  // ===========================================================================
+  // Today card (daily report)
+  // ===========================================================================
+  function renderTodayCard(missions) {
+    var card = $('#todayCard');
+    var body = $('#todayBody');
+    var dateLabel = $('#todayDate');
+    if (!card || !body) return;
+    body.innerHTML = '';
+
+    var d = new Date();
+    var weekdayFull = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+    var monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    if (dateLabel) dateLabel.textContent = weekdayFull + ' · ' + monthShort + ' ' + d.getDate();
+
+    var today = findTodayMission(missions);
+    if (!today) {
+      body.appendChild(el('p', { class: 'parent-empty', text: 'Nigel hasn\u2019t opened Hero Academy yet today.' }));
+      return;
+    }
+
+    var steps = extractMissionSteps(today);
+    var completed = today.completed_zones || [];
+
+    // Aggregate planned + done minutes per subject.
+    var bySubject = {};
+    SUBJECTS.forEach(function (s) { bySubject[s.key] = { planned: 0, done: 0, zones: [] }; });
+    steps.forEach(function (s) {
+      if (!s || !s.subject || !bySubject[s.subject]) return;   // skip 'trophy' / unknowns
+      var min = Number(s.minutes) || 0;
+      bySubject[s.subject].planned += min;
+      var isDone = !!(s.zone_id && completed.indexOf(s.zone_id) !== -1);
+      if (isDone) bySubject[s.subject].done += min;
+      bySubject[s.subject].zones.push({ zone_id: s.zone_id, title: s.title || s.zone_id, minutes: min, done: isDone });
+    });
+
+    // Top stat row: minutes done / planned + percent.
+    var plannedTotal = 0, doneTotal = 0;
+    SUBJECTS.forEach(function (s) { plannedTotal += bySubject[s.key].planned; doneTotal += bySubject[s.key].done; });
+    var pct = plannedTotal > 0 ? Math.round((doneTotal / plannedTotal) * 100) : 0;
+
+    var headline = el('div', { class: 'parent-today-headline' }, [
+      el('div', { class: 'parent-today-bignum' }, [
+        el('span', { class: 'parent-today-bignum-val', text: doneTotal + ' / ' + plannedTotal }),
+        el('span', { class: 'parent-today-bignum-lbl', text: 'minutes done' }),
+      ]),
+      el('div', { class: 'parent-today-bigpct-frame' }, [
+        el('div', { class: 'parent-today-bigpct-bar', style: { width: pct + '%' } }),
+        el('div', { class: 'parent-today-bigpct-num', text: pct + '%' }),
+      ]),
+    ]);
+    body.appendChild(headline);
+
+    // Per-subject rows.
+    var rowsWrap = el('div', { class: 'parent-today-subjects' });
+    SUBJECTS.forEach(function (s) {
+      var rec = bySubject[s.key];
+      if (rec.planned === 0) return;   // no entry for this subject today (e.g. skipped)
+      var rowPct = Math.min(100, Math.round((rec.done / rec.planned) * 100));
+      var doneAll = rec.done >= rec.planned;
+
+      var zoneChips = rec.zones.map(function (z) {
+        return el('span', {
+          class: 'parent-today-zone-chip' + (z.done ? ' is-done' : ''),
+          attrs: { title: z.minutes + ' min' },
+          text: (z.done ? '✓ ' : '') + z.title,
+        });
+      });
+
+      var row = el('div', { class: 'parent-today-subject-row' + (doneAll ? ' is-done' : '') }, [
+        el('div', { class: 'parent-today-subject-head' }, [
+          el('span', { class: 'parent-today-subject-emoji', text: s.emoji }),
+          el('span', { class: 'parent-today-subject-label', text: s.label }),
+          el('span', { class: 'parent-today-subject-mins', text: rec.done + ' / ' + rec.planned + ' min' + (doneAll ? ' ✅' : '') }),
+        ]),
+        el('div', { class: 'parent-today-subject-bar-frame' }, [
+          el('div', { class: 'parent-today-subject-bar', style: { width: rowPct + '%', background: s.color } }),
+        ]),
+        el('div', { class: 'parent-today-subject-zones' }, zoneChips),
+      ]);
+      rowsWrap.appendChild(row);
+    });
+    body.appendChild(rowsWrap);
+
+    // Foot note — mission completion status.
+    var foot;
+    if (today.completed_at) {
+      foot = 'Mission completed ' + fmtTime(today.completed_at) + '.';
+    } else if (doneTotal > 0) {
+      foot = 'In progress — ' + (plannedTotal - doneTotal) + ' minutes still to go.';
+    } else {
+      foot = 'Mission planned but not started yet.';
+    }
+    body.appendChild(el('p', { class: 'parent-card-foot', text: foot }));
+  }
+
+  // ===========================================================================
+  // Weekly subject roll-up — total minutes per subject across the last 7 days.
+  // ===========================================================================
+  function renderWeekSubjects(missions) {
+    var wrap = $('#weekSubjects');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    var totals = {};
+    SUBJECTS.forEach(function (s) { totals[s.key] = 0; });
+
+    (missions || []).forEach(function (m) {
+      var steps = extractMissionSteps(m);
+      var completed = m.completed_zones || [];
+      steps.forEach(function (s) {
+        if (!s || !s.subject || !totals.hasOwnProperty(s.subject)) return;
+        if (!s.zone_id || completed.indexOf(s.zone_id) === -1) return;
+        totals[s.subject] += Number(s.minutes) || 0;
+      });
+    });
+
+    var grandTotal = 0;
+    SUBJECTS.forEach(function (s) { grandTotal += totals[s.key]; });
+    if (grandTotal === 0) {
+      wrap.hidden = true;
+      return;
+    }
+
+    var max = 1;
+    SUBJECTS.forEach(function (s) { if (totals[s.key] > max) max = totals[s.key]; });
+
+    wrap.appendChild(el('div', { class: 'parent-week-subjects-title', text: 'Minutes by subject (last 7 days)' }));
+    var grid = el('div', { class: 'parent-week-subjects-grid' });
+    SUBJECTS.forEach(function (s) {
+      var mins = totals[s.key];
+      var w = Math.round((mins / max) * 100);
+      grid.appendChild(el('div', { class: 'parent-week-subjects-row' }, [
+        el('div', { class: 'parent-week-subjects-label', text: s.emoji + ' ' + s.label }),
+        el('div', { class: 'parent-week-subjects-bar-frame' }, [
+          el('div', { class: 'parent-week-subjects-bar', style: { width: Math.max(2, w) + '%', background: s.color } }),
+        ]),
+        el('div', { class: 'parent-week-subjects-val', text: mins + ' min' }),
+      ]));
+    });
+    wrap.appendChild(grid);
+    wrap.hidden = false;
+  }
+
   function renderMissions(missions) {
     var list = $('#missionsList');
     list.innerHTML = '';
@@ -487,7 +690,9 @@
     rpc('ha_parent_dashboard', { p_child_id: NIGEL_ID })
       .then(function (dash) {
         state.dash = dash;
+        renderTodayCard(dash.missions);
         renderWeekStrip(dash.sessions_by_day);
+        renderWeekSubjects(dash.missions);
         renderMissions(dash.missions);
         renderQuests(dash.quests);
         renderDirectives(dash.active_directives);

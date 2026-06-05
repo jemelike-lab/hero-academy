@@ -46,6 +46,15 @@
   <!-- Content: rendered after dashboard loads -->
   <section id="contentBlock" hidden>
 
+    <!-- 0. Today at a glance — daily report -->
+    <section class="parent-card parent-today-card" id="todayCard">
+      <header class="parent-card-head">
+        <h2>📅 Today at a glance</h2>
+        <span class="parent-today-date" id="todayDate"></span>
+      </header>
+      <div id="todayBody" class="parent-today-body"></div>
+    </section>
+
     <!-- 1. Weekly activity strip -->
     <section class="parent-card">
       <header class="parent-card-head">
@@ -53,6 +62,7 @@
       </header>
       <div id="weekStrip" class="parent-week-strip"></div>
       <p id="weekSummary" class="parent-card-foot"></p>
+      <div id="weekSubjects" class="parent-week-subjects" hidden></div>
     </section>
 
     <!-- 2. Daily missions -->
