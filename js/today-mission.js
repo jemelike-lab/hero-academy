@@ -199,7 +199,7 @@
       zone_id: 'letter-lab',
       slot:    'writing',
       subject: 'writing',
-      title:   '\u270d\ufe0f Letter Lab',
+      title:   'Letter Lab',
       blurb:   'Practice 3 letters with Ms. Humphrey on the drawing board.',
       minutes: 5,
     };
