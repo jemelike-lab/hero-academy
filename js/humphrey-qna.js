@@ -800,18 +800,14 @@
     var todayMission = readJSONFromLS('ha_mission_v2_' + todayKeyStr());
     var yesterdayMission = readJSONFromLS('ha_mission_v2_' + yesterdayKeyStr());
 
-    // Yesterday completion: either localStorage flag set OR all steps in cached
-    // mission have a corresponding visited record.
+    // v95: yesterdayDone now relies ONLY on the celebration flag, which is
+    // set when the kid actually finished yesterday's mission. The old
+    // fallback ("every step has a visited record") was unreliable — tapping
+    // a zone for five seconds counted, so Humphrey would cheerfully say
+    // "yesterday you finished every subject!" even when nothing was done.
     var yesterdayDone = false;
     try {
       if (localStorage.getItem('ha_mission_celebrated_' + yesterdayKeyStr())) yesterdayDone = true;
-      else if (yesterdayMission && Array.isArray(yesterdayMission.steps)) {
-        var yVisited = readJSONFromLS('ha_mission_visited_' + yesterdayKeyStr()) || {};
-        var allDone = yesterdayMission.steps.length > 0 && yesterdayMission.steps.every(function (s) {
-          return s && s.zone_id && !!yVisited[s.zone_id];
-        });
-        if (allDone) yesterdayDone = true;
-      }
     } catch (_) {}
 
     var briefingKey = 'ha_mission_briefing_' + todayKeyStr();
