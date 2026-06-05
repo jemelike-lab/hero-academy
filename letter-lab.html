@@ -65,6 +65,11 @@
                appears instead of Next; tap Watch → Humphrey draws the target
                on her canvas layer → "My turn again" button clears and lets
                him retry the same target. On second attempt, just advance. -->
+          <!-- v107: Try Again gets one more attempt before Watch is offered.
+               Wrong on attempt 1 -> Try Again + Skip
+               Wrong on attempt 2 -> Watch (demo) + Skip
+               After demo + retry -> Next (no more options) -->
+          <button class="ll-btn ll-btn--primary" type="button" data-ll-tryagain hidden>🖊️ Try Again</button>
           <button class="ll-btn ll-btn--primary" type="button" data-ll-watch hidden>👁️ Watch Ms. Humphrey draw it</button>
           <button class="ll-btn ll-btn--ghost"   type="button" data-ll-skip  hidden>Skip →</button>
           <button class="ll-btn ll-btn--primary" type="button" data-ll-retry hidden>🖊️ My turn again</button>

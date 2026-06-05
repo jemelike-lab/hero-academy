@@ -229,8 +229,12 @@
     var cy = opts.cy == null ? getCanvasCenterY() : opts.cy;
     var scale = opts.scale == null ? getCanvasMaxScale() : opts.scale;
     var color = opts.color || '#ec4899';
-    var strokeDuration = opts.strokeDuration == null ? 800 : opts.strokeDuration;
-    var interStrokePause = opts.interStrokePause == null ? 250 : opts.interStrokePause;
+    // v107: pen SPEED instead of per-stroke duration. Each unit of path length
+    // takes the same time, so curves don't fly by while straight lines drag.
+    // Default 0.42 units/ms ≈ ~2.4s for a 1000-unit stroke. Tuned to be
+    // followable but not boring for a 7yo.
+    var penSpeed = opts.penSpeed == null ? 0.42 : opts.penSpeed;
+    var interStrokePause = opts.interStrokePause == null ? 320 : opts.interStrokePause;
 
     var data = STROKES[char];
     if (!data) return Promise.reject(new Error('No stroke data for ' + char));
@@ -241,7 +245,7 @@
     var promiseChain = Promise.resolve();
     data.strokes.forEach(function (polyline, strokeIdx) {
       promiseChain = promiseChain.then(function () {
-        return animatePolyline(polyline.map(project), color, strokeDuration);
+        return animatePolyline(polyline.map(project), color, penSpeed);
       });
       if (strokeIdx < data.strokes.length - 1) {
         promiseChain = promiseChain.then(function () {
@@ -252,37 +256,128 @@
     return promiseChain;
   }
 
-  // Animate one polyline: draw each segment via humphreyDrawLine in turn.
-  // Total time = totalDuration; each segment proportional to its length.
-  function animatePolyline(points, color, totalDuration) {
+  // v107: animate at CONSTANT PEN SPEED + visible PEN TIP CURSOR.
+  //
+  // Each segment's duration is its length divided by penSpeed (units/ms),
+  // so the pen moves at constant velocity whether tracing a straight line
+  // or a tight curve approximated by many short segments.
+  //
+  // The pen tip cursor (a filled magenta circle) is painted on a SEPARATE
+  // overlay canvas that we manage ourselves — it sits above the humphrey
+  // layer, gets cleared each frame, and shows Nigel exactly where the "pen"
+  // is at any moment. Without this cursor the line just extends silently,
+  // which a 7yo perceives as "the letter appeared" instead of "she drew it".
+  function animatePolyline(points, color, penSpeed) {
     if (points.length < 2) return Promise.resolve();
 
-    var lengths = [];
-    var totalLength = 0;
-    for (var i = 0; i < points.length - 1; i++) {
-      var dx = points[i+1].x - points[i].x;
-      var dy = points[i+1].y - points[i].y;
-      var len = Math.sqrt(dx*dx + dy*dy);
-      lengths.push(len);
-      totalLength += len;
-    }
-    if (totalLength === 0) return Promise.resolve();
+    var penOverlay = ensurePenOverlay();
 
     var chain = Promise.resolve();
     for (var i = 0; i < points.length - 1; i++) {
       (function (i) {
         var p1 = points[i], p2 = points[i+1];
-        var segDuration = Math.max(20, totalDuration * lengths[i] / totalLength);
+        var dx = p2.x - p1.x;
+        var dy = p2.y - p1.y;
+        var segLen = Math.sqrt(dx*dx + dy*dy);
+        var segDuration = Math.max(80, segLen / penSpeed);
+
         chain = chain.then(function () {
-          return NS.Canvas.humphreyDrawLine(p1.x, p1.y, p2.x, p2.y, {
+          // Kick off the actual ink drawing on Humphrey's layer
+          var inkPromise = NS.Canvas.humphreyDrawLine(p1.x, p1.y, p2.x, p2.y, {
             color: color,
             duration: segDuration,
-            width: 6,  // thicker pen for visibility
+            width: 10,  // v107: extra-thick ink — easy to follow
           });
+          // Simultaneously animate the pen cursor along the same path
+          animatePenCursor(penOverlay, p1, p2, segDuration);
+          return inkPromise;
         });
       })(i);
     }
-    return chain;
+
+    return chain.then(function () {
+      // Hide pen cursor when this polyline is done
+      setTimeout(function () { clearPenOverlay(penOverlay); }, 180);
+    });
+  }
+
+  // Set up an overlay <canvas> that lives above the humphreyLayer in the
+  // same wrapper. We position-stack it absolutely on top so the pen cursor
+  // visually rides on top of the ink. It uses the same virtual coord system
+  // by querying Canvas.virtualDims().
+  function ensurePenOverlay() {
+    if (typeof document === 'undefined') return null;
+    var existing = document.getElementById('ha-pen-overlay');
+    if (existing) return existing;
+
+    var humphrey = document.querySelector('canvas.ha-canvas-layer--humphrey');
+    if (!humphrey || !humphrey.parentNode) return null;
+
+    var overlay = document.createElement('canvas');
+    overlay.id = 'ha-pen-overlay';
+    overlay.width = humphrey.width;
+    overlay.height = humphrey.height;
+    overlay.style.position = 'absolute';
+    overlay.style.left = humphrey.style.left || '0';
+    overlay.style.top = humphrey.style.top || '0';
+    overlay.style.width = humphrey.style.width || '100%';
+    overlay.style.height = humphrey.style.height || '100%';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '5';
+    humphrey.parentNode.appendChild(overlay);
+    return overlay;
+  }
+
+  function clearPenOverlay(overlay) {
+    if (!overlay) return;
+    var ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+  }
+
+  // Animate a pen-tip circle from p1 to p2 over `durationMs`. Synchronizes
+  // with humphreyDrawLine which is filling the line behind it. Coordinates
+  // are in the same virtual space as canvas.js (0-1000 wide), translated
+  // here via the actual canvas pixel dimensions.
+  function animatePenCursor(overlay, p1, p2, durationMs) {
+    if (!overlay) return;
+    var ctx = overlay.getContext('2d');
+    var dims = (NS.Canvas && NS.Canvas.virtualDims) ? NS.Canvas.virtualDims() : { w: 1000, h: 750 };
+    var scaleX = overlay.width / dims.w;
+    var scaleY = overlay.height / dims.h;
+
+    var start = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    function frame() {
+      var now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      var t = Math.min(1, (now - start) / durationMs);
+      var x = (p1.x + (p2.x - p1.x) * t) * scaleX;
+      var y = (p1.y + (p2.y - p1.y) * t) * scaleY;
+
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      // Outer glow
+      ctx.save();
+      ctx.fillStyle = 'rgba(236, 72, 153, 0.35)';
+      ctx.beginPath();
+      ctx.arc(x, y, 22 * scaleX, 0, Math.PI * 2);
+      ctx.fill();
+      // Inner solid dot — the "pen tip"
+      ctx.fillStyle = '#ec4899';
+      ctx.beginPath();
+      ctx.arc(x, y, 12 * scaleX, 0, Math.PI * 2);
+      ctx.fill();
+      // White highlight to give it a 3D dot look
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.beginPath();
+      ctx.arc(x - 3 * scaleX, y - 3 * scaleX, 4 * scaleX, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (t < 1 && typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(frame);
+      }
+    }
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(frame);
+    }
   }
 
   // Multi-char sequence: scale down + lay out side by side.
