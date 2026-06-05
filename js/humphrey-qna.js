@@ -161,96 +161,71 @@
   }
 
   // -----------------------------------------------------------------------
-  // Mic-help panel — surfaced when getUserMedia fails. Audio TTS may not
-  // play reliably in this state (the same gesture that would unlock audio
-  // is also the one trying to grab the mic), so we put visible guidance on
-  // the screen and Josh/Nigel can act on it without sound.
+  // Mic-help panel — surfaced when getUserMedia fails. We deliberately
+  // show the SAME copy regardless of denied-now vs denied-permanent
+  // because the Android Chrome Permissions API doesn't reliably tell
+  // them apart from a PWA context. If a prompt IS coming, the user taps
+  // Allow when it appears; if no prompt comes, the user follows the
+  // unblock path. Belt and suspenders.
   // -----------------------------------------------------------------------
   function micHelpCopy(detail) {
-    // Returns { heading, steps[], speech }. `speech` is the TTS line we'll
-    // still try in case audio IS unlocked.
-    var isStandalone = false;
-    try {
-      isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-        || (window.navigator && window.navigator.standalone === true);
-    } catch (_) {}
-
-    if (detail === 'denied-permanent') {
-      return {
-        heading: "I can't reach the microphone — it looks blocked.",
-        steps: isStandalone
-          ? [
-              "Open Android Settings → Apps → Hero Academy → Permissions.",
-              "Turn Microphone ON.",
-              "Come back here and tap Ms. Humphrey again."
-            ]
-          : [
-              "Tap the lock icon (🔒) next to the address bar in Chrome.",
-              "Open Site settings → Microphone → set to Allow.",
-              "Reload the page and tap Ms. Humphrey again."
-            ],
-        speech: "I cannot reach the microphone, Nigel. It looks blocked in your settings. Ask Daddy to turn it on."
-      };
-    }
-    if (detail === 'denied-now') {
-      return {
-        heading: "I need permission to hear you.",
-        steps: [
-          "When Chrome asks if Hero Academy can use the microphone, tap Allow.",
-          "Then tap Ms. Humphrey again."
-        ],
-        speech: "Please tap Allow when Chrome asks for the microphone, Nigel."
-      };
-    }
+    // Returns { heading, intro, steps[], settingsUrl, speech }.
     if (detail === 'no-device') {
       return {
         heading: "I can't find a microphone on this device.",
+        intro: "",
         steps: [
           "Check that no other app is using the mic (close any call or recorder).",
           "If you're on a headset, make sure it's plugged in.",
           "Then tap Ms. Humphrey again."
         ],
+        settingsUrl: '',
         speech: "I cannot find a microphone, Nigel. Let's try again in a moment."
       };
     }
     if (detail === 'busy') {
       return {
-        heading: "Something else is using the microphone right now.",
+        heading: "Something else is using the microphone.",
+        intro: "",
         steps: [
           "Close any other app that might be recording (calls, video, voice notes).",
           "Then tap Ms. Humphrey again."
         ],
+        settingsUrl: '',
         speech: "Another app is using the microphone. Let's try again in a moment."
       };
     }
     if (detail === 'unsupported') {
       return {
         heading: "This browser doesn't support microphone input.",
+        intro: "",
         steps: [
           "Open Hero Academy in Chrome.",
           "Or, if installed as an app, reinstall it from Chrome."
         ],
+        settingsUrl: '',
         speech: "This browser cannot hear me yet, Nigel."
       };
     }
-    if (detail === 'security') {
-      return {
-        heading: "Microphone is blocked for security reasons.",
-        steps: [
-          "Make sure you're on the https:// version of Hero Academy.",
-          "Tap the lock icon → Site settings → Microphone → Allow."
-        ],
-        speech: "I cannot use the microphone here, Nigel."
-      };
-    }
+
+    // Default for ALL permission-related failures (denied-now,
+    // denied-permanent, security, unknown) — same message because the
+    // user's recovery path is the same.
+    var origin = '';
+    try { origin = window.location.origin || ''; } catch (_) {}
+    var settingsUrl = origin
+      ? ('chrome://settings/content/siteDetails?site=' + encodeURIComponent(origin))
+      : 'chrome://settings/content/microphone';
+
     return {
-      heading: "I cannot hear yet.",
+      heading: "I need permission to hear you.",
+      intro: "Chrome may ask if Hero Academy can use the microphone. If it asks, tap Allow. If no question appears, the microphone is blocked — tap the button below to fix it.",
       steps: [
-        "Tap the lock icon next to the address bar → Site settings → Microphone → Allow.",
-        "If installed as an app: Android Settings → Apps → Hero Academy → Permissions → Microphone ON.",
-        "Then tap Ms. Humphrey again."
+        "If Chrome asks — tap Allow, then tap Ms. Humphrey again.",
+        "If nothing appears — tap \u201cOpen mic settings\u201d below, find Microphone, set it to Allow, then come back."
       ],
-      speech: "I cannot hear yet, Nigel. Tap allow on the microphone and try me again."
+      settingsUrl: settingsUrl,
+      speech: "I need permission to hear you, Nigel. Tap allow on the microphone, or ask Daddy to open mic settings."
     };
   }
 
@@ -280,7 +255,7 @@
     card.style.cssText = [
       'background:#fff', 'color:#1a1f3a',
       'border-radius:18px', 'padding:22px 22px 18px',
-      'max-width:440px', 'width:100%',
+      'max-width:460px', 'width:100%',
       'box-shadow:0 24px 60px rgba(0,0,0,0.35)',
       'border:3px solid #ffd147'
     ].join(';');
@@ -291,8 +266,15 @@
     h.lastChild.textContent = copy.heading;
     card.appendChild(h);
 
+    if (copy.intro) {
+      var p = document.createElement('p');
+      p.style.cssText = 'margin:0 0 10px;font-size:0.96rem;line-height:1.45;color:#3a4060;';
+      p.textContent = copy.intro;
+      card.appendChild(p);
+    }
+
     var ol = document.createElement('ol');
-    ol.style.cssText = 'margin:6px 0 14px 22px;padding:0;font-size:0.98rem;line-height:1.45;';
+    ol.style.cssText = 'margin:6px 0 14px 22px;padding:0;font-size:0.96rem;line-height:1.45;';
     copy.steps.forEach(function (s) {
       var li = document.createElement('li');
       li.style.cssText = 'margin:4px 0;';
@@ -304,32 +286,53 @@
     var row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;';
 
-    var retry = document.createElement('button');
-    retry.type = 'button';
-    retry.textContent = 'Try again';
-    retry.style.cssText = [
-      'background:#ec4899', 'color:#fff', 'border:0',
-      'border-radius:10px', 'padding:10px 16px',
-      'font-weight:700', 'font-size:0.98rem', 'cursor:pointer',
-      'font-family:inherit'
-    ].join(';');
-    retry.addEventListener('click', function () {
-      try { wrap.parentNode.removeChild(wrap); } catch (_) {}
-      var b = document.getElementById('humphreyBtn');
-      if (b) { try { b.click(); } catch (_) {} }
-    });
-
     var close = document.createElement('button');
     close.type = 'button';
     close.textContent = 'Close';
     close.style.cssText = [
       'background:#eef0f7', 'color:#1a1f3a', 'border:0',
       'border-radius:10px', 'padding:10px 16px',
-      'font-weight:600', 'font-size:0.98rem', 'cursor:pointer',
+      'font-weight:600', 'font-size:0.96rem', 'cursor:pointer',
       'font-family:inherit'
     ].join(';');
     close.addEventListener('click', function () {
       try { wrap.parentNode.removeChild(wrap); } catch (_) {}
+    });
+
+    if (copy.settingsUrl) {
+      var settings = document.createElement('button');
+      settings.type = 'button';
+      settings.textContent = 'Open mic settings';
+      settings.style.cssText = [
+        'background:#14b8d4', 'color:#fff', 'border:0',
+        'border-radius:10px', 'padding:10px 16px',
+        'font-weight:700', 'font-size:0.96rem', 'cursor:pointer',
+        'font-family:inherit'
+      ].join(';');
+      settings.addEventListener('click', function () {
+        // window.open with a chrome:// URL is usually blocked, but a
+        // direct user-tap navigation often works on Android Chrome PWA
+        // and falls back to "did not open" silently otherwise. We hand
+        // the URL to the user too via the steps copy.
+        try { window.open(copy.settingsUrl, '_blank'); } catch (_) {}
+        try { window.location.href = copy.settingsUrl; } catch (_) {}
+      });
+      row.appendChild(settings);
+    }
+
+    var retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = 'Try again';
+    retry.style.cssText = [
+      'background:#ec4899', 'color:#fff', 'border:0',
+      'border-radius:10px', 'padding:10px 16px',
+      'font-weight:700', 'font-size:0.96rem', 'cursor:pointer',
+      'font-family:inherit'
+    ].join(';');
+    retry.addEventListener('click', function () {
+      try { wrap.parentNode.removeChild(wrap); } catch (_) {}
+      var b = document.getElementById('humphreyBtn');
+      if (b) { try { b.click(); } catch (_) {} }
     });
 
     row.appendChild(close);
