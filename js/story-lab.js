@@ -123,6 +123,8 @@
       slots: slots,
       text: row.text_template || '',
       theme: row.theme || '',
+      linked_struggle_zone:    row.linked_struggle_zone    || null,
+      linked_struggle_concept: row.linked_struggle_concept || null,
       _server: true,
     };
   }
@@ -210,7 +212,49 @@
         Tel.rpc('ha_mark_story_started', { p_item_id: tpl.id }).catch(function () {});
       }
     }
+    // Build #2 — Ms. Humphrey names the cross-zone connection out loud
+    // when this template was generated to thread a recent struggle.
+    maybeSpeakCrossZoneIntro(tpl);
     renderSlot();
+  }
+
+  // Speak a short Humphrey line connecting this story to something Nigel
+  // got wrong in another zone. Once per template per day so it never feels
+  // naggy on repeat picks.
+  function maybeSpeakCrossZoneIntro(tpl) {
+    if (!tpl || !tpl.linked_struggle_concept) return;
+    var H = NS.Humphrey;
+    if (!H || typeof H.say !== 'function') return;
+    var today = (new Date()).toISOString().slice(0, 10);
+    var key = 'ha_storylab_xzone_' + (tpl.id || tpl.title) + '_' + today;
+    try {
+      if (localStorage.getItem(key) === '1') return;
+      localStorage.setItem(key, '1');
+    } catch (_) {}
+    var zoneName = friendlyZoneName(tpl.linked_struggle_zone);
+    var concept  = String(tpl.linked_struggle_concept).trim();
+    var line = zoneName
+      ? ('I remember something from ' + zoneName + ' — ' + concept + '. This story has that in it. Listen for it as we go.')
+      : ('I picked this one for a reason — it has ' + concept + ' in it. Listen for it as we go.');
+    setTimeout(function () {
+      H.say('try-again-reading', {
+        kidName: 'Nigel',
+        expression: 'smile',
+        text: line,
+      });
+    }, 350);
+  }
+
+  function friendlyZoneName(zoneId) {
+    if (!zoneId) return '';
+    var z = String(zoneId).toLowerCase();
+    if (z === 'discovery' || z === 'discovery-dome') return 'Discovery Dome';
+    if (z === 'number-lab' || z === 'number_lab')    return 'Number Lab';
+    if (z === 'word-tower' || z === 'word_tower')    return 'Word Tower';
+    if (z === 'storylab'   || z === 'story-lab')     return 'Story Lab';
+    if (z === 'cauldron'   || z === 'cauldron-cafe') return 'Cauldron Café';
+    if (z === 'diner'      || z === 'diner-lanes')   return 'Diner Lanes';
+    return '';
   }
 
   function renderSlot() {

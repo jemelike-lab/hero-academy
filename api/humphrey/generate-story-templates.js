@@ -95,10 +95,21 @@ export default async function handler(req, res) {
     avoidThemes = Array.from(new Set((rows || []).map(r => String(r.theme || '').trim()).filter(Boolean)));
   } catch (_) {}
 
+  // ---- (2b) Cross-zone struggle thread (Build #2) ----------------------
+  // Pull recent wrong answers from any zone so Haiku can weave one of
+  // them into ~1-2 of the generated templates. The link is persisted so
+  // Ms. Humphrey can name the connection when the template is picked.
+  let recentStruggles = [];
+  try {
+    const rs = await sbRpc({ SB_URL, SB_KEY, fn: 'ha_get_recent_struggles',
+                             body: { p_child_id: child_id, p_days: 7 } });
+    if (Array.isArray(rs)) recentStruggles = rs.slice(0, 6);
+  } catch (_) { /* non-fatal; just skip threading */ }
+
   // ---- (3) Call Haiku ---------------------------------------------------
   let items;
   try {
-    items = await draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes, difficulty });
+    items = await draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes, difficulty, recentStruggles });
   } catch (e) {
     return res.status(502).json({ error: 'haiku draft failed', detail: errStr(e) });
   }
@@ -168,6 +179,8 @@ export default async function handler(req, res) {
       text_template: text,
       difficulty: difficulty,
       source: 'haiku-' + new Date().toISOString().slice(0, 10),
+      linked_struggle_zone:    trim(it.linked_struggle_zone, 40)    || null,
+      linked_struggle_concept: trim(it.linked_struggle_concept, 200) || null,
     });
   }
   if (clean.length === 0) {
@@ -202,6 +215,21 @@ export default async function handler(req, res) {
 // Haiku prompt — Story Lab is the richest personalization surface in the app
 // ---------------------------------------------------------------------------
 
+function buildStruggleBlock(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return '  (no recent struggles — skip the cross-zone thread for this batch)';
+  }
+  // Keep it tight so the system prompt stays small. Each struggle one line.
+  const lines = rows.slice(0, 6).map((r, i) => {
+    const zone     = trim(String(r.zone_id || ''), 30);
+    const prompt   = trim(String(r.prompt   || ''), 200);
+    const expected = trim(String(r.expected || ''), 120);
+    const given    = trim(String(r.given    || ''), 120);
+    return `  [${i + 1}] zone="${zone}" — prompt="${prompt}" — correct_answer="${expected}" — nigel_said="${given}"`;
+  });
+  return lines.join('\n');
+}
+
 function buildPersonalizationBlock(profile) {
   if (!profile || Object.keys(profile).length === 0) {
     return '(No profile available — write neutral, age-appropriate templates.)';
@@ -224,8 +252,9 @@ function buildPersonalizationBlock(profile) {
   return lines.join('\n');
 }
 
-async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes, difficulty }) {
+async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidThemes, difficulty, recentStruggles }) {
   const personalization = buildPersonalizationBlock(PROFILE);
+  const struggleBlock   = buildStruggleBlock(recentStruggles);
 
   const system = [
     'You are a 2nd-grade narrative writing specialist designing MadLib-style story templates for a homeschooled 7-year-old named Nigel.',
@@ -254,6 +283,9 @@ async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidTheme
     '',
     'PERSONALIZATION (this zone IS the personalization — feature Nigel and the people / things in his life directly):',
     personalization,
+    '',
+    'CROSS-ZONE THREAD (recent struggles Nigel has had in OTHER zones — Discovery Dome science cards, Number Lab math, etc.). Weave AT MOST ONE OR TWO templates around the concept of a struggle so the story quietly reinforces what he got wrong. The story is not a quiz — the concept appears as part of the world, not as a question. Example: if he missed "How does a spider feel things on its web?", a story can feature a spider tapping its hairs to feel a bug land. If you thread a struggle into a template, ADD these two fields to that template object: "linked_struggle_zone" (the source zone_id) and "linked_struggle_concept" (a 3-7 word phrase like "spiders feel vibrations on their web" — what the concept IS, not the original prompt). Leave both fields off for templates that do not thread a struggle.',
+    struggleBlock,
     '',
     'STORY THEME IDEAS (pick fresh ones — vary across the batch):',
     '  - cousin Skylar visits and they go on an adventure',
@@ -286,7 +318,9 @@ async function draftBatch({ ANTHROPIC_KEY, target_count, avoidTitles, avoidTheme
     '{ "items": [',
     '  { "title": "...", "emoji": "...", "theme": "...",',
     '    "slots": [ {"key":"...","kind":"...","prompt":"..."}, ... ],',
-    '    "text_template": "...{slotKey}..." }',
+    '    "text_template": "...{slotKey}...",',
+    '    "linked_struggle_zone": "...optional...",',
+    '    "linked_struggle_concept": "...optional 3-7 words..." }',
     '] }',
   ].join('\n');
 
