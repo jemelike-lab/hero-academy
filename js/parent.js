@@ -13,6 +13,85 @@
   'use strict';
 
   // -------------------------------------------------------------------------
+  // v91: Visible on-page debug overlay
+  // -------------------------------------------------------------------------
+  // Some browsers / extensions / SW caches hide normal console.log output, so
+  // we render every state transition into a pinned panel on the page itself.
+  // The panel auto-creates on first dbg() call. Tap its header to collapse.
+  // Lives outside DevTools so we can debug remotely without asking Josh to
+  // figure out console filters.
+  var dbgPanel = null;
+  var dbgLines = [];
+  var DBG_MAX_LINES = 80;
+
+  function ensureDbgPanel() {
+    if (dbgPanel) return dbgPanel;
+    var p = document.createElement('div');
+    p.id = '__haDbgPanel';
+    p.style.cssText = [
+      'position:fixed', 'top:8px', 'right:8px', 'z-index:99999',
+      'background:rgba(10,11,46,0.92)', 'color:#9eff9e',
+      'font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace',
+      'padding:0', 'border-radius:8px',
+      'box-shadow:0 8px 24px rgba(0,0,0,0.5), 0 0 0 2px #ffd147',
+      'max-width:min(420px, 92vw)', 'max-height:60vh',
+      'display:flex', 'flex-direction:column',
+      'overflow:hidden'
+    ].join(';');
+
+    var header = document.createElement('div');
+    header.textContent = '🛠 PARENT DEBUG — tap to collapse';
+    header.style.cssText = 'padding:6px 10px;background:#ffd147;color:#0a0b2e;font-weight:700;cursor:pointer;flex:0 0 auto';
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:6px 10px;overflow:auto;flex:1 1 auto;white-space:pre-wrap;word-break:break-word';
+    header.addEventListener('click', function () {
+      body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    });
+    p.appendChild(header);
+    p.appendChild(body);
+
+    // Mount as soon as body exists
+    function mount() {
+      if (document.body) document.body.appendChild(p);
+      else document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(p); });
+    }
+    mount();
+    dbgPanel = p;
+    dbgPanel._body = body;
+    return p;
+  }
+
+  function dbg(msg, opts) {
+    opts = opts || {};
+    var ts = new Date().toLocaleTimeString();
+    var line = '[' + ts + '] ' + msg;
+    dbgLines.push(line);
+    if (dbgLines.length > DBG_MAX_LINES) dbgLines.shift();
+    try { (opts.warn ? console.warn : console.log).call(console, '[parent] ' + msg); } catch (e) {}
+    try {
+      var pnl = ensureDbgPanel();
+      var color = opts.error ? '#ff8b8b' : (opts.warn ? '#ffd147' : (opts.ok ? '#9eff9e' : '#cfcfff'));
+      var span = document.createElement('div');
+      span.style.color = color;
+      span.textContent = line;
+      pnl._body.appendChild(span);
+      pnl._body.scrollTop = pnl._body.scrollHeight;
+    } catch (e) {}
+  }
+
+  // Capture any uncaught errors anywhere on the page.
+  window.addEventListener('error', function (e) {
+    dbg('UNCAUGHT ERROR: ' + (e.message || 'unknown') + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''), { error: true });
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var msg = e.reason && (e.reason.message || e.reason.toString());
+    dbg('UNHANDLED REJECTION: ' + (msg || 'unknown'), { error: true });
+  });
+
+  // Fire a "loaded" line immediately so we can SEE parent.js is running.
+  dbg('parent.js v91 loaded', { ok: true });
+
+  // -------------------------------------------------------------------------
   // Config
   // -------------------------------------------------------------------------
   var SUPABASE_URL = 'https://yofqeuguxgujgqnaejmw.supabase.co';
@@ -684,26 +763,32 @@
   var state = { parent: null, dash: null };
 
   function loadDashboard() {
+    dbg('loadDashboard() — calling ha_parent_dashboard RPC');
     $('#loadingBlock').hidden = false;
     $('#errorBlock').hidden = true;
     $('#contentBlock').hidden = true;
+    var t0 = Date.now();
     rpc('ha_parent_dashboard', { p_child_id: NIGEL_ID })
       .then(function (dash) {
+        var dt = Date.now() - t0;
+        dbg('RPC OK in ' + dt + 'ms — ' + (dash && dash.missions ? dash.missions.length : 0) + ' missions, ' + (dash && dash.quests ? dash.quests.length : 0) + ' quests', { ok: true });
         state.dash = dash;
-        renderTodayCard(dash.missions);
-        renderWeekStrip(dash.sessions_by_day);
-        renderWeekSubjects(dash.missions);
-        renderMissions(dash.missions);
-        renderQuests(dash.quests);
-        renderDirectives(dash.active_directives);
+        try { renderTodayCard(dash.missions);    dbg('  • renderTodayCard ok'); }    catch (e) { dbg('  ✗ renderTodayCard threw: ' + e.message, { error: true }); throw e; }
+        try { renderWeekStrip(dash.sessions_by_day); dbg('  • renderWeekStrip ok'); } catch (e) { dbg('  ✗ renderWeekStrip threw: ' + e.message, { error: true }); throw e; }
+        try { renderWeekSubjects(dash.missions); dbg('  • renderWeekSubjects ok'); } catch (e) { dbg('  ✗ renderWeekSubjects threw: ' + e.message, { error: true }); throw e; }
+        try { renderMissions(dash.missions);     dbg('  • renderMissions ok'); }     catch (e) { dbg('  ✗ renderMissions threw: ' + e.message, { error: true }); throw e; }
+        try { renderQuests(dash.quests);         dbg('  • renderQuests ok'); }         catch (e) { dbg('  ✗ renderQuests threw: ' + e.message, { error: true }); throw e; }
+        try { renderDirectives(dash.active_directives); dbg('  • renderDirectives ok'); } catch (e) { dbg('  ✗ renderDirectives threw: ' + e.message, { error: true }); throw e; }
         $('#loadingBlock').hidden = true;
         $('#contentBlock').hidden = false;
+        dbg('Dashboard rendered + visible.', { ok: true });
       })
       .catch(function (e) {
+        var dt = Date.now() - t0;
+        dbg('RPC FAILED after ' + dt + 'ms: ' + (e && e.message ? e.message : String(e)), { error: true });
         $('#loadingBlock').hidden = true;
         $('#errorBlock').hidden = false;
         $('#errorDetail').textContent = e.message || String(e);
-        console.warn('[parent] dashboard load failed', e);
       });
   }
 
@@ -711,34 +796,35 @@
   // Boot
   // -------------------------------------------------------------------------
   function boot() {
+    dbg('boot() running. hash=' + JSON.stringify(window.location.hash || '(empty)'), { ok: true });
     var parent = readParent();
+    dbg('readParent() => ' + (parent ? parent.display : '(no parent → show gate)'));
     if (!parent) {
       $('#gateBlock').hidden = false;
       // v83: wire the parent-picker buttons on the gate. Tap → set hash → boot.
-      console.log('[parent] gate shown, wiring picker buttons');
-      $$('#gateBlock .parent-gate-btn').forEach(function (btn) {
+      dbg('gate shown — wiring picker buttons', { ok: true });
+      var gateButtons = $$('#gateBlock .parent-gate-btn');
+      dbg('found ' + gateButtons.length + ' picker button(s)');
+      gateButtons.forEach(function (btn) {
         function handle(ev) {
-          if (btn._ha_gate_clicked) return;        // prevent double-fire (click + touchend)
+          if (btn._ha_gate_clicked) return;
           btn._ha_gate_clicked = true;
           if (ev && ev.preventDefault) ev.preventDefault();
           var who = btn.getAttribute('data-parent');
-          console.log('[parent] gate tap', who, 'evt=' + (ev && ev.type));
+          dbg('TAP: who=' + who + ' evt=' + (ev && ev.type), { ok: true });
           if (who && PARENTS[who]) {
             window.location.hash = who;
             $('#gateBlock').hidden = true;
+            dbg('hash set, gate hidden, calling boot() again');
             boot();
           } else {
-            console.warn('[parent] gate tap with unknown parent token:', who);
-            btn._ha_gate_clicked = false;          // allow retry
+            dbg('TAP with unknown parent token: ' + who, { warn: true });
+            btn._ha_gate_clicked = false;
           }
         }
-        // Primary handler — works on every modern browser.
         btn.addEventListener('click', handle);
-        // v88: Android Chrome PWA fallback. On some installed PWAs the first
-        // click after a hash-only navigation doesn't fire reliably; touchend
-        // bridges the gap. The _ha_gate_clicked flag prevents double-fire when
-        // both events do arrive.
         btn.addEventListener('touchend', handle, { passive: false });
+        btn.addEventListener('pointerdown', function () { dbg('pointerdown ' + btn.getAttribute('data-parent')); });
       });
       return;
     }
