@@ -285,6 +285,16 @@
     var ov = state.overlay;
     if (!ov) return;
     ov.classList.add('quest-overlay--in');
+    // v85: Ms. Humphrey reads the quest the moment Nigel sees it. Before this
+    // she only spoke after he tapped Start, which meant he had to read the
+    // quest himself first. Now she announces it on arrival so he can listen.
+    if (state.quest && state.quest.text) {
+      speak(
+        'quest_intro',
+        'I have a quest for you, Nigel. ' + state.quest.text + ' Tap Start when you are ready.',
+        'encouraging'
+      );
+    }
   }
 
   function closeOverlay() {
@@ -330,9 +340,10 @@
     // Persist start in DB (fire-and-forget)
     persistStart(quest);
 
-    // Humphrey announces the quest aloud
+    // Humphrey gives the go-ahead. v85: she already read the quest text aloud
+    // when the overlay opened, so we don't repeat it here — just send Nigel off.
     speak('quest_start',
-      'Okay Nigel \u2014 ' + quest.text + ' I will wait right here. Come back when you are ready.',
+      'Off you go! I will wait right here. Come back when you are ready.',
       'encouraging');
 
     // Countdown

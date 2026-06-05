@@ -350,14 +350,41 @@
         (hint ? '<div class="tm-hint">' + escapeHtml(hint) + '</div>' : '') +
       '</div>';
 
-    // Wire taps on each step → route to that zone's page
+    // Wire taps on each step → route to that zone's page. v85: Humphrey
+    // announces the step before navigating, giving Nigel a confirmation moment
+    // and bridging the transition with her voice. We strip the visual emoji
+    // prefix so the spoken intro sounds natural ("Math time" not "🔢 Math time").
     Array.prototype.forEach.call(ctx.container.querySelectorAll('.tm-step'), function (el) {
       el.addEventListener('click', function () {
         var zoneId = el.getAttribute('data-zone');
         var url = ZONE_ROUTES[zoneId];
         if (!url) return;
         markVisited(zoneId);
-        window.location.href = url;
+
+        var titleEl = el.querySelector('.tm-step-title');
+        var blurbEl = el.querySelector('.tm-step-blurb');
+        var rawTitle = (titleEl && titleEl.textContent) || '';
+        var rawBlurb = (blurbEl && blurbEl.textContent) || '';
+        // Strip any leading emoji + whitespace
+        var title = rawTitle.replace(/^[\uD83C-\uDBFF\uDC00-\uDFFF\u2600-\u27BF\uFE0F\u200D]+\s*/, '').trim();
+        var blurb = rawBlurb.trim();
+
+        var H = (window.HeroAcademy && window.HeroAcademy.Humphrey) || null;
+        if (H && typeof H.say === 'function' && (!H.isMuted || !H.isMuted())) {
+          try {
+            H.say('mission_step_tap', {
+              text: title + (blurb ? '. ' + blurb : '.'),
+              expression: 'encouraging',
+              priority: 'high',
+            });
+          } catch (e) {}
+          // Delay navigation so the announcement can start playing before the
+          // page unloads. 550ms is enough for the first word or two; the zone
+          // page's own Humphrey welcome picks up after arrival.
+          setTimeout(function () { window.location.href = url; }, 550);
+        } else {
+          window.location.href = url;
+        }
       });
     });
 
