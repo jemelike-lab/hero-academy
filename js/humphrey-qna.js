@@ -662,17 +662,18 @@
 
   // Find the first incomplete step in today's mission, if any.
   function nextIncompleteStep(steps, visited, zoneProgress, baseline) {
+    // v94: Humphrey now requires REAL progress (zoneProgress > baseline) to
+    // consider a step done. Previously tapping a zone marked it "visited"
+    // and Humphrey treated it as completed even if the kid only opened it
+    // for five seconds. That made her say "almost there" when nothing
+    // was actually finished.
     if (!Array.isArray(steps)) return null;
     for (var i = 0; i < steps.length; i++) {
       var s = steps[i];
       if (!s || !s.zone_id) continue;
-      var done = false;
-      if (visited && visited[s.zone_id]) done = true;
-      if (!done) {
-        var base = (baseline && baseline[s.zone_id]) || 0;
-        var cur = (zoneProgress && zoneProgress[s.zone_id]) || 0;
-        if (cur > base) done = true;
-      }
+      var base = (baseline && baseline[s.zone_id]) || 0;
+      var cur = (zoneProgress && zoneProgress[s.zone_id]) || 0;
+      var done = cur > base;
       if (!done) return s;
     }
     return null;
@@ -697,19 +698,12 @@
       if (yesterdayDone) {
         lines.push('Yesterday you finished every subject in your mission — amazing work.');
       } else {
-        var ySteps = (yesterdayMission.steps && yesterdayMission.steps.length) || 3;
-        var yDoneCount = 0;
-        try {
-          var yVisited = readJSONFromLS('ha_mission_visited_' + yesterdayKeyStr()) || {};
-          (yesterdayMission.steps || []).forEach(function (s) {
-            if (s && s.zone_id && yVisited[s.zone_id]) yDoneCount++;
-          });
-        } catch (_) {}
-        if (yDoneCount > 0) {
-          lines.push('Yesterday you got through ' + yDoneCount + ' of your ' + ySteps + ' subjects — great start. Let’s finish the full set today.');
-        } else {
-          lines.push('Yesterday was a quiet day. Let’s have a strong one today.');
-        }
+        // v94: We can no longer infer yesterday's completion from "visited"
+        // (that flag fires on any tap, not real work). Without persisted
+        // server progress for yesterday in this client, keep the recap
+        // neutral. The done-branch above still fires when the mission has
+        // a server-side completed_at.
+        lines.push('Welcome back, ' + kidName + '. Let’s have a strong day today.');
       }
     } else {
       // Fresh start — no yesterday record.
@@ -771,10 +765,10 @@
     }
     var baseline = (mission && mission.baseline) || {};
     var next = nextIncompleteStep(steps, visited, zoneProgress, baseline);
+    // v94: doneCount also requires real progress, not just a visit.
     var doneCount = 0;
     steps.forEach(function (s) {
       if (!s || !s.zone_id) return;
-      if (visited && visited[s.zone_id]) { doneCount++; return; }
       var base = baseline[s.zone_id] || 0;
       var cur = (zoneProgress && zoneProgress[s.zone_id]) || 0;
       if (cur > base) doneCount++;

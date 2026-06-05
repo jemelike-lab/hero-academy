@@ -309,9 +309,10 @@
       var done = stepDone(step, mission);
       var meta = subjectMeta(step.subject);
       var emoji = ZONE_EMOJI[step.zone_id] || meta.emoji || '\u2728';
-      var slotIcon = done
-        ? '\u2705'
-        : (step.slot === 'win' ? '\ud83c\udf1f' : (step.slot === 'warmup' ? '\u26a1' : '\ud83c\udfaf'));
+      // v94: All pending steps render as a target. Slot-specific icons
+      // (star for win, lightning for warmup) were confusing — they looked
+      // like completion markers. Check now strictly means "actually done."
+      var slotIcon = done ? '\u2705' : '\ud83c\udfaf';
       var blurb = step.blurb || '';
       return [
         '<li class="tm-step' + (done ? ' tm-step--done' : '') + '" data-zone="' + escapeAttr(step.zone_id) + '" data-slot="' + escapeAttr(step.slot || '') + '">',

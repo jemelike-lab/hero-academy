@@ -183,13 +183,12 @@
     $('reviewKindTag').className = 'review-kind-tag review-kind-' + item.kind;
     $('reviewQuestion').textContent = item.question || '';
 
+    // v94: Always hide helpText pre-answer. The helpText often spoils the
+    // answer (especially for math problems with explanatory help text).
+    // It reappears after the kid answers, where it teaches instead of spoiling.
     var help = $('reviewHelp');
-    if (item.helpText) {
-      help.textContent = item.helpText;
-      help.hidden = false;
-    } else {
-      help.hidden = true;
-    }
+    help.textContent = '';
+    help.hidden = true;
 
     var choices = $('reviewChoices');
     choices.innerHTML = '';
@@ -487,6 +486,13 @@
       { expression: 'cheering', priority: 'high' }
     );
 
+    // v94: kid has answered, so helpText is safe to reveal as visual
+    // reinforcement of what Humphrey just said.
+    if (item.helpText) {
+      $('reviewHelp').textContent = item.helpText;
+      $('reviewHelp').hidden = false;
+    }
+
     $('reviewNextBtn').hidden = false;
     $('reviewNextBtn').focus();
   }
@@ -515,6 +521,12 @@
 
     if (NS.SRS && srsRow && srsRow.srs_id) {
       NS.SRS.recordReview(srsRow.srs_id, 0);
+    }
+
+    // v94: post-answer reveal — show helpText now that it can't spoil.
+    if (item.helpText) {
+      $('reviewHelp').textContent = item.helpText;
+      $('reviewHelp').hidden = false;
     }
 
     speak('review-wrong', revealLine(item), {
