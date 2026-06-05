@@ -1,8 +1,8 @@
 # Hero Academy — HANDOFF
 
-**Last updated:** End of session, late evening June 4, 2026 (after SW v74 — zone voice consistency push).
-**Live SW:** `hero-academy-v74`
-**Latest commit on `main`:** `ae5ec65` — `feat: Number Lab problem readout + Cauldron/Diner Humphrey voice (SW v74)`
+**Last updated:** Late evening June 4 / early morning June 5, 2026 — after live UI verification of Build #2 (cross-zone coordination).
+**Live SW:** `hero-academy-v79`
+**Latest commit on `main`:** the v79 ship — `fix: explicit JSON schema in CROSS-ZONE prompt + threading audit (SW v79)` plus follow-up Supabase migration `build_2_prioritize_linked_templates_in_picker`.
 
 ---
 
@@ -21,165 +21,225 @@
 | **Target device** | **Android Galaxy Tab running Chrome installed as PWA** (NOT iPad) |
 | **Truth source** | This file (`.claude/HANDOFF.md` on `main`) — read first |
 
-### Deploy pattern (now proven 5×)
+### Deploy pattern (now proven 9× this session)
 1. Claude prepares a bundle as `*.tar.gz` and presents it.
-2. Josh runs `scp ~/Downloads/<bundle>.tar.gz root@2.24.68.106:/tmp/` from Mac terminal.
-3. Josh OR Claude (via Chrome MCP VPS terminal) runs: `cd /tmp/hero-deploy && git fetch origin main -q && git reset --hard origin/main -q && tar xzf /tmp/<bundle>.tar.gz && git add -A && git commit -m '<msg>' && git push`
-4. Vercel auto-deploys (~60s). **Verify SW version with cache-busted fetch** to the live URL or the VPS itself, NOT GitHub raw (which has a 5-min CDN cache that lies).
-5. Claude runs live UI test via Chrome MCP — navigate with `?bust=vN` to force fresh SW activation.
+2. Josh runs `scp ~/Downloads/<bundle>.tar.gz root@2.24.68.106:/tmp/` from Mac terminal — or uses the one-line combined SCP+SSH command Claude generates.
+3. Vercel auto-deploys (~60s).
+4. **Claude IMMEDIATELY runs live UI verification via Chrome MCP** — navigate with `?bust=vN`, exercise the actual feature on the live site, show screenshot evidence.
+5. If verification fails, ship the next bundle and repeat. "Code shipped" is NOT "feature shipped."
+
+### Verification discipline (new standard as of this session)
+Every deploy ends with live UI evidence. The mantra from Josh: *"I need you to always run a UI live site verification after each deployment. This is the true test."*
+
+This session caught three production-shipped-but-broken bugs in Build #2 that DB-only verification would have missed entirely. See §5 for the receipts.
 
 ---
 
-## 1 — What shipped THIS session (June 4 2026, late evening)
+## 1 — What shipped THIS session (June 4–5, late night)
 
-**Two bundles tonight. Both verified live via Chrome MCP.**
+**Five bundles tonight + one direct SQL migration. All live, all verified.**
 
-### Bundle 1: `sticky-aid-page-awareness-question-readout.tar.gz` (SW v73) ✅
+### Bundle 1 — `mic-help-v75.tar.gz` (SW v75) ✅
 
-Three user-visible fixes from a screenshot of the Yangtze turtle card:
+Granular mic-permission diagnosis. Original symptom: tapping Ms. Humphrey button said *"I cannot hear you, Nigel. Tap Allow on the microphone to try again."* — but no Allow prompt ever appeared because permission had been permanently denied at some point.
 
-1. **Sticky visual aid** — `state.stickyBubbleActive` flag in `js/humphrey.js`. When a Wikipedia image attaches mid-`say()`, the bubble persists past speech end. Dismiss: next `say()`, bubble tap, or new `Humphrey.clearVisualAid()` API.
+- **`js/humphrey-listener.js`** — capture DOMException `name` from `getUserMedia` rejection, cross-reference with `navigator.permissions.query({name:'microphone'})`. Returns granular code: `denied-permanent`, `denied-now`, `no-device`, `busy`, `security`, `unsupported`, `unknown`.
+- **`js/humphrey-qna.js`** — on `no-mic`, show a **visible help modal** (not just audio) with detail-specific steps + retry button. Audio TTS may fail when mic is broken (same gesture path), so visible guidance is essential.
 
-2. **Page-aware QnA** — `js/humphrey-qna.js` adds `sniffPageContext()` (zone from `body.className` + URL, visible text from a list of candidate containers). `js/humphrey-chat.js` forwards `zoneId`, `zoneLabel`, `pageTitle`, `visibleText`. `api/humphrey/chat.js` injects a "WHAT IS ON NIGEL'S SCREEN RIGHT NOW" block into the system prompt. **A/B proven:** 4-of-5 vs 0-of-5 eagle-content keywords with vs without context.
+### Bundle 2 — `cross-zone-v76.tar.gz` (Build #2 v1, SW v76) ✅ (partial)
 
-3. **Discovery Dome reads question after fact** — `js/discovery-dome.js` `showCard()` changed `text: card.fact` → `text: card.fact + '   ' + card.question`. Three-space gap creates a natural TTS pause.
+Initial cross-zone coordination ship. Schema + RPC + generator wiring + Story Lab Humphrey intro.
 
-### Bundle 2: `zone-voice-readout-fix.tar.gz` (SW v74) ✅
+- **DB migration applied via Supabase MCP** (`build_2_cross_zone_struggle_thread_v2`):
+  - `ALTER TABLE ha_story_templates ADD COLUMN linked_struggle_zone text, linked_struggle_concept text`
+  - `DROP FUNCTION ha_get_story_templates(uuid, integer)` + `CREATE FUNCTION` with the two new columns in returns
+  - `CREATE OR REPLACE FUNCTION ha_get_recent_struggles(uuid, integer)` returning last 7 days of wrong attempts (zone_id, prompt, expected, given, attempted_at) — SECURITY DEFINER, GRANT EXECUTE to anon+authenticated
+- **`api/humphrey/generate-story-templates.js`** — fetch struggles via `ha_get_recent_struggles`, pass to `draftBatch`, validate + persist link fields on insert.
+- **`js/story-lab.js`** — `mapServerTemplate` preserves link fields; new `maybeSpeakCrossZoneIntro()` fires Humphrey's connecting line on template pick, once per template per day, gated on `linked_struggle_concept`. New `friendlyZoneName()` maps zone_id → reading-friendly label.
 
-Audit of every zone revealed the "show on screen but don't read aloud" pattern from Discovery Dome bit two more zones, AND two Phaser zones were using browser system TTS instead of Emory.
+### Bundle 3 — `mic-modal-v77.tar.gz` (SW v77) ✅
 
-1. **Number Lab now reads every problem** — `js/number-lab.js` `renderCurrentProblem()` adds a `Humphrey.say('try-again-reading', { text: question })` immediately after setting `problemQuestion.textContent`. Whitespace-collapsed for clean speech.
+Mic modal copy fix. Live UI verification of v75 caught that the `denied-now` modal said *"Chrome will ask — tap Allow"* but Chrome wasn't going to ask (Permissions API was returning `'unknown'` on Android Chrome PWA, classifier landed on wrong branch).
 
-2. **Cauldron Café uses Humphrey's voice** — `cauldron-cafe.html` local `speak()` upgraded to prefer `window.HeroAcademy.Humphrey.say()` when loaded, falling back to `speechSynthesis`. All 4 existing call sites (`startLevel`, `winLevel`, `failLevel`, `winGame`) auto-upgrade.
+- **`js/humphrey-qna.js`** — unified modal copy for all permission-related failures (denied-now, denied-permanent, security, unknown). Now shows BOTH paths in one message: "tap Allow if a prompt appears, otherwise tap Open mic settings". New **"Open mic settings"** button fires `window.location.href = chrome://settings/content/siteDetails?site=<origin>`. Dropped the misleading "Android Settings → Apps → Hero Academy → Permissions" path (doesn't expose mic for most Android Chrome PWA installs — Chrome holds permission at site level).
 
-3. **Diner Lanes uses Humphrey's voice** — same upgrade for `diner-lanes.html`. Closes the prior `TODO: swap for ElevenLabs TTS via Miss Humphrey (agent_5901kssbzjm1e0yvd0kdwxa3r49m)` comment.
+**Josh's tablet recovery path that actually worked tonight:** open Chrome browser (not PWA) → paste `chrome://settings/content/siteDetails?site=https://hero-academy-jemelike-6356s-projects.vercel.app` into address bar → Microphone → Allow → reopen PWA → mic works.
 
-**Live A/B evidence for v74 (from production logs):**
+### Bundle 4 — `cross-zone-strong-v78.tar.gz` (SW v78) ✅ (partial)
 
+Strengthened cross-zone prompt. Live UI verification of v76 showed `compliance: FAILED-haiku-ignored` — 0 of 8 templates threaded.
+
+- **`api/humphrey/generate-story-templates.js`** — moved CROSS-ZONE THREAD section to LAST in the system prompt (after STORY THEME IDEAS, just before OUTPUT FORMAT), prefixed with `★★★ ... READ THIS CAREFULLY ★★★`. Changed wording from "weave AT MOST ONE OR TWO" to "you MUST do the following" when struggles list is non-empty. Added a full worked example showing a complete threaded template.
+
+### Bundle 5 — `cross-zone-required-v79.tar.gz` (SW v79) ✅ FULLY VERIFIED
+
+v78 ship still failed — Haiku now narrated struggle concepts into stories ("The Web-Maker's Gift", "The Sun's Long Journey") but still didn't tag with metadata. **Root cause: OUTPUT FORMAT schema still said `"...optional..."`** for both linked fields, contradicting the strong instruction above. Haiku trusted the schema.
+
+- **`api/humphrey/generate-story-templates.js`** — OUTPUT FORMAT now shows TWO literal example items (one threaded with linked fields, one without) instead of a single abstract schema. All "optional" wording removed; replaced with explicit RULES: "EXACTLY ONE item MUST include both fields when struggles exist."
+- **NEW: `threading_audit` field in response** — every generation now returns `{ struggles_supplied, items_threaded, threaded_titles[], compliance }` where compliance is `"ok"`, `"FAILED-haiku-ignored"`, or `"no-struggles-to-thread"`. This is the right pattern for any Haiku-driven endpoint: surface compliance to the caller so we see prompt drift immediately, not a week later.
+
+### Direct SQL migration — `build_2_prioritize_linked_templates_in_picker` ✅
+
+Live UI verification of v79 showed compliance OK + DB had 5 linked templates, BUT Story Lab picker still showed the 16 original seed templates (all `difficulty=1`) and buried the new linked ones (`difficulty=2`) at position 17+ in the queue. Nigel would never see them.
+
+Applied directly via Supabase MCP (no SCP needed, SQL-only change):
+
+```sql
+ORDER BY
+  i.seen_at NULLS FIRST,                          -- unseen first (was here)
+  (i.linked_struggle_zone IS NOT NULL) DESC,      -- NEW: linked items surface first
+  i.difficulty ASC,
+  i.created_at ASC
 ```
-[Number Lab — after click on GOT IT]
-19:05:04.420 say() try-again-reading → Nigel's soccer team scored 7 goals on Monday. They scored 6 goals on Wednesday. How many goals did they score in all?
-19:05:04.441 TTS fetch "Nigel's soccer team scored 7 g"
-19:05:05.303 TTS resp 200 ct=audio/mpeg
-19:05:05.482 TTS blob 111639B
-19:05:05.528 TTS play started ok
 
-[Cauldron Café — on startLevel(0)]
-19:05:56.400 say() try-again-reading → Wanda the Witch says: I want 3 carrots.
-
-[Diner Lanes — on startLevel(0)]
-19:06:59.653 say() try-again-reading → Mia from California wants 4 fish tacos.
-```
-
-**Bonus finding:** Number Lab problems are personalization-aware. The math word problem above ("Nigel's soccer team scored 7 goals") confirms Word-Tower-style profile-folding now reaches Number Lab generation too. Worth confirming where this lives and whether other zones get the same treatment.
+After this, the picker shows linked templates at positions 1–5. End-to-end verified.
 
 ---
 
 ## 2 — Current live state
 
-### Active SW: `hero-academy-v74`
+### Active SW: `hero-academy-v79`
 
 | Feature | Status |
 |---|---|
 | Daily Mission (Build #1) | Live, persisted, celebration overlay works |
-| Manipulatives + skill viz (Build #6 v2) | Live |
-| Real-world Quests (Build #7 v1) | Live, 10 seed quests + 5 photo quests |
-| Photo capture + Humphrey vision (Build #7 v2) | Live, **STILL needs Galaxy Tab acceptance** |
+| Manipulatives + skill viz (Build #6 v2) | Live (v3 base-10 blocks still pending) |
+| Real-world Quests v1+v2+v3 (Build #7) | Live, **STILL needs Galaxy Tab acceptance pass** |
 | Parent Co-pilot dashboard (Build #5) | Live, all 4 directive types end-to-end |
 | Hero Journey level + Journey UI (Build #3) | Live, Nigel at Level 4 Champion 7/15 |
-| Quest streaks on home tile (Build #7 v3) | Live |
-| Sat email — Notes from Home (Build #5 v2) | Live, fires naturally Sat |
-| Sat email — Show & Tell highlights (Build #7 v3) | Live, fires naturally Sat |
-| Sticky visual aid (SW v73) | **Live, verified Chrome MCP A/B** |
-| Page-aware Humphrey QnA (SW v73) | **Live, verified Chrome MCP A/B** |
-| Discovery Dome fact + question readout (SW v73) | **Live, verified debug log + screenshot** |
-| **Number Lab problem readout (SW v74)** | **Live, audio chain to Emory confirmed end-to-end** |
-| **Cauldron Café Humphrey voice (SW v74)** | **Live, speak() delegation verified** |
-| **Diner Lanes Humphrey voice (SW v74)** | **Live, speak() delegation verified, TODO resolved** |
+| Sat email — Notes from Home + Show & Tell (Build #5 v2 + #7 v3) | Live |
+| Sticky visual aid + page-aware QnA + Discovery Dome readout (SW v73) | Live |
+| Number Lab problem readout + Cauldron/Diner Humphrey voice (SW v74) | Live |
+| **Granular mic permission diagnosis + on-screen help modal (SW v75 + v77)** | **Live, verified Chrome MCP — modal fires correctly, Open mic settings deep link works** |
+| **Cross-zone coordination Story Lab v1 (Build #2, SW v76→v79)** | **Live, FULLY VERIFIED end-to-end on the live UI — Haiku tags linked templates with `compliance: ok`, picker prioritizes them at top, Ms. Humphrey speaks the connecting line on tap, ElevenLabs Emory audio confirmed (145KB TTS blob)** |
 
 Nigel's Hero Journey state: `aurora=3, carlo=1, shellback-squad=1, toybox-team=1, webly=1` → 7/15 → Level 4 Champion.
 
+Story template pool state (as of this writing): 35+ unseen templates with 5 carrying linked-struggle metadata, all linked to recent Discovery Dome wrong-answers (spider vibrations, sun's heat travels through space, rice roots breathe underwater).
+
 ---
 
-## 3 — Pending verification / acceptance items
+## 3 — MUST BUILD scoreboard (refreshed)
 
-### 🔴 Galaxy Tab acceptance pass for Build #7 v2 camera — DEFERRED 3× NOW
-**Highest priority before any new build.** Test plan:
-- Open Hero Academy as PWA on Galaxy Tab
-- Tap Real-world Quest tile until "SHOW AND TELL • 📸" quest appears
-- Start → "I'm back!" → Allow camera → confirm rear camera + video plays
-- Snap → preview → Send → Humphrey reaction text + voice plays
-- Watch DB row land in `ha_real_world_quests`
+| # | Build | Status | Notes |
+|---|---|---|---|
+| **1** | Daily structured mission | ✅ **Live** | DB-persisted, celebration overlay works |
+| **2** | Cross-zone coordination | ✅ **Live, FULLY VERIFIED** | Shipped tonight after 4 iterations (v76 → v79 + RPC migration). See §1 |
+| **3** | Hero levels + Journey Map | ✅ **Live** | Nigel at Level 4 Champion, 7/15. Surprise Squad characters loaded |
+| **4** | SRS + Friday cumulative quiz | 🟡 **Built, not verified live** | Engine + tables + `review.html` exist. Three unverified items: (a) does `ha_srs_queue` populate from real 2nd-misses? (b) does Friday quiz fire? (c) is retention number wired into Sat email? |
+| **5** | Bianca as co-pilot | ✅ **Live** | Parent dashboard + 4 directive types + Notes-from-Home Sat email block + Show & Tell highlights all shipped |
+| **6** | Multi-modal manipulatives | 🟡 **v2 live, v3 pending** | `countOnLine` + `subtractFromTenLine` shipped. **Base-10 blocks for `place_value` + 2-digit ops not yet built** |
+| **7** | Physical-world bridge (camera quests) | 🟡 **Live, unverified on device** | All coded. **Galaxy Tab acceptance pass deferred 4× now** |
+| **8** | Observability | 🟡 **Partial** | 8.1 healthcheck cron live. 8.2 (cron retries) + 8.3 (client-side error capture) sequenced but not confirmed shipped. Worth a verify pass |
 
-### 🔴 Galaxy Tab device check of SW v73 + v74 features
-Chrome MCP A/B passes proved the logic, but real device acceptance is the only way to confirm:
-- **Sticky bubble:** layout doesn't break portrait/landscape on Galaxy Tab viewport
-- **Fact + question readout (Discovery Dome):** flows at natural Emory pace; 3-space gap may need tuning
-- **Page-aware "what is this?":** works on a fresh card before audio-unlock vs after
-- **Number Lab problem readout chatty-check:** with Humphrey reading every problem AND reacting to every answer, is the talking pace right? If too much, easy tune: gate on `session.problemsAttempted === 0` (first-of-skill only) or on question length > 15 chars (word problems only)
-- **Cauldron/Diner Humphrey voice swap:** confirm Emory voice on order announce vs the prior robotic system TTS
+**Score:** 4 of 8 fully done (#1, #2, #3, #5), 3 of 8 substantially built but unverified or v-N-incomplete (#4, #6, #8), 1 of 8 device-dependent (#7).
+
+---
+
+## 4 — Pending verification / acceptance items
+
+### 🔴 Galaxy Tab acceptance pass — DEFERRED 4× NOW (TOP PRIORITY)
+This one device session covers acceptance for ALL of: Build #7 v2 camera, SW v73 sticky aid + page-aware QnA + Discovery Dome readout, SW v74 Number Lab readout + Cauldron/Diner Humphrey voice, SW v75/v77 mic modal, AND Build #2 cross-zone Humphrey connecting line. Nothing else should ship until this is done.
+
+**Tablet test script (one sitting, ~6 minutes):**
+1. **Mic**: Tap Ms. Humphrey button → should grant cleanly now (you fixed it via chrome://settings tonight). If it ever blocks again in the future, the v77 modal shows the recovery path with Open mic settings button.
+2. **Camera quest**: Real-world Quest tile → SHOW AND TELL → "I'm back!" → Allow camera → confirm rear cam → snap → Humphrey reaction
+3. **Discovery Dome**: tap a card → confirm fact + question both read aloud
+4. **Number Lab**: confirm problem reads aloud on every problem render
+5. **Cauldron Café + Diner Lanes**: start level 0 each → confirm Emory voice (not robotic system TTS)
+6. **Sticky aid**: ask Humphrey "what is this?" mid-card → image persists past speech, dismisses on tap
+7. **Cross-zone Build #2 (NEW)**: Open Story Lab → confirm linked templates appear at top of picker (look for ☀️ Sunbeam, 🕷️ Lexi's Web-Builder, 🕸️ Zylo's Secret Web, ☀️ Skylar's Heat Wave, 🌾 Rice Paddy Adventure) → tap one → confirm Ms. Humphrey says *"I remember something from Discovery Dome — [concept]. This story has that in it…"* in Emory's voice → slot-filling proceeds normally
 
 ### 🟡 Saturday June 7 email watch
 - Show & Tell block renders with Nigel's real quest data
-- Streak badge appears if he has any quests this week
+- Streak badge appears if any quests this week
 - Notes from Home consumes any active parent directives
+- Empty-data weeks read as "Nigel didn't open the app", not "missed a scheduled session"
 
-### 🟡 Personalization audit
-This session surprised me — Number Lab is folding Nigel's family/friends/interests into word problems (saw "Nigel's soccer team scored 7 goals on Monday"). Worth confirming:
-- Where exactly this happens (likely Haiku generator endpoint with profile context)
-- That it's consistent across skills, not just one type
-- That the rate is appropriate (Word Tower aims for ~30%)
-- Whether Cauldron Café / Diner Lanes / Discovery Dome benefit from the same treatment
+### 🟡 Build #4 (SRS) live verification — see §3
 
-### 🟢 Quest streak ≥2 branch — cosmetic
-DOM-simulated only. Verify naturally when Nigel hits a real 2-day streak.
-
-### 🟢 Hero Hall `is_almost` pulse-glow — cosmetic
-Code exists but no character within 1 play of next unlock yet.
+### 🟡 Build #8 (observability) status check — confirm 8.2 cron retries + 8.3 client error capture shipped or sequence them
 
 ---
 
-## 4 — Open items for next session
+## 5 — Live UI verification — what tonight's three catches prove
+
+This is the receipt for why DB/code verification alone is not enough. All three would have shipped as "✅ done" without driving the live UI:
+
+1. **v77 → v78**: After v76 shipped Build #2 v1, the live API response audit showed `compliance: FAILED-haiku-ignored` — 0 of 8 templates had linked metadata, despite the prompt asking for it. DB/schema were correct, code path ran, but Haiku ignored the instruction. Visible only by exercising the generator and reading the audit.
+
+2. **v78 → v79**: After v78 ship, Haiku now WROTE stories around struggle concepts (titles: "The Web-Maker's Gift" 🕷️, "The Sun's Long Journey" ☀️) but STILL didn't tag with metadata. Root cause: OUTPUT FORMAT schema in the prompt still said `"...optional..."` — contradicting the strong instruction. Visible only by reading actual Haiku output vs the audit count.
+
+3. **v79 → RPC migration**: After v79 ship with `compliance: ok` (2 of 8 threaded, fields populated in DB), the live Story Lab picker still showed the original 16 seed templates and buried the new linked ones at position 17+ due to `difficulty ASC` tiebreaker. Visible only by opening Story Lab and counting cards on screen.
+
+**Each catch took 2–5 minutes to fix once seen.** Without the live UI loop they would have lived in production unnoticed until Nigel sat down and never got the moment.
+
+---
+
+## 6 — Key technical learnings (this session)
+
+### Live UI verification catches what code/DB verification cannot
+Three production-shipped-but-broken bugs caught in one session. See §5.
+
+### Haiku prompt drift is real and silent
+Haiku will gravitate to the strongest/freshest section of a prompt. If section A says "MUST" and section B (further down or last) says "optional", section B wins. Workarounds that worked:
+- Move critical instructions LAST in the system prompt (Haiku weights recency)
+- Use literal JSON examples in OUTPUT FORMAT, not abstract schemas with "..."
+- Remove ALL "optional" wording from required fields
+- Show TWO concrete example items (one with feature, one without) so Haiku has a copyable shape
+- Surface compliance to the API caller via a `threading_audit` field so drift is observable immediately
+
+### Picker priority is part of the feature, not a UI detail
+Cross-zone coordination wasn't done when the DB had linked templates and Haiku tagged them correctly — it was done when Nigel actually SEES them in the picker. The `difficulty ASC` tiebreaker buried them at position 17+. Rule for future similar features: any "smart" or "personalized" item should jump to the front of the queue via an explicit `(feature_flag IS NOT NULL) DESC` clause in the picker RPC, not rely on existing sort order.
+
+### Permissions API on Android Chrome PWA is unreliable
+`navigator.permissions.query({name:'microphone'})` returns inconsistent values across Android Chrome versions when the site is running as an installed PWA. Sometimes `'denied'`, sometimes `'unknown'`, sometimes never settles. Don't branch UX exclusively on its result. The right pattern: show BOTH "Chrome may ask — tap Allow" AND "If no question appears, open mic settings" in one modal, plus a deep-link button to `chrome://settings/content/siteDetails?site=<origin>`.
+
+### Android PWA mic permission lives in Chrome site settings, not Android app settings
+"Android Settings → Apps → Hero Academy → Permissions" path does NOT expose Microphone for most Android Chrome PWA installs — Chrome holds the permission at the site level. Recovery is always via Chrome browser → site settings → microphone. The v77 modal removed the misleading Android-app-settings path.
+
+### Direct Supabase migrations bypass the SCP loop for SQL-only changes
+The picker priority fix was applied directly via Supabase MCP `apply_migration` — no tarball, no SCP, no Vercel deploy, no SW bump. Pattern: if the change is SQL-only, ship it via Supabase MCP and verify on live UI. Code+SQL changes go through the SCP loop together. Saves a deploy round-trip.
+
+### Bundle-deploy commit prefix pattern
+One-line combined SCP+SSH command worked smoothly all 5 ships tonight:
+```
+scp ~/Downloads/<bundle>.tar.gz root@2.24.68.106:/tmp/ && ssh root@2.24.68.106 'cd /tmp/hero-deploy && git fetch origin main -q && git reset --hard origin/main -q && tar xzf /tmp/<bundle>.tar.gz && git add -A && git commit -m "<msg>" && git push'
+```
+
+### Chrome MCP top-level `await` doesn't work in `javascript_tool`
+Wrap any awaited code in `(async () => { ... })()`. Otherwise: `SyntaxError: await is only valid in async functions`.
+
+### Chrome MCP cache-bust pattern proven
+`?bust=vN` (incrementing) on every navigation reliably forces fresh SW activation. After SCP, always use a new bust suffix.
+
+---
+
+## 7 — Open items for next session
 
 ### Priority order
-1. **Galaxy Tab acceptance — Build #7 v2 camera + tonight's SW v73 + v74 features.** Deferred 3×; one device session covers acceptance for ALL the recent work. This is the bottleneck.
-2. **Watch Sat June 7 email** — confirm Show & Tell + streak rendering with real data.
-3. **Tune Number Lab readout chattiness if needed** — based on tablet test feedback. Heuristic flags ready: first-of-skill only OR word-problem-only.
-4. **MUST BUILD #6 v3** — base-10 blocks for `place_value` + 2-digit ops. More skill visuals.
-5. **Remaining placeholder zones** — Sound Stage, Training Gym, Creation Studio still stubs.
-6. **Story arc / character progression** — Surprise Squad infrastructure loaded but narrative progression unwired. High-priority moat feature.
-7. **Personalization audit** (see §3) — if Number Lab is folding in Nigel's profile, audit which other zones do and standardize.
+1. **Galaxy Tab acceptance pass** for the consolidated tablet checklist in §4 (4× deferred — top priority)
+2. **Watch Saturday June 7 email** rollout (Notes from Home + Show & Tell + streaks)
+3. **Verify Build #4 (SRS)** end-to-end
+4. **Verify Build #8** observability components
+5. **MUST BUILD #6 v3** — base-10 blocks for `place_value` + 2-digit ops
+6. **Remaining placeholder zones** — Sound Stage, Training Gym, Creation Studio still stubs
+7. **Story arc / Surprise Squad character progression** narrative wiring (infrastructure loaded, not wired)
+8. **Personalization audit across zones** — Number Lab folds Nigel's profile into word problems; verify Cauldron / Diner / Discovery get same treatment
+9. **Ms. Humphrey 6th expression** — idle/smile variant to complete the set
+
+### NEW going forward — verification discipline
+Every deploy now ends with live UI verification via Chrome MCP. Required evidence:
+- Screenshot showing the user-facing result
+- Console / debug log confirming the code path ran
+- DB confirmation if the feature persists state
+- For Haiku/AI endpoints, a compliance audit field in the API response
+
+"Code shipped" is not "feature shipped." Treat every claim that a feature is done with the same skepticism Josh used tonight when pushing back on Build #2.
 
 ---
 
-## 5 — Key technical learnings (this session)
-
-### GitHub raw CDN lies for ~5 minutes after push
-`raw.githubusercontent.com/.../sw.js?cb=<ts>` returns a STALE cached file for up to `max-age=300` regardless of query string. To verify a deploy actually landed on `main`:
-- Either check via the **VPS terminal** (`head -1 sw.js && git log --oneline -3` in `/tmp/hero-deploy`),
-- OR fetch the **live Vercel URL** (`https://hero-academy-jemelike-6356s-projects.vercel.app/sw.js`) which uses Vercel's own cache (much fresher).
-- DON'T trust GitHub raw for the first few minutes after a push. Bit me tonight — sent Josh on a false-alarm sw.js-bump fix.
-
-### Bundle deploy gotcha
-If Josh re-extracts an older bundle on top of a newer one (e.g. re-running an older SCP command), files unique to the older bundle revert while files unique to the newer bundle stay. Symptom tonight: `sw.js` went back to v73 while `number-lab.js`/`cauldron-cafe.html`/`diner-lanes.html` stayed at v74. Turned out to be the GitHub raw cache issue above, not actually a deploy problem, but worth noting because the failure mode IS possible if SCP commands get reused. **Fix pattern:** when in doubt, SSH the VPS, `head -1 sw.js`, and just `sed -i` + commit + push the version line directly if it's the only mismatch.
-
-### Chrome MCP click affordances
-`computer.left_click` with coordinates can miss buttons if the page repaints between screenshot and click. Two more reliable alternatives:
-- `find` → returns a `ref_*`, then use it (but `click_element` is NOT a valid action name — that one threw an error tonight).
-- `document.getElementById('btnId').click()` via `javascript_tool` — bulletproof, no coordinate issues. **Use this by default.**
-
-### Number Lab is heavily minified
-`js/number-lab.js` is one-line-per-function. To edit, find a unique short string anchor (e.g. `problemQuestion.textContent=session.currentProblem.question`) and replace with the same string + injected logic on one line. Always `node -c` syntax-check after.
-
-### Phaser zones use a local `speak()` wrapper
-Both Cauldron Café and Diner Lanes have an inline `speak()` function (system TTS) defined before the Phaser scene class. To make them use Humphrey, just upgrade the wrapper — keep all call sites intact, change the implementation to prefer Humphrey when loaded. Cleanest 1-spot fix.
-
-### TTS audio gating in test contexts
-Chrome MCP automation has `state.audioUnlocked === false` until a real user gesture. `speak gate: ... unlocked=false` followed by `SKIP audio (gate failed)` is **expected and not a bug** — the `Humphrey.say()` still routes correctly and the bubble still shows. Audio playback resumes after the first user click. Number Lab test caught this clearly: after my click on "GOT IT" (user gesture), the next say() showed `unlocked=true` → `TTS resp 200` → `TTS play started ok`.
-
----
-
-## 6 — Tool / resource inventory
+## 8 — Tool / resource inventory (refreshed)
 
 | Resource | Identifier |
 |---|---|
@@ -198,28 +258,81 @@ Chrome MCP automation has `state.audioUnlocked === false` until a real user gest
 | Parent emails | `bianca.parker92@gmail.com`, `jemelike@gmail.com` |
 | Healthcheck (Saturday cron) | `https://healthchecks.io/checks/ec0311a8-d63a-4f89-828f-8d985dd28889/` |
 
+### Build #2 (cross-zone) reference
+
+| | |
+|---|---|
+| Source RPC | `ha_get_recent_struggles(p_child_id uuid, p_days int default 7)` — returns up to 8 wrong attempts |
+| Picker RPC | `ha_get_story_templates(p_child_id, p_n)` — sorts unseen + linked first |
+| Story template columns | `linked_struggle_zone text`, `linked_struggle_concept text` (both nullable) |
+| Generator endpoint | `POST /api/humphrey/generate-story-templates` body `{child_id, target_count, force}` |
+| Audit field | `threading_audit: { struggles_supplied, items_threaded, threaded_titles[], compliance }` in response |
+| Compliance values | `"ok"` / `"FAILED-haiku-ignored"` / `"no-struggles-to-thread"` |
+| Humphrey intro fn | `maybeSpeakCrossZoneIntro(tpl)` in `js/story-lab.js`, once-per-template-per-day via localStorage key `ha_storylab_xzone_<id>_<date>` |
+| Zone-name mapping | `friendlyZoneName(zone_id)` in `js/story-lab.js` |
+
+### Verification-only test commands
+
+```js
+// Fire the generator and read threading audit (from page console on live URL)
+const r = await fetch('/api/humphrey/generate-story-templates', {
+  method:'POST', headers:{'content-type':'application/json'},
+  body: JSON.stringify({ child_id:'2e0e51c5-f120-4152-8aa1-041eeecc8165', target_count:8, force:true })
+});
+await r.json();
+```
+
+```sql
+-- See which recent templates have linked metadata
+SELECT title, linked_struggle_zone, linked_struggle_concept, created_at
+FROM ha_story_templates
+WHERE child_id = '2e0e51c5-f120-4152-8aa1-041eeecc8165'
+  AND linked_struggle_zone IS NOT NULL
+ORDER BY created_at DESC LIMIT 10;
+```
+
 ---
 
-## 7 — Cumulative file diff for SW v73 + v74
+## 9 — Cumulative file diff for SW v75 → v79
 
-### SW v73 (sticky-aid + page-aware + Discovery Dome readout)
-| File | Before | After |
-|---|---|---|
-| `sw.js` | `hero-academy-v72` | `hero-academy-v73` |
-| `js/humphrey.js` | hide bubble on speech end always | sticky flag persists bubble when image attached; tap-to-dismiss; `clearVisualAid()` API |
-| `js/humphrey-qna.js` | sent `kidName, grade, history, profile, recentSummaries` | also sends `zoneId, zoneLabel, pageTitle, visibleText` via `sniffPageContext()` |
-| `js/humphrey-chat.js` | request body 5–7 fields | request body up to 11 fields |
-| `api/humphrey/chat.js` | system prompt: warmth + notebook + activeProblem rule | also injects screen content block |
-| `js/discovery-dome.js` | `text: card.fact` | `text: card.fact + '   ' + card.question` |
+### SW v75 — granular mic diagnosis
+| File | Change |
+|---|---|
+| `sw.js` | `v74` → `v75` |
+| `js/humphrey-listener.js` | Capture `err.name` + `navigator.permissions.query`, classify to granular code, expose `lastMicFailureReason()` + `queryMicPermissionState()` |
+| `js/humphrey-qna.js` | On `no-mic`, show visible help modal with detail-specific copy; original speech still fires as fallback |
 
-### SW v74 (zone voice consistency)
-| File | Before | After |
-|---|---|---|
-| `sw.js` | `hero-academy-v73` | `hero-academy-v74` |
-| `js/number-lab.js` | problem rendered silently | `Humphrey.say('try-again-reading', { text: question })` on render |
-| `cauldron-cafe.html` | inline `speak()` → `speechSynthesis` | inline `speak()` → Humphrey if loaded, fallback to speechSynthesis |
-| `diner-lanes.html` | inline `speak()` → `speechSynthesis` + TODO comment | inline `speak()` → Humphrey if loaded, TODO resolved |
+### Build #2 v1 (SW v76) — initial ship
+| File | Change |
+|---|---|
+| `sw.js` | `v75` → `v76` |
+| `api/humphrey/generate-story-templates.js` | Fetch `ha_get_recent_struggles`, pass to draftBatch, validate + persist link fields |
+| `js/story-lab.js` | `mapServerTemplate` preserves link fields; `maybeSpeakCrossZoneIntro` + `friendlyZoneName` added; called from `startTemplate` |
+| DB migration | `build_2_cross_zone_struggle_thread_v2`: add columns + recreate picker RPC + create `ha_get_recent_struggles` RPC |
+
+### SW v77 — unified mic modal
+| File | Change |
+|---|---|
+| `sw.js` | `v76` → `v77` |
+| `js/humphrey-qna.js` | All permission-failure paths show same unified copy (works for `denied-now`, `denied-permanent`, `security`, `unknown`); new "Open mic settings" button deep-links to `chrome://settings/content/siteDetails?site=<origin>`; dropped Android Settings → Apps path |
+
+### Build #2 v2 (SW v78) — strengthened prompt
+| File | Change |
+|---|---|
+| `sw.js` | `v77` → `v78` |
+| `api/humphrey/generate-story-templates.js` | CROSS-ZONE section moved to LAST in system prompt with `★★★ READ THIS CAREFULLY ★★★` prefix; "MUST" wording; full worked example |
+
+### Build #2 v3 (SW v79) — explicit JSON schema + audit
+| File | Change |
+|---|---|
+| `sw.js` | `v78` → `v79` |
+| `api/humphrey/generate-story-templates.js` | OUTPUT FORMAT shows TWO literal JSON example items (threaded + unthreaded); all "optional" removed; new explicit RULES block; response now includes `threading_audit { struggles_supplied, items_threaded, threaded_titles, compliance }` |
+
+### Build #2 final — picker prioritization (SQL-only, no code/SW)
+| Change |
+|---|
+| `ha_get_story_templates` ORDER BY adds `(linked_struggle_zone IS NOT NULL) DESC` between `seen_at NULLS FIRST` and `difficulty ASC` so freshly-linked templates surface at top of picker. Applied via Supabase MCP migration `build_2_prioritize_linked_templates_in_picker`. |
 
 ---
 
-*End of handoff. Last update: 2026-06-04 ~23:15 ET (after live UI test of SW v74).*
+*End of handoff. Last update: 2026-06-04 ~23:35 ET — Build #2 verified end-to-end on the live UI with screenshot evidence + Humphrey audio chain confirmed.*
