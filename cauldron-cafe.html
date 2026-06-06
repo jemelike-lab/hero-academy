@@ -418,13 +418,18 @@ class CauldronScene extends Phaser.Scene {
       }).setOrigin(0.5);
       minusBg.setVisible(false);
       minusText.setVisible(false);
-      // Render and hit-test above the veggie tile's add-zone so taps on minus reach removeVeggie.
+      // Render the visible minus above the add-zone so it isn't occluded.
       minusBg.setDepth(10);
       minusText.setDepth(10);
-      minusBg.setInteractive({ useHandCursor: true });
+      // Invisible 56px-diameter hit circle layered above the visible 32px minus. Phaser hit-tests
+      // by depth, so this captures taps before the add-zone — Nigel's finger can land slightly off
+      // the visible button and still trigger removeVeggie instead of accidentally adding a veggie.
+      const minusHit = this.add.circle(x - 55, shelfY - 35, 28, 0xffffff, 0);
+      minusHit.setDepth(11);
+      minusHit.setInteractive({ useHandCursor: true });
       // Start disabled — refreshVeggieBadges toggles this with visibility so the add-zone gets clicks when count == 0.
-      minusBg.input.enabled = false;
-      minusBg.on('pointerdown', () => this.removeVeggie(v.id));
+      minusHit.input.enabled = false;
+      minusHit.on('pointerdown', () => this.removeVeggie(v.id));
 
       const hit = this.add.zone(x, shelfY, 160, 110);
       hit.setInteractive({ useHandCursor: true });
@@ -432,7 +437,7 @@ class CauldronScene extends Phaser.Scene {
       hit.on('pointerover', () => { emoji.setScale(1.1); });
       hit.on('pointerout',  () => { emoji.setScale(1); });
 
-      this.veggieButtons[v.id] = { emoji, badge, badgeText, minusBg, minusText, x, y: shelfY - 10 };
+      this.veggieButtons[v.id] = { emoji, badge, badgeText, minusBg, minusText, minusHit, x, y: shelfY - 10 };
     });
   }
 
@@ -700,7 +705,7 @@ class CauldronScene extends Phaser.Scene {
       btn.badgeText.setText(String(count));
       btn.minusBg.setVisible(count > 0);
       btn.minusText.setVisible(count > 0);
-      if (btn.minusBg.input) btn.minusBg.input.enabled = (count > 0);
+      if (btn.minusHit && btn.minusHit.input) btn.minusHit.input.enabled = (count > 0);
     });
   }
 
