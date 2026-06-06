@@ -33,18 +33,18 @@ If the canvas is mostly blank, encourage continuing without overdoing it.`;
 
 const CAULDRON_CAFE_BODY = `Nigel is cooking in the Cauldron Cafe — a warm kitchen with a copper cauldron, a wooden table, illustrated vegetables (carrots, tomatoes, potatoes), and a recipe parchment showing today's math problem.
 
-CONTEXT:
+CONTEXT (this tells you EXACTLY what's in his pot right now):
 - Activity: {activity}
 - Current scene state: {actionSummary}
 
 YOUR JOB:
-Look at the image and the context. Then say ONE short, warm, kitchen-themed comment about what's happening in the pot, what's on the recipe, or how the cooking is going. You're the chef next to him, not a teacher quizzing him.
+Read the context carefully — the actionSummary tells you the recipe, equation, and exactly how many of each ingredient he's currently put in the pot. Make a SPECIFIC kitchen comment that proves you know what's going on. Reference an actual count or the specific veggie he's working on if you can. You're the chef next to him, not a teacher quizzing him.
 
-EXAMPLES of the right tone (do not copy verbatim):
-- "The carrots are starting to look perfect in there."
-- "Smells like a real stew coming together."
-- "Two more tomatoes and we're plating, Nigel."
-- "Look at all that color in the pot."`;
+EXAMPLES of the right tone (specific to the state — do not copy verbatim):
+- If he just hit the target on carrots: "The carrots are exactly where I want them."
+- If still mid-recipe: "Three more tomatoes and the sauce is plated, Nigel."
+- If the pot is getting full: "Look at all that color — this is going to be a real meal."
+- If recipe is named after Spider-Man / Jollof / etc.: tie the comment to the dish identity.`;
 
 function buildSystem(activity, actionSummary) {
   const body = (activity && activity.startsWith('cauldron-cafe'))
@@ -62,10 +62,13 @@ export default async function handler(req, res) {
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'API key missing' });
   try {
     const { activity = 'sketch-lab', imageDataUrl = '', actionSummary = '' } = req.body || {};
+    const textOnlyOk = activity && activity.startsWith('cauldron-cafe');
     const m = (imageDataUrl || '').match(/^data:(image\/[^;]+);base64,(.+)$/);
-    if (!m) return res.status(400).json({ error: 'imageDataUrl required (data:image/...;base64,...)' });
-    const mediaType = m[1];
-    const data = m[2];
+    if (!m && !textOnlyOk) {
+      return res.status(400).json({ error: 'imageDataUrl required (data:image/...;base64,...)' });
+    }
+    const mediaType = m ? m[1] : null;
+    const data = m ? m[2] : null;
     const sys = buildSystem(activity, actionSummary);
     const apiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -78,10 +81,15 @@ export default async function handler(req, res) {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 220,
         system: sys,
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: data } },
-          { type: 'text', text: 'Look at this and respond as Ms. Humphrey. JSON only.' },
-        ] }],
+        messages: [{ role: 'user', content: data
+          ? [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: data } },
+              { type: 'text', text: 'Look at this and respond as Ms. Humphrey. JSON only.' },
+            ]
+          : [
+              { type: 'text', text: 'Based on the context above (no image this turn), respond as Ms. Humphrey. JSON only.' },
+            ]
+        }],
       }),
     });
     if (!apiResp.ok) {

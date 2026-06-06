@@ -41,7 +41,7 @@ DIFFICULTY ENVELOPE — push above pure 2nd grade, never below:
   · 2 should be straight addition of 2-3 ingredients (e.g. 8 + 7 + 5 = 20)
   · 1 should be subtraction framed as removing burnt/spare ingredients (e.g. "Chef put 14 tomatoes in, then took 6 out for the side. How many are left?")
   · 1 should be a MISSING ADDEND ("Chef needs 18 ingredients total. He's added 7 carrots. How many more does he need?")
-  · 1 can be MULTI-STEP (e.g. "8 carrots in, 3 taken out, then 5 tomatoes added — how many now?")
+  · 1 should be MULTI-STEP — ADDITIVE ONLY, never with subtraction in the middle. The Cauldron UI is add-only: Nigel taps a veggie card to add it, and there's no way to remove. So multi-step problems MUST chain additions, e.g. "First batch: 5 carrots. Second batch: 4 more carrots. Then 6 tomatoes." Equation: "5 + 4 + 6 = ?". NEVER write multi-step problems with "take out", "remove", "took out", or any subtraction mid-equation.
 - Variety in the recipe name — vary the dish style (stew, soup, sauce, curry, jollof, stir-fry, gumbo, mash, hash). Feel free to incorporate Nigerian/heritage dishes (jollof rice, egusi, fufu, plantain — but those become decorative descriptors, the math only uses carrot/tomato/potato).
 
 WRITING STYLE

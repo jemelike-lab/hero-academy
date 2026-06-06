@@ -299,6 +299,34 @@
   }
   .veggie-card:active { transform: scale(0.92); }
   .veggie-card.disabled { opacity: 0.35; cursor: default; }
+  .veggie-card.focus {
+    animation: focus-pulse 1.8s ease-in-out infinite;
+    box-shadow: 0 0 0 3px var(--fire-amber), 0 6px 18px rgba(245, 162, 61, 0.55);
+    border-color: var(--fire-amber);
+  }
+  @keyframes focus-pulse {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50%      { transform: translateY(-4px) scale(1.04); }
+  }
+  /* Step hint chip below parchment */
+  .step-hint {
+    position: absolute; right: 14px; top: calc(76px + 360px);
+    width: 240px;
+    background: var(--copper-shadow);
+    color: var(--parchment);
+    border: 2px solid var(--copper);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'Caveat', cursive; font-weight: 700; font-size: 18px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+    z-index: 5;
+    transition: opacity 0.3s ease;
+  }
+  .step-hint[hidden] { display: none; }
+  @media (max-width: 720px) {
+    .step-hint { width: 192px; top: calc(72px + 280px); font-size: 16px; padding: 8px 12px; }
+  }
   .veggie-card-svg { width: 48px; height: 48px; display: block; }
   .veggie-card-label {
     font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 13px;
@@ -561,6 +589,9 @@
       <p class="parchment-feedback" id="feedback"></p>
     </aside>
 
+    <!-- Step hint chip — Humphrey-driven next-action prompt -->
+    <div class="step-hint" id="stepHint" hidden>Loading recipe…</div>
+
     <!-- Today's Recipe (word problems from cron content) -->
     <button type="button" class="today-recipe-btn" id="todayRecipeBtn" hidden>
       ⭐ Today's Special
@@ -803,16 +834,28 @@
       badge.classList.add('shown');
     }
     refreshIngredients();
+    updateStepHint();
     sayCountReaction(veg);
     enableCheckIfReady();
   }
 
   // ----- Humphrey reactions -----
-  function safeSay(text, expression) {
+  // Humphrey.say(event, context) — event is the STRING name; text goes in context.
+  // Passing an object as event made every call fall through to CATALOG._default,
+  // which only had 4 generic filler lines ("Mm-hmm", "Sure thing"…). That's why
+  // every line in v121 sounded the same. priority:'high' clears any queued
+  // generic line so the latest specific call wins.
+  function safeSay(eventId, text, expression) {
     try {
       const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-      if (hp && hp.say) hp.say({ text: text, expression: expression || 'encouraging' });
-    } catch (e) { /* humphrey not ready */ }
+      if (hp && hp.say) {
+        hp.say(eventId, {
+          text: text,
+          expression: expression || 'encouraging',
+          priority: 'high',
+        });
+      }
+    } catch (e) { /* humphrey not ready yet */ }
   }
 
   function sayCountReaction(veg) {
@@ -823,15 +866,28 @@
     if (ing && count <= need) {
       const labelSingular = veg.label.slice(0, -1).toLowerCase();
       if (count === need) {
-        safeSay(`Perfect — that's ${need} ${veg.label.toLowerCase()}.`, 'encouraging');
+        // Look ahead — is there a next ingredient still needed?
+        const recipe = state.recipes[state.currentRecipeIdx];
+        const nextIng = recipe.ingredients.find(i => (state.addedCounts[i.veggie.id] || 0) < i.count);
+        const handoff = nextIng
+          ? ` Now we need ${nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0)} ${nextIng.veggie.label.toLowerCase()}.`
+          : ' All the ingredients are in. Tap Serve it up.';
+        safeSay('cauldron-ingredient-done',
+          `Perfect — that's ${need} ${veg.label.toLowerCase()}.${handoff}`,
+          'encouraging');
       } else {
-        safeSay(`${count} ${labelSingular}${count > 1 ? 's' : ''}.`, 'encouraging');
+        safeSay('cauldron-count',
+          `${count} ${labelSingular}${count > 1 ? 's' : ''}.`,
+          'encouraging');
       }
     } else if (ing && count > need) {
-      safeSay(`That's one too many ${veg.label.toLowerCase()}. We need ${need}.`, 'concerned');
+      safeSay('cauldron-too-many',
+        `That's one too many ${veg.label.toLowerCase()}. We need ${need}.`,
+        'concerned');
     } else {
-      // Veggie not in recipe
-      safeSay(`Hmm — the recipe doesn't ask for ${veg.label.toLowerCase()} today.`, 'concerned');
+      safeSay('cauldron-wrong-veggie',
+        `Hmm — the recipe doesn't ask for ${veg.label.toLowerCase()} today.`,
+        'concerned');
     }
   }
 
@@ -849,9 +905,17 @@
     recipeProgressEl.textContent = `Recipe ${state.currentRecipeIdx + 1} of ${state.recipes.length}`;
     refreshIngredients();
     refreshShelfBadges();
+    updateStepHint();
     enableCheckIfReady();
+    // She reads the recipe aloud + tells Nigel what to tap first
+    const firstIng = r.ingredients[0];
+    const firstStep = firstIng
+      ? ` Start by tapping ${firstIng.count} ${firstIng.veggie.label.toLowerCase()}.`
+      : '';
     setTimeout(() => {
-      safeSay(`${r.name}. ${r.prompt}`, 'encouraging');
+      safeSay('cauldron-recipe-intro',
+        `Tonight's recipe: ${r.name}. ${r.prompt}${firstStep}`,
+        'encouraging');
     }, 600);
   }
 
@@ -882,6 +946,28 @@
     });
   }
 
+  function updateStepHint() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const hint = document.getElementById('stepHint');
+    if (!hint || !r) return;
+    // Find the next ingredient that still needs more
+    const nextIng = r.ingredients.find(i => (state.addedCounts[i.veggie.id] || 0) < i.count);
+    // Clear all focus pulses
+    veggieShelf.querySelectorAll('.veggie-card.focus').forEach(c => c.classList.remove('focus'));
+    if (!nextIng) {
+      hint.textContent = 'Tap "Serve it up" to check!';
+      hint.hidden = false;
+      return;
+    }
+    const need = nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0);
+    const word = need === 1 ? nextIng.veggie.label.slice(0, -1).toLowerCase() : nextIng.veggie.label.toLowerCase();
+    hint.textContent = `Next: tap ${need} ${word}`;
+    hint.hidden = false;
+    // Pulse the right card
+    const card = veggieShelf.querySelector(`[data-veggie-id="${nextIng.veggie.id}"]`);
+    if (card) card.classList.add('focus');
+  }
+
   function enableCheckIfReady() {
     const r = state.recipes[state.currentRecipeIdx];
     const allMet = r.ingredients.every(ing => (state.addedCounts[ing.veggie.id] || 0) >= ing.count);
@@ -897,7 +983,9 @@
     if (total === r.answer) {
       feedbackEl.textContent = `Yes! ${r.equation.replace('?', r.answer)}`;
       feedbackEl.className = 'parchment-feedback correct';
-      safeSay(`Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name.toLowerCase()} is ready!`, 'cheering');
+      safeSay('cauldron-correct',
+        `Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name.toLowerCase()} is ready.`,
+        'cheering');
       state.completed++;
       try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: true }); } catch (_) {}
       setTimeout(() => {
@@ -911,7 +999,9 @@
     } else {
       feedbackEl.textContent = `Hmm — that's ${total}, not ${r.answer}. Let's check the recipe.`;
       feedbackEl.className = 'parchment-feedback wrong';
-      safeSay(`Hmm — we have ${total} in the pot. The recipe wants ${r.answer}. Let me read it again.`, 'concerned');
+      safeSay('cauldron-wrong-answer',
+        `Hmm — we have ${total} in the pot. The recipe wants ${r.answer}. Let me read it again.`,
+        'concerned');
       try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: false }); } catch (_) {}
       setTimeout(() => {
         state.awaitingCheck = false;
@@ -921,6 +1011,9 @@
   }
 
   function showCompleteScreen() {
+    const hint = document.getElementById('stepHint');
+    if (hint) hint.hidden = true;
+    veggieShelf.querySelectorAll('.veggie-card.focus').forEach(c => c.classList.remove('focus'));
     recipeName.textContent = 'Service complete!';
     recipePrompt.textContent = `You cooked all ${state.completed} dishes. Chef Ralphie says: well done.`;
     recipeEquation.hidden = true;
@@ -935,7 +1028,9 @@
       checkBtn.onclick = onCheck;
       loadCurrentRecipe();
     };
-    safeSay("That's the whole menu, Nigel. Beautiful work in my kitchen today.", 'cheering');
+    safeSay('cauldron-complete',
+      "That's the whole menu, Nigel. Beautiful work in my kitchen today.",
+      'cheering');
   }
 
   // ----- TODAY'S SPECIAL (5 AI-generated word problems, kept from v120 functionality) -----
@@ -987,11 +1082,11 @@
           fbEl.textContent = `Yes — ${correct} is right.`;
           fbEl.className = 'today-recipe-feedback correct';
           score++;
-          safeSay('Nice work, Nigel.', 'cheering');
+          safeSay('cauldron-special-correct', 'Nice work, Nigel.', 'cheering');
         } else {
           fbEl.textContent = `Not quite — the answer was ${correct}.`;
           fbEl.className = 'today-recipe-feedback wrong';
-          safeSay("Close — let's try the next one.", 'encouraging');
+          safeSay('cauldron-special-wrong', "Close — let's try the next one.", 'encouraging');
         }
         checkB.disabled = true;
         if (idx + 1 < items.length) nextBtn.hidden = false;
@@ -1013,7 +1108,7 @@
         overlay.hidden = false;
         showProblem();
         DC.markUsed('math_problems');
-        safeSay("I made a special order just for you today, Nigel. Five word problems — ready?", 'encouraging');
+        safeSay('cauldron-special-intro', "I made a special order just for you today, Nigel. Five word problems — ready?", 'encouraging');
       });
       closeBtn.addEventListener('click', () => { overlay.hidden = true; });
       doneBtn.addEventListener('click', () => { overlay.hidden = true; });
@@ -1031,66 +1126,33 @@
   function startAmbientObserver() {
     const COOLDOWN_MS = 28000; // 28s minimum between vision calls
     const AUTOPILOT_MS = 32000; // first run after 32s
-    function snapshotAsBlob() {
-      return new Promise((resolve) => {
-        // Hidden canvas
-        const c = document.createElement('canvas');
-        const W = 400, H = 280;
-        c.width = W; c.height = H;
-        const ctx = c.getContext('2d');
-        // Render a SIMPLE summary scene — wood color + cauldron silhouette + counts
-        ctx.fillStyle = '#7a4a2c'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#8b5a3c'; ctx.fillRect(0, H * 0.65, W, H * 0.35);
-        // Cauldron silhouette
-        ctx.fillStyle = '#b87333';
-        ctx.beginPath();
-        ctx.ellipse(W/2, H*0.55, 100, 70, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.fillStyle = '#7a4720';
-        ctx.fillRect(W/2-100, H*0.40, 200, 10);
-        // Caption: current recipe state
-        const r = state.recipes[state.currentRecipeIdx];
-        ctx.fillStyle = '#f5e8c8';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(r.name, W/2, 24);
-        ctx.font = '14px sans-serif';
-        const counts = r.ingredients.map(ing => `${state.addedCounts[ing.veggie.id]||0}/${ing.count} ${ing.veggie.label.toLowerCase()}`);
-        ctx.fillText(counts.join(' · '), W/2, 48);
-        ctx.font = 'bold 20px sans-serif';
-        ctx.fillText(r.equation, W/2, 248);
-        c.toBlob(resolve, 'image/jpeg', 0.7);
-      });
-    }
     async function tick() {
       try {
         const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
         if (!hp || (hp.isSpeaking && hp.isSpeaking())) return;
         if (document.hidden) return;
-        const blob = await snapshotAsBlob();
-        if (!blob) return;
-        // Encode as base64 data URL
-        const dataUrl = await new Promise((res) => {
-          const reader = new FileReader();
-          reader.onloadend = () => res(reader.result);
-          reader.readAsDataURL(blob);
-        });
         const r = state.recipes[state.currentRecipeIdx];
-        const summaryStr = `Recipe: ${r.name}. Equation: ${r.equation}. In the pot: ` +
-          r.ingredients.map(ing => `${state.addedCounts[ing.veggie.id]||0} of ${ing.count} ${ing.veggie.label.toLowerCase()}`).join(', ') + '.';
+        // Skip if Nigel hasn't put anything in the pot yet — nothing to observe
+        const anyInPot = Object.values(state.addedCounts).some(v => v > 0);
+        if (!anyInPot) return;
+        const summaryStr = `Recipe: ${r.name}. Equation: ${r.equation}. ` +
+          'In the pot right now: ' +
+          r.ingredients.map(ing => `${state.addedCounts[ing.veggie.id]||0} of ${ing.count} ${ing.veggie.label.toLowerCase()} added`).join(', ') + '.';
+        // Text-only mode — no rasterized blob (that was useless). The endpoint
+        // now branches on missing imageDataUrl and gives Haiku the activity +
+        // actionSummary alone, which is the actual signal anyway.
         const resp = await fetch('/api/humphrey-observe', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             activity: 'cauldron-cafe',
-            imageDataUrl: dataUrl,
             actionSummary: summaryStr,
           }),
         });
         if (!resp.ok) return;
         const data = await resp.json();
         if (data && data.text) {
-          safeSay(data.text, data.expression || 'encouraging');
+          safeSay('cauldron-ambient', data.text, data.expression || 'encouraging');
         }
       } catch (_) { /* silent — ambient feature, never blocks */ }
     }
