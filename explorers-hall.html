@@ -636,9 +636,12 @@
     // Hide global Humphrey floater since we have our own embedded tab
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
       try {
+        // Init with audio disabled — we route all TTS through our own /api/humphrey/tts
+        // path via tts() above. Without this, the global Humphrey's welcomeEvent
+        // ('welcome-explorers' isn't in CATALOG yet) falls through to _default
+        // and plays a stray "Got it, Nigel." filler that overlaps our intro.
         window.HeroAcademy.Humphrey.init({
-          position: 'bottom-left', audioEnabled: true,
-          welcomeEvent: 'welcome-explorers', kidName: 'Nigel',
+          position: 'bottom-left', audioEnabled: false, kidName: 'Nigel',
         });
         window.HeroAcademy.Humphrey.hide();
       } catch (_) {}
