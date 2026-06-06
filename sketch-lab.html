@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Sketch Lab · Creation Studio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:var(--font-display);
+    background:radial-gradient(circle at 50% 0%, var(--bg-purple) 0%, var(--bg-deep) 60%, var(--bg-space) 100%);
+    color:#fff; min-height:100vh;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+    user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+  /* Top toolbar */
+  .top-bar {
+    display:flex; align-items:center; gap:8px;
+    padding:10px 12px 6px;
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+    padding:8px 12px; border-radius:999px; cursor:pointer;
+    text-decoration:none; display:inline-flex; align-items:center; gap:4px;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  .title-pill {
+    flex:1; text-align:center;
+    font-family:var(--font-title); font-size:18px; color:var(--gold);
+    text-shadow:0 2px 8px rgba(255,209,71,0.35);
+  }
+  .icon-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-size:18px;
+    width:38px; height:38px; border-radius:50%; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .icon-btn:active { transform:scale(0.94); }
+  .icon-btn.primary {
+    background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright);
+  }
+  .icon-btn:disabled, .icon-btn.disabled {
+    opacity:0.35; pointer-events:none;
+  }
+
+  /* Main layout: side brushes / canvas / side colors */
+  .studio {
+    display:flex; gap:8px;
+    padding:0 8px 4px;
+    height:calc(100vh - 56px - 110px - var(--safe-top) - var(--safe-bottom));
+    min-height:340px;
+    align-items:stretch; justify-content:center;
+  }
+  .side-rail {
+    display:flex; flex-direction:column; gap:6px;
+    padding:6px 4px;
+    background:rgba(255,255,255,0.04); border:1px solid var(--border-light);
+    border-radius:14px;
+    overflow-y:auto;
+    flex-shrink:0;
+  }
+  .brush-btn {
+    width:48px; height:48px; border-radius:12px;
+    background:var(--surface-glass); border:2px solid transparent;
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+    font-size:22px; color:#fff;
+    transition:transform .1s, border-color .12s, background .12s;
+    position:relative;
+  }
+  .brush-btn:active { transform:scale(0.92); }
+  .brush-btn.active {
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    border-color:#fff;
+    color:var(--bg-deep);
+    box-shadow:0 4px 16px rgba(255,209,71,0.45);
+  }
+  .brush-label {
+    font-size:9px; font-weight:700; letter-spacing:0.04em;
+    text-transform:uppercase; text-align:center;
+    margin-top:2px; opacity:0.7;
+  }
+
+  .canvas-area {
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-width:0; position:relative;
+  }
+  .canvas-wrap {
+    position:relative;
+    background:#fff;
+    border-radius:14px;
+    box-shadow:0 20px 48px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.18);
+    overflow:hidden;
+    width:min(100%, calc(100vh - 56px - 110px - 90px));
+    aspect-ratio:1 / 1;
+  }
+  #canvas, #bgCanvas, #symAxes {
+    position:absolute; inset:0; width:100%; height:100%;
+    display:block;
+    touch-action:none;
+  }
+  #bgCanvas { z-index:0; pointer-events:none; }
+  #canvas   { z-index:1; }
+  #symAxes  { z-index:2; pointer-events:none; }
+
+  /* Bottom palette */
+  .bottom-rail {
+    padding:6px 10px 8px;
+    background:rgba(0,0,0,0.25); border-top:1px solid var(--border-light);
+    backdrop-filter:blur(8px);
+    position:fixed; left:0; right:0; bottom:0;
+    padding-bottom:calc(8px + var(--safe-bottom));
+    z-index:10;
+  }
+  .palette-row {
+    display:flex; gap:5px; justify-content:center; flex-wrap:nowrap;
+    overflow-x:auto; padding:2px 0;
+  }
+  .swatch {
+    width:34px; height:34px; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.3);
+    cursor:pointer; flex-shrink:0;
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:transform .1s;
+  }
+  .swatch:active { transform:scale(0.88); }
+  .swatch.active {
+    border-color:var(--gold); border-width:3px;
+    box-shadow:0 0 0 2px var(--gold-bright), 0 2px 8px rgba(0,0,0,0.45);
+    transform:scale(1.12);
+  }
+  .swatch.wheel-trigger {
+    background:conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+    position:relative;
+  }
+  .swatch.wheel-trigger::after {
+    content:'+'; position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-size:20px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.6);
+  }
+
+  .controls-row {
+    display:flex; gap:8px; align-items:center; justify-content:space-between;
+    padding:4px 0 0; flex-wrap:wrap;
+  }
+  .control-group { display:flex; gap:4px; align-items:center; }
+  .control-label {
+    font-size:10px; font-weight:700; letter-spacing:0.08em;
+    text-transform:uppercase; opacity:0.65;
+    margin-right:4px;
+  }
+  .size-btn, .sym-btn, .bg-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:12px;
+    padding:6px 10px; border-radius:8px; cursor:pointer;
+    min-width:34px; text-align:center;
+  }
+  .size-btn:active, .sym-btn:active, .bg-btn:active { transform:scale(0.94); }
+  .size-btn.active, .sym-btn.active, .bg-btn.active {
+    background:var(--gold); color:var(--bg-deep);
+    border-color:var(--gold-bright);
+  }
+
+  /* Color wheel modal */
+  .wheel-modal {
+    position:fixed; inset:0;
+    background:rgba(0,0,0,0.7);
+    display:none; align-items:center; justify-content:center;
+    z-index:100; padding:18px;
+    backdrop-filter:blur(6px);
+  }
+  .wheel-modal.open { display:flex; }
+  .wheel-card {
+    background:linear-gradient(140deg, var(--bg-purple), var(--bg-deep));
+    border:2px solid var(--border-light); border-radius:20px;
+    padding:22px 18px;
+    width:min(360px, 100%);
+    max-height:90vh; overflow:auto;
+    text-align:center;
+  }
+  .wheel-card h3 {
+    font-family:var(--font-title); font-size:20px; color:var(--gold);
+    margin-bottom:14px;
+  }
+  #colorWheel {
+    width:240px; height:240px; max-width:80vw; max-height:80vw;
+    border-radius:50%; cursor:crosshair;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);
+    display:block; margin:0 auto;
+  }
+  .light-slider {
+    width:100%; margin-top:14px;
+    -webkit-appearance:none; appearance:none;
+    height:32px; background:linear-gradient(to right, #000, #888, #fff);
+    border-radius:16px; outline:none;
+  }
+  .light-slider::-webkit-slider-thumb {
+    -webkit-appearance:none; width:28px; height:28px;
+    border-radius:50%; background:#fff; border:3px solid var(--gold);
+    cursor:pointer;
+  }
+  .wheel-preview {
+    width:60px; height:60px; border-radius:50%;
+    border:3px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,0.5);
+    margin:14px auto 0;
+  }
+  .wheel-actions {
+    display:flex; gap:10px; justify-content:center; margin-top:14px;
+  }
+  .wheel-actions button {
+    background:var(--gold); color:var(--bg-deep); border:none;
+    font-family:var(--font-display); font-weight:700; font-size:14px;
+    padding:10px 22px; border-radius:999px; cursor:pointer;
+  }
+  .wheel-actions button.secondary {
+    background:var(--surface-glass); color:#fff;
+    border:1px solid var(--border-light);
+  }
+  .wheel-actions button:active { transform:scale(0.96); }
+
+  /* Save toast */
+  .toast {
+    position:fixed; bottom:140px; left:50%; transform:translateX(-50%);
+    background:var(--emerald); color:#fff;
+    font-weight:700; font-size:14px;
+    padding:10px 18px; border-radius:999px;
+    box-shadow:0 6px 24px rgba(46,194,126,0.6);
+    z-index:200; pointer-events:none;
+    opacity:0; transition:opacity .25s, transform .25s;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+  /* On narrower screens (phones in portrait), shrink the side rail */
+  @media (max-width: 480px) {
+    .brush-btn { width:42px; height:42px; font-size:18px; }
+    .swatch { width:30px; height:30px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="creation-studio.html" class="back-btn">← Studio</a>
+  <div class="title-pill">🎨 Sketch Lab</div>
+  <button class="icon-btn" id="undoBtn" title="Undo">↶</button>
+  <button class="icon-btn" id="clearBtn" title="Clear">✕</button>
+  <button class="icon-btn primary" id="saveBtn" title="Save">💾</button>
+  <button class="icon-btn" id="shareBtn" title="Share or download">⬆</button>
+</div>
+
+<div class="studio">
+  <!-- Left: brushes -->
+  <div class="side-rail" id="brushRail">
+    <button class="brush-btn active" data-brush="pencil"   title="Pencil">✏️</button>
+    <button class="brush-btn"        data-brush="marker"   title="Marker">🖊️</button>
+    <button class="brush-btn"        data-brush="paint"    title="Paintbrush">🖌️</button>
+    <button class="brush-btn"        data-brush="crayon"   title="Crayon">🖍️</button>
+    <button class="brush-btn"        data-brush="spray"    title="Spray">💨</button>
+    <button class="brush-btn"        data-brush="rainbow"  title="Rainbow">🌈</button>
+    <button class="brush-btn"        data-brush="sparkle"  title="Sparkle">✨</button>
+    <button class="brush-btn"        data-brush="eraser"   title="Eraser">🧽</button>
+  </div>
+
+  <!-- Center: canvas stack -->
+  <div class="canvas-area">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="bgCanvas" width="720" height="720"></canvas>
+      <canvas id="canvas" width="720" height="720"></canvas>
+      <canvas id="symAxes" width="720" height="720"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom palette + controls -->
+<div class="bottom-rail">
+  <div class="palette-row" id="paletteRow">
+    <!-- swatches injected by JS -->
+  </div>
+  <div class="controls-row">
+    <div class="control-group">
+      <span class="control-label">Size</span>
+      <button class="size-btn" data-size="small">S</button>
+      <button class="size-btn active" data-size="medium">M</button>
+      <button class="size-btn" data-size="large">L</button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Mirror</span>
+      <button class="sym-btn active" data-sym="off">Off</button>
+      <button class="sym-btn" data-sym="2">2×</button>
+      <button class="sym-btn" data-sym="4">4×</button>
+      <button class="sym-btn" data-sym="8">✦</button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">BG</span>
+      <button class="bg-btn active" data-bg="blank">⬜</button>
+      <button class="bg-btn" data-bg="night">🌙</button>
+      <button class="bg-btn" data-bg="grid">▦</button>
+      <button class="bg-btn" data-bg="stars">★</button>
+    </div>
+  </div>
+</div>
+
+<!-- Color wheel modal -->
+<div class="wheel-modal" id="wheelModal">
+  <div class="wheel-card">
+    <h3>Pick any color</h3>
+    <canvas id="colorWheel" width="320" height="320"></canvas>
+    <input type="range" class="light-slider" id="lightSlider" min="0" max="100" value="50">
+    <div class="wheel-preview" id="wheelPreview"></div>
+    <div class="wheel-actions">
+      <button class="secondary" id="wheelCancel">Cancel</button>
+      <button id="wheelConfirm">Use this color</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Saved to your gallery!</div>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script src="js/art-gallery.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-sketch-lab', kidName:'Nigel',
+    });
+  }
+
+  // ---------- Canvases ----------
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var bgCanvas = document.getElementById('bgCanvas');
+  var bgCtx = bgCanvas.getContext('2d');
+  var symAxes = document.getElementById('symAxes');
+  var symCtx = symAxes.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  var CX = W / 2, CY = H / 2;
+
+  // ---------- State ----------
+  var state = {
+    brush: 'pencil',
+    color: '#1a1554',     // start with a deep ink color so first stroke shows on white
+    size: 'medium',
+    sym: 'off',
+    bg: 'blank',
+    recentColors: [],
+  };
+
+  // ---------- Brush specs ----------
+  // Each brush gets {size px, alpha, draw(ctx, x0, y0, x1, y1, brushColor)}.
+  // Sizes for S/M/L per brush so each feels right.
+  var SIZE_MAP = { small:0, medium:1, large:2 };
+
+  var BRUSHES = {
+    pencil: {
+      sizes:[2, 4, 8],
+      alpha:0.92,
+      draw:function(c, x0, y0, x1, y1, color, sz){
+        c.strokeStyle = color;
+        c.globalAlpha = 0.92;
+        c.lineWidth = sz;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      },
+    },
+    marker: {
+      sizes:[6, 12, 22],
+      alpha:1.0,
+      draw:function(c, x0, y0, x1, y1, color, sz){
+        c.strokeStyle = color;
+        c.globalAlpha = 1.0;
+        c.lineWidth = sz;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      },
+    },
+    paint: {
+      sizes:[14, 24, 40],
+      alpha:0.55,
+      draw:function(c, x0, y0, x1, y1, color, sz){
+        c.strokeStyle = color;
+        c.globalAlpha = 0.55;
+        c.lineWidth = sz;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      },
+    },
+    crayon: {
+      sizes:[8, 14, 22],
+      alpha:0.75,
+      draw:function(c, x0, y0, x1, y1, color, sz){
+        // Crayon = main stroke + a sprinkle of tiny offset dots that give it texture
+        c.strokeStyle = color;
+        c.globalAlpha = 0.75;
+        c.lineWidth = sz;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+        // Sprinkle dots
+        var dist = Math.hypot(x1-x0, y1-y0);
+        var dots = Math.max(1, Math.floor(dist * 0.7));
+        c.fillStyle = color;
+        for (var i=0; i<dots; i++){
+          var t = Math.random();
+          var jx = (Math.random()-0.5) * sz * 0.7;
+          var jy = (Math.random()-0.5) * sz * 0.7;
+          var x = x0 + (x1-x0)*t + jx;
+          var y = y0 + (y1-y0)*t + jy;
+          c.globalAlpha = 0.35 + Math.random()*0.4;
+          c.fillRect(x, y, 1.5, 1.5);
+        }
+      },
+    },
+    spray: {
+      sizes:[14, 24, 38],
+      alpha:1.0,
+      draw:function(c, x0, y0, x1, y1, color, sz){
+        // Scatter dots in a radius around the moving point
+        c.fillStyle = color;
+        var dist = Math.hypot(x1-x0, y1-y0);
+        var n = Math.max(8, Math.floor(dist * 1.5));
+        var r = sz / 2;
+        for (var i=0; i<n; i++){
+          var t = i / n;
+          var cx = x0 + (x1-x0)*t;
+          var cy = y0 + (y1-y0)*t;
+          // Random point in disk (sqrt for uniform area)
+          var a = Math.random() * Math.PI * 2;
+          var rr = Math.sqrt(Math.random()) * r;
+          c.globalAlpha = 0.25 + Math.random()*0.55;
+          c.beginPath();
+          c.arc(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr, 1.2, 0, Math.PI*2);
+          c.fill();
+        }
+      },
+    },
+    rainbow: {
+      sizes:[10, 18, 30],
+      alpha:1.0,
+      draw:function(c, x0, y0, x1, y1, color, sz, info){
+        // Color ignored — hue cycles based on total stroke length so each stroke is its own gradient
+        var hue = (info.strokeLength * 0.6) % 360;
+        c.strokeStyle = 'hsl(' + hue + ', 90%, 55%)';
+        c.globalAlpha = 1.0;
+        c.lineWidth = sz;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+      },
+    },
+    sparkle: {
+      sizes:[12, 18, 28],
+      alpha:1.0,
+      draw:function(c, x0, y0, x1, y1, color, sz, info){
+        // Place ★ glyphs along the path, sparingly
+        c.fillStyle = color;
+        c.globalAlpha = 1.0;
+        c.font = sz + 'px serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        var dist = Math.hypot(x1-x0, y1-y0);
+        // One sparkle every ~size pixels
+        var stepLen = sz * 0.8;
+        // Use accumulator so we don't get clumped sparkles on slow strokes
+        info._sparkleAcc = (info._sparkleAcc || 0) + dist;
+        while (info._sparkleAcc > stepLen) {
+          info._sparkleAcc -= stepLen;
+          var t = Math.random();
+          var px = x0 + (x1-x0)*t + (Math.random()-0.5)*sz*0.4;
+          var py = y0 + (y1-y0)*t + (Math.random()-0.5)*sz*0.4;
+          c.save();
+          c.translate(px, py);
+          c.rotate(Math.random() * Math.PI);
+          c.globalAlpha = 0.7 + Math.random()*0.3;
+          c.fillText('★', 0, 0);
+          c.restore();
+        }
+      },
+    },
+    eraser: {
+      sizes:[14, 28, 50],
+      alpha:1.0,
+      draw:function(c, x0, y0, x1, y1, color, sz){
+        var prev = c.globalCompositeOperation;
+        c.globalCompositeOperation = 'destination-out';
+        c.strokeStyle = 'rgba(0,0,0,1)';
+        c.globalAlpha = 1.0;
+        c.lineWidth = sz;
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+        c.globalCompositeOperation = prev;
+      },
+    },
+  };
+
+  function currentBrush() { return BRUSHES[state.brush] || BRUSHES.pencil; }
+  function currentSize() {
+    var b = currentBrush();
+    return b.sizes[SIZE_MAP[state.size] || 1];
+  }
+
+  // ---------- Symmetry ----------
+  // Returns an array of points generated by reflecting/rotating the given (x,y)
+  // around the canvas center per the symmetry mode.
+  function symPoints(x, y) {
+    if (state.sym === 'off') return [{x:x, y:y}];
+    if (state.sym === '2') {
+      return [{x:x, y:y}, {x:2*CX - x, y:y}];
+    }
+    if (state.sym === '4') {
+      return [
+        {x:x, y:y},
+        {x:2*CX - x, y:y},
+        {x:x, y:2*CY - y},
+        {x:2*CX - x, y:2*CY - y},
+      ];
+    }
+    // '8' — 8-fold rotational kaleidoscope
+    var dx = x - CX, dy = y - CY;
+    var out = [];
+    for (var i = 0; i < 8; i++) {
+      var a = (i * Math.PI) / 4;
+      var c = Math.cos(a), s = Math.sin(a);
+      out.push({x: CX + dx*c - dy*s, y: CY + dx*s + dy*c});
+    }
+    return out;
+  }
+
+  function drawSymAxes() {
+    symCtx.clearRect(0, 0, W, H);
+    if (state.sym === 'off') return;
+    symCtx.save();
+    symCtx.strokeStyle = 'rgba(168,85,247,0.32)';
+    symCtx.lineWidth = 1;
+    symCtx.setLineDash([6, 8]);
+    if (state.sym === '2') {
+      symCtx.beginPath(); symCtx.moveTo(CX, 0); symCtx.lineTo(CX, H); symCtx.stroke();
+    } else if (state.sym === '4') {
+      symCtx.beginPath(); symCtx.moveTo(CX, 0); symCtx.lineTo(CX, H); symCtx.stroke();
+      symCtx.beginPath(); symCtx.moveTo(0, CY); symCtx.lineTo(W, CY); symCtx.stroke();
+    } else if (state.sym === '8') {
+      // 4 lines at 45° increments through center
+      for (var i = 0; i < 4; i++) {
+        var a = (i * Math.PI) / 4;
+        var dx = Math.cos(a) * W, dy = Math.sin(a) * W;
+        symCtx.beginPath();
+        symCtx.moveTo(CX - dx, CY - dy);
+        symCtx.lineTo(CX + dx, CY + dy);
+        symCtx.stroke();
+      }
+    }
+    symCtx.restore();
+  }
+
+  // ---------- Undo stack (50-deep snapshots) ----------
+  var undoStack = [];
+  var UNDO_MAX = 50;
+
+  function pushUndo() {
+    try {
+      undoStack.push(canvas.toDataURL('image/png'));
+      if (undoStack.length > UNDO_MAX) undoStack.shift();
+    } catch(e){ /* very large canvases might fail; ignore */ }
+    document.getElementById('undoBtn').classList.toggle('disabled', undoStack.length === 0);
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    var url = undoStack.pop();
+    var img = new Image();
+    img.onload = function(){
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(img, 0, 0, W, H);
+    };
+    img.src = url;
+    document.getElementById('undoBtn').classList.toggle('disabled', undoStack.length === 0);
+  }
+
+  // ---------- Coordinate mapping ----------
+  // Convert touch/pointer client coords -> canvas pixel coords.
+  function eventToCanvas(ev) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX, clientY;
+    if (ev.touches && ev.touches[0]) {
+      clientX = ev.touches[0].clientX; clientY = ev.touches[0].clientY;
+    } else {
+      clientX = ev.clientX; clientY = ev.clientY;
+    }
+    var x = (clientX - rect.left) / rect.width  * W;
+    var y = (clientY - rect.top)  / rect.height * H;
+    return { x:x, y:y };
+  }
+
+  // ---------- Drawing engine ----------
+  var drawing = false;
+  var lastPoint = null;
+  var strokeInfo = null;  // accumulators per-stroke (used by rainbow + sparkle)
+
+  function strokeBegin(ev) {
+    ev.preventDefault();
+    if (!undoSnapshotTaken) {
+      pushUndo();
+      undoSnapshotTaken = true;
+    }
+    drawing = true;
+    var p = eventToCanvas(ev);
+    lastPoint = p;
+    strokeInfo = { strokeLength:0 };
+    // Draw a single dot to anchor first tap
+    drawSegment(p.x, p.y, p.x + 0.01, p.y + 0.01);
+  }
+  var undoSnapshotTaken = false;
+
+  function strokeMove(ev) {
+    if (!drawing) return;
+    ev.preventDefault();
+    var p = eventToCanvas(ev);
+    drawSegment(lastPoint.x, lastPoint.y, p.x, p.y);
+    lastPoint = p;
+  }
+
+  function strokeEnd(ev) {
+    drawing = false;
+    lastPoint = null;
+    strokeInfo = null;
+    undoSnapshotTaken = false;
+  }
+
+  function drawSegment(x0, y0, x1, y1) {
+    var b = currentBrush();
+    var sz = currentSize();
+    strokeInfo.strokeLength += Math.hypot(x1-x0, y1-y0);
+    // Apply symmetry: get all mirror points for both endpoints, draw segment per pair
+    var p0s = symPoints(x0, y0);
+    var p1s = symPoints(x1, y1);
+    for (var i = 0; i < p0s.length; i++) {
+      b.draw(ctx, p0s[i].x, p0s[i].y, p1s[i].x, p1s[i].y, state.color, sz, strokeInfo);
+    }
+  }
+
+  // Pointer events (unified touch + mouse + stylus)
+  canvas.addEventListener('pointerdown', function(ev){
+    canvas.setPointerCapture(ev.pointerId);
+    strokeBegin(ev);
+  });
+  canvas.addEventListener('pointermove', strokeMove);
+  canvas.addEventListener('pointerup',     strokeEnd);
+  canvas.addEventListener('pointercancel', strokeEnd);
+  canvas.addEventListener('pointerleave',  function(ev){ if (drawing) strokeEnd(ev); });
+
+  // ---------- Background canvas ----------
+  function paintBg() {
+    bgCtx.clearRect(0, 0, W, H);
+    if (state.bg === 'blank') {
+      bgCtx.fillStyle = '#ffffff';
+      bgCtx.fillRect(0, 0, W, H);
+    } else if (state.bg === 'night') {
+      var g = bgCtx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#1a1554');
+      g.addColorStop(1, '#06081f');
+      bgCtx.fillStyle = g; bgCtx.fillRect(0, 0, W, H);
+    } else if (state.bg === 'grid') {
+      bgCtx.fillStyle = '#ffffff';
+      bgCtx.fillRect(0, 0, W, H);
+      bgCtx.strokeStyle = 'rgba(40,40,60,0.18)';
+      bgCtx.lineWidth = 1;
+      for (var x = 30; x < W; x += 30) {
+        bgCtx.beginPath(); bgCtx.moveTo(x, 0); bgCtx.lineTo(x, H); bgCtx.stroke();
+      }
+      for (var y = 30; y < H; y += 30) {
+        bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(W, y); bgCtx.stroke();
+      }
+    } else if (state.bg === 'stars') {
+      var g2 = bgCtx.createLinearGradient(0, 0, 0, H);
+      g2.addColorStop(0, '#0a0b2e'); g2.addColorStop(1, '#06081f');
+      bgCtx.fillStyle = g2; bgCtx.fillRect(0, 0, W, H);
+      // Sprinkle stars (deterministic seed via i)
+      bgCtx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (var i = 0; i < 90; i++) {
+        var sx = (i * 137.5) % W;
+        var sy = (i * 53.3 + 17) % H;
+        var sr = 0.5 + ((i * 7) % 5) * 0.3;
+        bgCtx.beginPath(); bgCtx.arc(sx, sy, sr, 0, Math.PI*2); bgCtx.fill();
+      }
+    }
+  }
+
+  // ---------- Color picker (palette + recents + wheel) ----------
+  var PALETTE = [
+    '#000000', '#ffffff', '#f1c27d', '#a0623a', // black, white, two skin tones
+    '#ef4444', '#ff8b3d', '#ffd147',            // red, orange, yellow
+    '#2ec27e', '#14b8d4', '#3b82f6',            // green, cyan, blue
+    '#a855f7', '#ec4899',                       // purple, pink
+  ];
+
+  function paintPalette() {
+    var row = document.getElementById('paletteRow');
+    row.innerHTML = '';
+    // Recents first
+    state.recentColors.forEach(function(c){
+      addSwatch(row, c, true);
+    });
+    // Then preset palette
+    PALETTE.forEach(function(c){ addSwatch(row, c, false); });
+    // Wheel trigger last
+    var w = document.createElement('button');
+    w.className = 'swatch wheel-trigger';
+    w.title = 'Pick any color';
+    w.addEventListener('click', openWheel);
+    row.appendChild(w);
+    repaintActiveSwatch();
+  }
+
+  function addSwatch(row, color, isRecent) {
+    var b = document.createElement('button');
+    b.className = 'swatch';
+    b.style.background = color;
+    b.dataset.color = color;
+    b.title = color;
+    if (isRecent) b.dataset.recent = '1';
+    b.addEventListener('click', function(){ setColor(color); });
+    row.appendChild(b);
+  }
+
+  function repaintActiveSwatch() {
+    var sw = document.querySelectorAll('.swatch');
+    sw.forEach(function(s){
+      s.classList.toggle('active',
+        s.dataset.color && s.dataset.color.toLowerCase() === state.color.toLowerCase());
+    });
+  }
+
+  function setColor(c) {
+    state.color = c;
+    // Bump c to top of recents if it's not already a preset
+    if (PALETTE.indexOf(c) < 0) {
+      state.recentColors = [c].concat(state.recentColors.filter(function(x){ return x !== c; })).slice(0, 5);
+      paintPalette();
+    } else {
+      repaintActiveSwatch();
+    }
+  }
+
+  // ---------- Color wheel modal ----------
+  var wheelModal = document.getElementById('wheelModal');
+  var wheelCanvas = document.getElementById('colorWheel');
+  var wheelCtx = wheelCanvas.getContext('2d');
+  var lightSlider = document.getElementById('lightSlider');
+  var wheelPreview = document.getElementById('wheelPreview');
+  var wheelPicked = { h:0, s:0, l:50 };
+
+  function paintColorWheel() {
+    var size = wheelCanvas.width;
+    var cx = size/2, cy = size/2, r = size/2 - 2;
+    var img = wheelCtx.createImageData(size, size);
+    var data = img.data;
+    var L = parseInt(lightSlider.value, 10);
+    for (var y = 0; y < size; y++) {
+      for (var x = 0; x < size; x++) {
+        var dx = x - cx, dy = y - cy;
+        var d = Math.sqrt(dx*dx + dy*dy);
+        var i = (y*size + x) * 4;
+        if (d > r) { data[i+3] = 0; continue; }
+        var h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+        var s = Math.min(1, d / r);
+        var rgb = hslToRgb(h, s, L/100);
+        data[i]   = rgb[0]; data[i+1] = rgb[1]; data[i+2] = rgb[2]; data[i+3] = 255;
+      }
+    }
+    wheelCtx.putImageData(img, 0, 0);
+  }
+
+  function hslToRgb(h, s, l){
+    h = h / 360;
+    var r, g, b;
+    if (s === 0) { r = g = b = l; }
+    else {
+      var hue2rgb = function(p, q, t){
+        if(t < 0) t += 1; if(t > 1) t -= 1;
+        if(t < 1/6) return p + (q - p) * 6 * t;
+        if(t < 1/2) return q;
+        if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      var p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+    return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+  }
+
+  function rgbToHex(rgb) {
+    return '#' + rgb.map(function(v){ var h = v.toString(16); return h.length<2 ? '0'+h : h; }).join('');
+  }
+
+  function openWheel() {
+    paintColorWheel();
+    wheelModal.classList.add('open');
+    updateWheelPreview();
+  }
+  function closeWheel() { wheelModal.classList.remove('open'); }
+
+  function updateWheelPreview() {
+    var rgb = hslToRgb(wheelPicked.h, wheelPicked.s, parseInt(lightSlider.value,10)/100);
+    wheelPreview.style.background = rgbToHex(rgb);
+    wheelPreview.dataset.rgb = rgbToHex(rgb);
+  }
+
+  wheelCanvas.addEventListener('pointerdown', function(ev){
+    var rect = wheelCanvas.getBoundingClientRect();
+    var x = (ev.clientX - rect.left) * wheelCanvas.width / rect.width;
+    var y = (ev.clientY - rect.top) * wheelCanvas.height / rect.height;
+    var cx = wheelCanvas.width/2, cy = wheelCanvas.height/2, r = wheelCanvas.width/2 - 2;
+    var dx = x - cx, dy = y - cy;
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if (d > r) return;
+    wheelPicked.h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+    wheelPicked.s = Math.min(1, d / r);
+    updateWheelPreview();
+  });
+  lightSlider.addEventListener('input', function(){
+    paintColorWheel();
+    updateWheelPreview();
+  });
+  document.getElementById('wheelCancel').addEventListener('click', closeWheel);
+  document.getElementById('wheelConfirm').addEventListener('click', function(){
+    var hex = wheelPreview.dataset.rgb;
+    if (hex) setColor(hex);
+    closeWheel();
+  });
+
+  // ---------- Top bar buttons ----------
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('clearBtn').addEventListener('click', function(){
+    if (!confirm('Clear the whole drawing?')) return;
+    pushUndo();
+    ctx.clearRect(0, 0, W, H);
+  });
+
+  function compositeForExport() {
+    // Flatten bg + drawing onto a temp canvas
+    var out = document.createElement('canvas');
+    out.width = W; out.height = H;
+    var octx = out.getContext('2d');
+    octx.drawImage(bgCanvas, 0, 0);
+    octx.drawImage(canvas, 0, 0);
+    return out;
+  }
+
+  function showToast(text) {
+    var t = document.getElementById('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', async function(){
+    var flat = compositeForExport();
+    var fullDataUrl = flat.toDataURL('image/png');
+    var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(flat, 128);
+    try {
+      await HeroAcademy.ArtGallery.save({
+        type: 'sketch',
+        title: "Nigel's drawing",
+        fullDataUrl: fullDataUrl,
+        thumbDataUrl: thumbDataUrl,
+      });
+      showToast('✓ Saved to your gallery!');
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('quick-praise', {
+            kidName:'Nigel',
+            text:"Beautiful work, Nigel! I saved it to your gallery.",
+          });
+        }
+      } catch(e){}
+    } catch(e){
+      showToast('Save failed');
+    }
+  });
+
+  document.getElementById('shareBtn').addEventListener('click', async function(){
+    var flat = compositeForExport();
+    flat.toBlob(async function(blob){
+      if (!blob) return;
+      var file = new File([blob], 'nigel-sketch.png', { type: 'image/png' });
+      // Prefer native share sheet when supported (Galaxy Tab Chrome supports it)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title:'My drawing', text:'Made in Hero Academy!' });
+          return;
+        } catch(e){ /* user cancelled — fall through to download */ }
+      }
+      // Fallback: download
+      var url = URL.createObjectURL(blob);
+      var d = new Date();
+      var pad = function(n){ return n<10? '0'+n : ''+n; };
+      var stamp = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+'-'+pad(d.getMinutes());
+      var a = document.createElement('a');
+      a.href = url; a.download = 'nigel-sketch-'+stamp+'.png';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    }, 'image/png');
+  });
+
+  // ---------- Tool selectors ----------
+  document.getElementById('brushRail').addEventListener('click', function(ev){
+    var btn = ev.target.closest('.brush-btn'); if (!btn) return;
+    state.brush = btn.dataset.brush;
+    document.querySelectorAll('#brushRail .brush-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.brush === state.brush);
+    });
+  });
+  document.querySelectorAll('.size-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.size = b.dataset.size;
+      document.querySelectorAll('.size-btn').forEach(function(x){
+        x.classList.toggle('active', x.dataset.size === state.size);
+      });
+    });
+  });
+  document.querySelectorAll('.sym-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.sym = b.dataset.sym;
+      document.querySelectorAll('.sym-btn').forEach(function(x){
+        x.classList.toggle('active', x.dataset.sym === state.sym);
+      });
+      drawSymAxes();
+    });
+  });
+  document.querySelectorAll('.bg-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.bg = b.dataset.bg;
+      document.querySelectorAll('.bg-btn').forEach(function(x){
+        x.classList.toggle('active', x.dataset.bg === state.bg);
+      });
+      paintBg();
+    });
+  });
+
+  // ---------- Boot ----------
+  paintBg();
+  paintPalette();
+  drawSymAxes();
+
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'sketch-lab' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

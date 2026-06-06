@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v112";
+const CACHE_VERSION = "hero-academy-v113";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -75,6 +75,11 @@ const CORE = [
   "./beat-box.html",
   "./name-instrument.html",
   "./sing-it-back.html",
+  "./creation-studio.html",
+  "./sketch-lab.html",
+  "./animation-studio.html",
+  "./gallery.html",
+  "./js/art-gallery.js",
   "./data/sound-stage.js",
 ];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(CORE))); self.skipWaiting(); });

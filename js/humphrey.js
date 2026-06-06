@@ -575,6 +575,46 @@
         "Ready to sing, {kidName}? Hear the pattern, then sing it back.",
       ],
     },
+    'welcome-creation-studio': {
+      expression: 'cheering',
+      lines: [
+        "Welcome to the Creation Studio, {kidName}! Pick a room — Sketch Lab, Animation, or your Gallery.",
+        "Hi {kidName}! The studio is open. Let's make beautiful things.",
+        "Art time, {kidName}! Eight brushes await in Sketch Lab.",
+        "Creation Studio is yours, {kidName}. What will we make today?",
+        "Welcome back, artist. Pick a room and let's create.",
+      ],
+    },
+    'welcome-sketch-lab': {
+      expression: 'encouraging',
+      lines: [
+        "Sketch Lab! Try the rainbow brush, {kidName} — it's my favorite.",
+        "Welcome, {kidName}! Pick a brush, pick a color, and go.",
+        "Time to draw, {kidName}. The kaleidoscope makes patterns by itself.",
+        "Hi {kidName}! Tap a brush on the left and start anywhere on the canvas.",
+        "Sketch Lab is open. Save when you love what you've made.",
+      ],
+    },
+    'welcome-animation-studio': {
+      expression: 'cheering',
+      lines: [
+        "Animation Studio! Draw a frame, add another, watch them move.",
+        "Welcome, {kidName}! Twelve frames max. Make something magical.",
+        "Animator at work! Onion skin lets you see your last frame faintly.",
+        "Hi {kidName}! Draw, then tap plus to add a new frame.",
+        "Time to make things move, {kidName}. Press play when you're ready.",
+      ],
+    },
+    'welcome-gallery': {
+      expression: 'smile',
+      lines: [
+        "Your gallery, {kidName}! Everything you've made lives here.",
+        "Welcome to the gallery. Tap any creation to see it bigger.",
+        "Hi {kidName}! Browse your art. You can share or download anything.",
+        "Your masterpieces, {kidName}. Tap one to view, share, or delete.",
+        "Welcome back, artist. Pick something to revisit.",
+      ],
+    },
     // Fallback used if an unknown event is fired AND no { text } override
     // is supplied. Kept benign — no thinking-aloud filler.
     '_default': {

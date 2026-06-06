@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Animation Studio · Creation Studio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<!-- gif.js for GIF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:var(--font-display);
+    background:radial-gradient(circle at 50% 0%, var(--bg-purple) 0%, var(--bg-deep) 60%, var(--bg-space) 100%);
+    color:#fff; min-height:100vh;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+    user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+  /* Top bar */
+  .top-bar { display:flex; align-items:center; gap:8px; padding:10px 12px 6px; }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+    padding:8px 12px; border-radius:999px; cursor:pointer; text-decoration:none;
+    display:inline-flex; align-items:center; gap:4px;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  .title-pill {
+    flex:1; text-align:center;
+    font-family:var(--font-title); font-size:18px; color:var(--gold);
+    text-shadow:0 2px 8px rgba(255,209,71,0.35);
+  }
+  .icon-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-size:18px;
+    width:38px; height:38px; border-radius:50%; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .icon-btn:active { transform:scale(0.94); }
+  .icon-btn.primary { background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright); }
+  .icon-btn.disabled { opacity:0.35; pointer-events:none; }
+
+  /* Main layout */
+  .studio {
+    display:flex; gap:8px; padding:0 8px 4px;
+    /* Reserve space for: top-bar (54) + frame-strip (120) + bottom-rail (~110) */
+    height:calc(100vh - 54px - 120px - 110px - var(--safe-top) - var(--safe-bottom));
+    min-height:280px; align-items:stretch; justify-content:center;
+  }
+  .side-rail {
+    display:flex; flex-direction:column; gap:6px; padding:6px 4px;
+    background:rgba(255,255,255,0.04); border:1px solid var(--border-light);
+    border-radius:14px; overflow-y:auto; flex-shrink:0;
+  }
+  .brush-btn {
+    width:44px; height:44px; border-radius:12px;
+    background:var(--surface-glass); border:2px solid transparent;
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+    font-size:20px; color:#fff; transition:transform .1s, background .12s;
+  }
+  .brush-btn:active { transform:scale(0.92); }
+  .brush-btn.active {
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    border-color:#fff; color:var(--bg-deep);
+  }
+
+  .canvas-area {
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; min-width:0;
+  }
+  .canvas-wrap {
+    position:relative; background:#fff; border-radius:14px;
+    box-shadow:0 20px 48px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.18);
+    overflow:hidden;
+    width:min(100%, calc(100vh - 54px - 120px - 110px - 20px));
+    aspect-ratio:1 / 1;
+  }
+  #canvas, #onionCanvas {
+    position:absolute; inset:0; width:100%; height:100%;
+    display:block; touch-action:none;
+  }
+  #onionCanvas { opacity:0.3; z-index:0; pointer-events:none; }
+  #canvas { z-index:1; }
+
+  /* Frame strip */
+  .frame-strip {
+    display:flex; gap:6px; padding:8px 12px;
+    overflow-x:auto; align-items:center;
+    background:rgba(0,0,0,0.25); border-top:1px solid var(--border-light);
+    height:120px; flex-shrink:0;
+  }
+  .frame-thumb {
+    width:90px; height:90px; flex-shrink:0;
+    border:2px solid var(--border-light); border-radius:10px;
+    background:#fff; cursor:pointer;
+    overflow:hidden; position:relative;
+    transition:transform .1s, border-color .12s;
+  }
+  .frame-thumb img {
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .frame-thumb.active {
+    border-color:var(--gold);
+    box-shadow:0 0 0 2px var(--gold-bright), 0 4px 16px rgba(255,209,71,0.5);
+  }
+  .frame-thumb:active { transform:scale(0.96); }
+  .frame-thumb .num {
+    position:absolute; top:2px; left:4px;
+    font-size:10px; font-weight:800; color:#fff;
+    background:rgba(0,0,0,0.55); padding:1px 5px; border-radius:6px;
+  }
+  .frame-thumb .del {
+    position:absolute; top:2px; right:2px;
+    width:18px; height:18px; border-radius:50%;
+    background:var(--red); color:#fff; font-size:12px; line-height:18px; text-align:center;
+    border:none; cursor:pointer; display:none;
+  }
+  .frame-thumb:hover .del { display:block; }
+  .add-frame-btn {
+    width:90px; height:90px; flex-shrink:0;
+    background:linear-gradient(135deg, var(--violet), var(--magenta));
+    color:#fff; border:none; border-radius:10px;
+    font-size:36px; font-weight:300; cursor:pointer;
+    box-shadow:0 4px 12px rgba(168,85,247,0.4);
+  }
+  .add-frame-btn:active { transform:scale(0.94); }
+  .add-frame-btn:disabled { opacity:0.4; pointer-events:none; }
+
+  /* Bottom rail */
+  .bottom-rail {
+    padding:8px 12px; background:rgba(0,0,0,0.3); border-top:1px solid var(--border-light);
+    backdrop-filter:blur(8px);
+    position:fixed; left:0; right:0; bottom:0;
+    padding-bottom:calc(8px + var(--safe-bottom)); z-index:10;
+  }
+  .palette-row {
+    display:flex; gap:5px; justify-content:center; flex-wrap:nowrap;
+    overflow-x:auto; padding:2px 0 6px;
+  }
+  .swatch {
+    width:30px; height:30px; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.3);
+    cursor:pointer; flex-shrink:0;
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+  }
+  .swatch:active { transform:scale(0.88); }
+  .swatch.active {
+    border-color:var(--gold); border-width:3px;
+    transform:scale(1.12);
+  }
+  .controls-row {
+    display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+  }
+  .control-group { display:flex; gap:6px; align-items:center; }
+  .control-label {
+    font-size:10px; font-weight:700; letter-spacing:0.08em;
+    text-transform:uppercase; opacity:0.7;
+  }
+  .ctl-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+    padding:7px 13px; border-radius:8px; cursor:pointer; min-width:34px;
+  }
+  .ctl-btn:active { transform:scale(0.94); }
+  .ctl-btn.active { background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright); }
+  .play-btn {
+    background:linear-gradient(135deg, var(--emerald), #1aa86e);
+    color:#fff; border:none;
+    font-family:var(--font-display); font-weight:700; font-size:14px;
+    padding:9px 20px; border-radius:999px; cursor:pointer;
+    box-shadow:0 4px 14px rgba(46,194,126,0.45);
+  }
+  .play-btn.playing { background:linear-gradient(135deg, var(--red), #c62a2a); }
+
+  /* GIF progress overlay */
+  .gif-modal {
+    position:fixed; inset:0; background:rgba(0,0,0,0.75);
+    display:none; align-items:center; justify-content:center;
+    z-index:200; padding:18px;
+  }
+  .gif-modal.open { display:flex; }
+  .gif-card {
+    background:linear-gradient(140deg, var(--bg-purple), var(--bg-deep));
+    border:2px solid var(--border-light); border-radius:20px;
+    padding:26px 22px; width:min(360px, 100%);
+    text-align:center;
+  }
+  .gif-card h3 {
+    font-family:var(--font-title); font-size:20px; color:var(--gold);
+    margin-bottom:12px;
+  }
+  .gif-card p { font-size:14px; opacity:0.85; margin-bottom:14px; }
+  .gif-progress {
+    width:100%; height:12px;
+    background:rgba(255,255,255,0.1); border-radius:6px; overflow:hidden;
+  }
+  .gif-progress-fill {
+    width:0%; height:100%;
+    background:linear-gradient(90deg, var(--gold), var(--gold-bright));
+    transition:width .15s;
+  }
+  .gif-pct {
+    margin-top:8px; font-family:var(--font-title); color:var(--gold); font-size:18px;
+  }
+
+  .toast {
+    position:fixed; bottom:150px; left:50%; transform:translateX(-50%);
+    background:var(--emerald); color:#fff;
+    font-weight:700; font-size:14px;
+    padding:10px 18px; border-radius:999px;
+    box-shadow:0 6px 24px rgba(46,194,126,0.6);
+    z-index:200; pointer-events:none;
+    opacity:0; transition:opacity .25s, transform .25s;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(-6px); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="creation-studio.html" class="back-btn">← Studio</a>
+  <div class="title-pill">🎬 Animation Studio</div>
+  <button class="icon-btn" id="undoBtn" title="Undo">↶</button>
+  <button class="icon-btn" id="onionBtn" title="Onion skin">👁</button>
+  <button class="icon-btn primary" id="saveBtn" title="Save">💾</button>
+  <button class="icon-btn" id="gifBtn" title="Export GIF">🎞️</button>
+</div>
+
+<div class="studio">
+  <div class="side-rail" id="brushRail">
+    <button class="brush-btn active" data-brush="marker" title="Marker">🖊️</button>
+    <button class="brush-btn"        data-brush="pencil" title="Pencil">✏️</button>
+    <button class="brush-btn"        data-brush="paint"  title="Paint">🖌️</button>
+    <button class="brush-btn"        data-brush="eraser" title="Eraser">🧽</button>
+  </div>
+
+  <div class="canvas-area">
+    <div class="canvas-wrap">
+      <canvas id="onionCanvas" width="720" height="720"></canvas>
+      <canvas id="canvas" width="720" height="720"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Frame strip -->
+<div class="frame-strip" id="frameStrip">
+  <!-- frame thumbs + add button injected by JS -->
+</div>
+
+<!-- Bottom palette + controls -->
+<div class="bottom-rail">
+  <div class="palette-row" id="paletteRow">
+    <!-- swatches injected -->
+  </div>
+  <div class="controls-row">
+    <div class="control-group">
+      <span class="control-label">Size</span>
+      <button class="ctl-btn" data-size="small">S</button>
+      <button class="ctl-btn active" data-size="medium">M</button>
+      <button class="ctl-btn" data-size="large">L</button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">FPS</span>
+      <button class="ctl-btn" data-fps="3">3</button>
+      <button class="ctl-btn active" data-fps="6">6</button>
+      <button class="ctl-btn" data-fps="10">10</button>
+    </div>
+    <button class="play-btn" id="playBtn">▶ Play</button>
+  </div>
+</div>
+
+<!-- GIF export modal -->
+<div class="gif-modal" id="gifModal">
+  <div class="gif-card">
+    <h3>Making your GIF…</h3>
+    <p>Hold tight — Ms. Humphrey is putting your frames together.</p>
+    <div class="gif-progress"><div class="gif-progress-fill" id="gifProgressFill"></div></div>
+    <div class="gif-pct" id="gifPct">0%</div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Saved!</div>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script src="js/art-gallery.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-animation-studio', kidName:'Nigel',
+    });
+  }
+
+  // ---------- Canvases ----------
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var onion = document.getElementById('onionCanvas');
+  var onionCtx = onion.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+
+  // ---------- State ----------
+  var state = {
+    brush: 'marker',
+    color: '#1a1554',
+    size: 'medium',
+    fps: 6,
+    onionOn: true,
+    currentFrame: 0,
+    playing: false,
+  };
+
+  // frames[] : Array<string dataUrl> — each is the full PNG of that frame
+  var frames = [];
+  var MAX_FRAMES = 12;
+
+  // ---------- Brushes (simpler set than Sketch Lab — animation is about volume, not variety) ----------
+  var SIZE_MAP = { small:0, medium:1, large:2 };
+  var BRUSHES = {
+    pencil: {
+      sizes:[2, 4, 8],
+      draw:function(c, x0,y0,x1,y1, color, sz){
+        c.strokeStyle=color; c.globalAlpha=0.95; c.lineWidth=sz;
+        c.lineCap='round'; c.lineJoin='round';
+        c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.stroke();
+      },
+    },
+    marker: {
+      sizes:[6, 12, 22],
+      draw:function(c, x0,y0,x1,y1, color, sz){
+        c.strokeStyle=color; c.globalAlpha=1.0; c.lineWidth=sz;
+        c.lineCap='round'; c.lineJoin='round';
+        c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.stroke();
+      },
+    },
+    paint: {
+      sizes:[14, 24, 40],
+      draw:function(c, x0,y0,x1,y1, color, sz){
+        c.strokeStyle=color; c.globalAlpha=0.6; c.lineWidth=sz;
+        c.lineCap='round'; c.lineJoin='round';
+        c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.stroke();
+      },
+    },
+    eraser: {
+      sizes:[14, 28, 50],
+      draw:function(c, x0,y0,x1,y1, color, sz){
+        var prev=c.globalCompositeOperation;
+        c.globalCompositeOperation='destination-out';
+        c.strokeStyle='rgba(0,0,0,1)'; c.globalAlpha=1.0; c.lineWidth=sz;
+        c.lineCap='round'; c.lineJoin='round';
+        c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.stroke();
+        c.globalCompositeOperation=prev;
+      },
+    },
+  };
+
+  function currentBrush(){ return BRUSHES[state.brush] || BRUSHES.marker; }
+  function currentSize(){
+    var b=currentBrush();
+    return b.sizes[SIZE_MAP[state.size] || 1];
+  }
+
+  // ---------- Undo (per-frame, single-step) ----------
+  var undoSnapshot = null;
+  function takeUndoSnap() {
+    try { undoSnapshot = canvas.toDataURL('image/png'); } catch(e){ undoSnapshot = null; }
+    document.getElementById('undoBtn').classList.toggle('disabled', !undoSnapshot);
+  }
+  function applyUndo() {
+    if (!undoSnapshot) return;
+    var img = new Image();
+    img.onload = function(){
+      ctx.clearRect(0,0,W,H);
+      ctx.drawImage(img, 0, 0, W, H);
+      undoSnapshot = null;
+      document.getElementById('undoBtn').classList.add('disabled');
+    };
+    img.src = undoSnapshot;
+  }
+
+  // ---------- Coordinate mapping ----------
+  function eventToCanvas(ev) {
+    var rect = canvas.getBoundingClientRect();
+    var x = (ev.clientX - rect.left) / rect.width  * W;
+    var y = (ev.clientY - rect.top)  / rect.height * H;
+    return { x:x, y:y };
+  }
+
+  // ---------- Drawing ----------
+  var drawing = false;
+  var lastPoint = null;
+  var snappedThisStroke = false;
+
+  function strokeBegin(ev) {
+    ev.preventDefault();
+    if (!snappedThisStroke) {
+      takeUndoSnap();
+      snappedThisStroke = true;
+    }
+    drawing = true;
+    var p = eventToCanvas(ev);
+    lastPoint = p;
+    drawSeg(p.x, p.y, p.x+0.01, p.y+0.01);
+  }
+  function strokeMove(ev) {
+    if (!drawing) return;
+    ev.preventDefault();
+    var p = eventToCanvas(ev);
+    drawSeg(lastPoint.x, lastPoint.y, p.x, p.y);
+    lastPoint = p;
+  }
+  function strokeEnd() {
+    if (!drawing) return;
+    drawing = false;
+    lastPoint = null;
+    snappedThisStroke = false;
+    // Persist this frame back into frames[]
+    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    refreshFrameThumb(state.currentFrame);
+  }
+  function drawSeg(x0,y0,x1,y1) {
+    var b = currentBrush();
+    var sz = currentSize();
+    b.draw(ctx, x0, y0, x1, y1, state.color, sz);
+  }
+
+  canvas.addEventListener('pointerdown', function(ev){ canvas.setPointerCapture(ev.pointerId); strokeBegin(ev); });
+  canvas.addEventListener('pointermove', strokeMove);
+  canvas.addEventListener('pointerup',     strokeEnd);
+  canvas.addEventListener('pointercancel', strokeEnd);
+  canvas.addEventListener('pointerleave',  function(ev){ if (drawing) strokeEnd(); });
+
+  // ---------- Frames ----------
+  function loadFrameToCanvas(idx) {
+    ctx.clearRect(0, 0, W, H);
+    if (frames[idx]) {
+      var img = new Image();
+      img.onload = function(){ ctx.drawImage(img, 0, 0, W, H); };
+      img.src = frames[idx];
+    }
+    paintOnion(idx);
+    undoSnapshot = null;
+    document.getElementById('undoBtn').classList.add('disabled');
+  }
+
+  function paintOnion(idx) {
+    onionCtx.clearRect(0, 0, W, H);
+    if (!state.onionOn) { onion.style.display='none'; return; }
+    onion.style.display = 'block';
+    var prevIdx = idx - 1;
+    if (prevIdx < 0 || !frames[prevIdx]) return;
+    var img = new Image();
+    img.onload = function(){ onionCtx.drawImage(img, 0, 0, W, H); };
+    img.src = frames[prevIdx];
+  }
+
+  function newBlankFrame() {
+    // White-canvas blank
+    var c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    var cc = c.getContext('2d');
+    cc.fillStyle = '#ffffff'; cc.fillRect(0, 0, W, H);
+    return c.toDataURL('image/png');
+  }
+  function duplicateCurrentFrame() {
+    if (frames.length >= MAX_FRAMES) return null;
+    // Persist current state then duplicate the dataURL into a new slot
+    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    var idx = state.currentFrame + 1;
+    frames.splice(idx, 0, frames[state.currentFrame]);
+    return idx;
+  }
+
+  function refreshFrameStrip() {
+    var strip = document.getElementById('frameStrip');
+    strip.innerHTML = '';
+    frames.forEach(function(d, i){
+      var div = document.createElement('div');
+      div.className = 'frame-thumb' + (i === state.currentFrame ? ' active' : '');
+      div.dataset.idx = String(i);
+      div.innerHTML = '<span class="num">' + (i+1) + '</span>' +
+                      '<img src="' + d + '" alt="">' +
+                      (frames.length > 1 ? '<button class="del" title="Delete">×</button>' : '');
+      div.addEventListener('click', function(ev){
+        if (ev.target.classList.contains('del')) {
+          if (!confirm('Delete this frame?')) return;
+          frames.splice(i, 1);
+          if (state.currentFrame >= frames.length) state.currentFrame = frames.length - 1;
+          refreshFrameStrip();
+          loadFrameToCanvas(state.currentFrame);
+          return;
+        }
+        switchToFrame(i);
+      });
+      strip.appendChild(div);
+    });
+    if (frames.length < MAX_FRAMES) {
+      var add = document.createElement('button');
+      add.className = 'add-frame-btn';
+      add.textContent = '+';
+      add.title = 'Add frame';
+      add.addEventListener('click', function(){
+        var i = duplicateCurrentFrame();
+        if (i === null) return;
+        state.currentFrame = i;
+        refreshFrameStrip();
+        loadFrameToCanvas(i);
+        // Scroll the new frame into view
+        var thumbs = strip.querySelectorAll('.frame-thumb');
+        if (thumbs[i]) thumbs[i].scrollIntoView({behavior:'smooth', inline:'center'});
+      });
+      strip.appendChild(add);
+    }
+  }
+
+  function refreshFrameThumb(idx) {
+    // Just patch the one thumb image rather than rebuilding the whole strip
+    var thumb = document.querySelector('.frame-thumb[data-idx="' + idx + '"] img');
+    if (thumb) thumb.src = frames[idx];
+  }
+
+  function switchToFrame(idx) {
+    if (idx === state.currentFrame) return;
+    // Persist current frame to dataUrl before switching
+    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    state.currentFrame = idx;
+    refreshFrameStrip();
+    loadFrameToCanvas(idx);
+  }
+
+  // ---------- Playback ----------
+  var playTimer = null;
+  var playIdx = 0;
+  function startPlayback() {
+    if (frames.length < 2) return;
+    // Persist current frame first
+    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    state.playing = true;
+    document.getElementById('playBtn').textContent = '■ Stop';
+    document.getElementById('playBtn').classList.add('playing');
+    playIdx = 0;
+    var step = 1000 / state.fps;
+    var playImages = frames.map(function(d){ var i = new Image(); i.src = d; return i; });
+    playTimer = setInterval(function(){
+      var img = playImages[playIdx];
+      ctx.clearRect(0, 0, W, H);
+      if (img.complete) ctx.drawImage(img, 0, 0, W, H);
+      playIdx = (playIdx + 1) % frames.length;
+    }, step);
+  }
+  function stopPlayback() {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = null;
+    state.playing = false;
+    document.getElementById('playBtn').textContent = '▶ Play';
+    document.getElementById('playBtn').classList.remove('playing');
+    loadFrameToCanvas(state.currentFrame);
+  }
+
+  // ---------- Palette ----------
+  var PALETTE = [
+    '#000000','#ffffff','#ef4444','#ff8b3d','#ffd147',
+    '#2ec27e','#14b8d4','#3b82f6','#a855f7','#ec4899','#1a1554','#a0623a',
+  ];
+  function paintPalette() {
+    var row = document.getElementById('paletteRow');
+    row.innerHTML = '';
+    PALETTE.forEach(function(c){
+      var b = document.createElement('button');
+      b.className = 'swatch' + (c === state.color ? ' active' : '');
+      b.style.background = c; b.dataset.color = c;
+      b.addEventListener('click', function(){
+        state.color = c;
+        document.querySelectorAll('.swatch').forEach(function(s){
+          s.classList.toggle('active', s.dataset.color === state.color);
+        });
+      });
+      row.appendChild(b);
+    });
+  }
+
+  // ---------- Toolbar wiring ----------
+  document.getElementById('undoBtn').addEventListener('click', applyUndo);
+  document.getElementById('onionBtn').addEventListener('click', function(){
+    state.onionOn = !state.onionOn;
+    document.getElementById('onionBtn').classList.toggle('active', state.onionOn);
+    paintOnion(state.currentFrame);
+  });
+  document.getElementById('playBtn').addEventListener('click', function(){
+    if (state.playing) stopPlayback(); else startPlayback();
+  });
+
+  document.getElementById('brushRail').addEventListener('click', function(ev){
+    var btn = ev.target.closest('.brush-btn'); if (!btn) return;
+    state.brush = btn.dataset.brush;
+    document.querySelectorAll('#brushRail .brush-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.brush === state.brush);
+    });
+  });
+  document.querySelectorAll('[data-size]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.size = b.dataset.size;
+      document.querySelectorAll('[data-size]').forEach(function(x){
+        x.classList.toggle('active', x.dataset.size === state.size);
+      });
+    });
+  });
+  document.querySelectorAll('[data-fps]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.fps = parseInt(b.dataset.fps, 10);
+      document.querySelectorAll('[data-fps]').forEach(function(x){
+        x.classList.toggle('active', x.dataset.fps === b.dataset.fps);
+      });
+      if (state.playing) { stopPlayback(); startPlayback(); }
+    });
+  });
+
+  function showToast(text) {
+    var t = document.getElementById('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  // ---------- Save to gallery ----------
+  document.getElementById('saveBtn').addEventListener('click', async function(){
+    // Persist current frame first
+    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    // Build thumbnail from frame 0
+    var img = new Image(); img.src = frames[0];
+    await new Promise(function(res){ if (img.complete) res(); else img.onload = res; });
+    var t = document.createElement('canvas');
+    t.width = W; t.height = H;
+    t.getContext('2d').drawImage(img, 0, 0, W, H);
+    var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(t, 128);
+    try {
+      await HeroAcademy.ArtGallery.save({
+        type: 'animation',
+        title: "Nigel's animation",
+        thumbDataUrl: thumbDataUrl,
+        fullDataUrl: frames[0],
+        frames: frames.slice(),
+        fps: state.fps,
+      });
+      showToast('✓ Saved to your gallery!');
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('quick-praise', {
+            kidName:'Nigel',
+            text:"Wonderful, Nigel! Your animation is saved.",
+          });
+        }
+      } catch(e){}
+    } catch(e){ showToast('Save failed'); }
+  });
+
+  // ---------- GIF export ----------
+  document.getElementById('gifBtn').addEventListener('click', async function(){
+    if (typeof GIF === 'undefined') {
+      showToast('GIF tool not loaded');
+      return;
+    }
+    if (frames.length < 2) {
+      showToast('Add at least 2 frames first');
+      return;
+    }
+    // Persist current frame
+    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    var modal = document.getElementById('gifModal');
+    var fill = document.getElementById('gifProgressFill');
+    var pct  = document.getElementById('gifPct');
+    fill.style.width = '0%'; pct.textContent = '0%';
+    modal.classList.add('open');
+
+    // Build the GIF
+    var gif = new GIF({
+      workers: 2,
+      quality: 10,
+      width: W, height: H,
+      // Worker script must be hosted on the same CDN
+      workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js',
+    });
+    var delay = Math.round(1000 / state.fps);
+    // Load each frame's dataUrl into an Image and add to gif
+    for (var i = 0; i < frames.length; i++) {
+      var im = new Image();
+      im.src = frames[i];
+      // Wait for it to be decoded
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise(function(res){ if (im.complete) res(); else im.onload = res; });
+      gif.addFrame(im, { delay: delay, copy: true });
+    }
+    gif.on('progress', function(p){
+      var v = Math.round(p * 100);
+      fill.style.width = v + '%';
+      pct.textContent = v + '%';
+    });
+    gif.on('finished', function(blob){
+      modal.classList.remove('open');
+      var url = URL.createObjectURL(blob);
+      var d = new Date();
+      var pad = function(n){ return n<10? '0'+n : ''+n; };
+      var stamp = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+'-'+pad(d.getMinutes());
+      var fname = 'nigel-animation-'+stamp+'.gif';
+      // Try Web Share with the file first; fall back to download
+      var file = new File([blob], fname, { type:'image/gif' });
+      if (navigator.canShare && navigator.canShare({ files:[file] })) {
+        navigator.share({ files:[file], title:'My animation', text:'Made in Hero Academy!' })
+          .catch(function(){ /* user cancelled — silently fall through to download */
+            var a = document.createElement('a');
+            a.href = url; a.download = fname;
+            document.body.appendChild(a); a.click();
+            setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+          });
+      } else {
+        var a = document.createElement('a');
+        a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+      }
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('quick-praise', {
+            kidName:'Nigel',
+            text:"Look at that! Your GIF is ready, Nigel.",
+          });
+        }
+      } catch(e){}
+    });
+    gif.render();
+  });
+
+  // ---------- Boot ----------
+  // Start with one blank frame
+  frames = [newBlankFrame()];
+  state.currentFrame = 0;
+  // Paint frame 0 (blank white)
+  var initImg = new Image();
+  initImg.onload = function(){ ctx.drawImage(initImg, 0, 0, W, H); };
+  initImg.src = frames[0];
+
+  paintPalette();
+  refreshFrameStrip();
+  // Default onion toggle visible
+  document.getElementById('onionBtn').classList.add('active');
+
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'animation-studio' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

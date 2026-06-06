@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>My Gallery · Creation Studio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+  :root {
+    --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
+    --gold:#ffd147; --gold-deep:#f5b800; --gold-bright:#ffe580;
+    --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
+    --cyan:#14b8d4; --red:#ef4444;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; min-height:100%;
+    background:linear-gradient(160deg,var(--bg-space) 0%,#1a0b3e 40%,var(--bg-purple) 100%);
+    font-family:var(--font-display); color:#fff;
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow-x:hidden;
+  }
+  body { padding-top:var(--safe-top); padding-bottom:calc(var(--safe-bottom) + 24px); }
+
+  header.gal-header { display:flex; align-items:center; gap:10px; padding:14px 18px 6px; }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; padding:9px 14px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  h1.title {
+    flex:1; text-align:center;
+    font-family:var(--font-title); font-size:24px; color:var(--gold);
+    text-shadow:0 2px 8px rgba(255,209,71,0.35);
+  }
+  .header-spacer { width:80px; }
+
+  .count-row {
+    text-align:center; opacity:0.75; font-size:13px;
+    margin-bottom:14px;
+  }
+
+  .filter-row { display:flex; gap:8px; justify-content:center; padding:0 18px 12px; }
+  .filter-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+    padding:8px 18px; border-radius:999px; cursor:pointer;
+  }
+  .filter-btn:active { transform:scale(0.96); }
+  .filter-btn.active {
+    background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright);
+  }
+
+  .grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+    gap:12px; padding:0 18px 20px;
+    max-width:780px; margin:0 auto;
+  }
+  .tile {
+    aspect-ratio:1 / 1;
+    background:#fff; border:2px solid var(--border-light); border-radius:14px;
+    overflow:hidden; position:relative; cursor:pointer;
+    transition:transform .1s, border-color .12s;
+  }
+  .tile:active { transform:scale(0.96); }
+  .tile img { width:100%; height:100%; object-fit:cover; display:block; }
+  .tile-type {
+    position:absolute; top:6px; left:6px;
+    background:rgba(0,0,0,0.55); color:#fff;
+    font-size:10px; padding:2px 6px; border-radius:6px;
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  .tile-date {
+    position:absolute; bottom:0; left:0; right:0;
+    background:linear-gradient(to top, rgba(0,0,0,0.65), transparent);
+    color:#fff; font-size:11px; padding:14px 8px 6px;
+    text-align:center; font-weight:500;
+  }
+
+  .empty {
+    text-align:center; padding:40px 22px; opacity:0.75;
+  }
+  .empty h2 { font-family:var(--font-title); color:var(--gold); margin-bottom:8px; font-size:24px; }
+
+  /* Detail modal */
+  .detail-modal {
+    position:fixed; inset:0; background:rgba(0,0,0,0.85);
+    display:none; align-items:center; justify-content:center;
+    z-index:200; padding:14px;
+    backdrop-filter:blur(6px);
+  }
+  .detail-modal.open { display:flex; flex-direction:column; }
+  .detail-card {
+    background:linear-gradient(140deg, var(--bg-purple), var(--bg-deep));
+    border:2px solid var(--border-light); border-radius:20px;
+    padding:14px;
+    max-width:600px; width:100%;
+    max-height:calc(100vh - 28px); overflow:auto;
+  }
+  .detail-card .img-wrap {
+    aspect-ratio:1 / 1; background:#fff; border-radius:12px;
+    overflow:hidden; margin-bottom:12px;
+    position:relative;
+  }
+  .detail-card .img-wrap img,
+  .detail-card .img-wrap canvas {
+    width:100%; height:100%; object-fit:contain; display:block;
+  }
+  .detail-meta { font-size:13px; opacity:0.85; margin-bottom:10px; text-align:center; }
+  .detail-meta .type-tag {
+    display:inline-block; background:var(--magenta); color:#fff;
+    font-size:10px; padding:2px 8px; border-radius:999px;
+    margin-right:6px; letter-spacing:0.06em; text-transform:uppercase;
+  }
+  .detail-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .detail-actions button {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+    padding:10px 16px; border-radius:10px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .detail-actions button:active { transform:scale(0.96); }
+  .detail-actions button.primary { background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright); }
+  .detail-actions button.danger { background:rgba(239,68,68,0.18); border-color:var(--red); color:#fff; }
+  .detail-actions button.success { background:var(--emerald); color:#fff; border-color:#1aa86e; }
+</style>
+</head>
+<body>
+
+<header class="gal-header">
+  <a href="creation-studio.html" class="back-btn">← Studio</a>
+  <h1 class="title">🖼️ My Gallery</h1>
+  <div class="header-spacer"></div>
+</header>
+
+<div class="count-row" id="countRow">Loading…</div>
+
+<div class="filter-row">
+  <button class="filter-btn active" data-filter="all">All</button>
+  <button class="filter-btn" data-filter="sketch">🎨 Sketches</button>
+  <button class="filter-btn" data-filter="animation">🎬 Animations</button>
+</div>
+
+<main class="grid" id="grid">
+  <!-- tiles injected -->
+</main>
+
+<section class="empty" id="emptyState" hidden>
+  <h2>Nothing here yet!</h2>
+  <p>Make a drawing in Sketch Lab or an animation in Animation Studio, then come back.</p>
+</section>
+
+<!-- Detail modal -->
+<div class="detail-modal" id="detailModal">
+  <div class="detail-card">
+    <div class="img-wrap" id="detailImgWrap"></div>
+    <div class="detail-meta" id="detailMeta"></div>
+    <div class="detail-actions">
+      <button id="detailClose">← Back</button>
+      <button id="detailShare" class="primary">⬆ Share</button>
+      <button id="detailDownload" class="success">⬇ Download</button>
+      <button id="detailDelete" class="danger">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script src="js/art-gallery.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-gallery', kidName:'Nigel',
+    });
+  }
+
+  var all = [];        // all items
+  var filter = 'all';
+  var currentDetail = null;
+  var detailPlaybackTimer = null;
+
+  function fmtDate(ts) {
+    var d = new Date(ts);
+    var today = new Date();
+    var sameDay = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    if (sameDay) return d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+    var sameYear = d.getFullYear() === today.getFullYear();
+    return d.toLocaleDateString([], sameYear ? { month:'short', day:'numeric' } : { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  function paintGrid() {
+    var grid = document.getElementById('grid');
+    var empty = document.getElementById('emptyState');
+    var items = filter === 'all' ? all : all.filter(function(x){ return x.type === filter; });
+    grid.innerHTML = '';
+    if (!items.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    items.forEach(function(item){
+      var t = document.createElement('div');
+      t.className = 'tile';
+      t.innerHTML =
+        '<img src="' + item.thumbDataUrl + '" alt="">' +
+        '<span class="tile-type">' + (item.type === 'animation' ? '🎬 Animation' : '🎨 Sketch') + '</span>' +
+        '<div class="tile-date">' + fmtDate(item.createdAt) + '</div>';
+      t.addEventListener('click', function(){ openDetail(item); });
+      grid.appendChild(t);
+    });
+  }
+
+  // ---------- Detail modal ----------
+  function openDetail(item) {
+    currentDetail = item;
+    var wrap = document.getElementById('detailImgWrap');
+    wrap.innerHTML = '';
+    if (item.type === 'animation' && Array.isArray(item.frames) && item.frames.length > 1) {
+      // Build a canvas + animate the frames
+      var c = document.createElement('canvas');
+      c.width = 720; c.height = 720;
+      wrap.appendChild(c);
+      var cc = c.getContext('2d');
+      var imgs = item.frames.map(function(d){ var i = new Image(); i.src = d; return i; });
+      var fps = item.fps || 6;
+      var idx = 0;
+      function tick(){
+        var im = imgs[idx];
+        if (im.complete) {
+          cc.clearRect(0,0,720,720);
+          cc.drawImage(im, 0, 0, 720, 720);
+        }
+        idx = (idx + 1) % imgs.length;
+      }
+      tick();
+      detailPlaybackTimer = setInterval(tick, 1000 / fps);
+    } else {
+      var img = document.createElement('img');
+      img.src = item.fullDataUrl || item.thumbDataUrl;
+      wrap.appendChild(img);
+    }
+    var meta = document.getElementById('detailMeta');
+    var typeTag = item.type === 'animation' ? '<span class="type-tag">Animation</span>' : '<span class="type-tag" style="background:#a855f7">Sketch</span>';
+    meta.innerHTML = typeTag + (item.title || 'Untitled') + ' · ' + new Date(item.createdAt).toLocaleString();
+    document.getElementById('detailModal').classList.add('open');
+  }
+
+  function closeDetail() {
+    if (detailPlaybackTimer) { clearInterval(detailPlaybackTimer); detailPlaybackTimer = null; }
+    document.getElementById('detailModal').classList.remove('open');
+    currentDetail = null;
+    // Clear the hash so refreshing doesn't auto-open the same item endlessly
+    if (window.location.hash) history.replaceState(null, '', window.location.pathname);
+  }
+
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
+
+  document.getElementById('detailDelete').addEventListener('click', async function(){
+    if (!currentDetail) return;
+    if (!confirm('Delete "' + (currentDetail.title || 'this creation') + '"? Forever?')) return;
+    await HeroAcademy.ArtGallery.delete(currentDetail.id);
+    all = all.filter(function(x){ return x.id !== currentDetail.id; });
+    closeDetail();
+    updateCount();
+    paintGrid();
+  });
+
+  function buildBlob(item) {
+    // For sketches: turn dataUrl into Blob.
+    // For animations: we don't re-render the GIF here (heavy + needs gif.js worker);
+    //   instead, share the first frame as PNG. (The user can re-export GIF from the animator.)
+    var dataUrl = item.fullDataUrl || item.thumbDataUrl;
+    var parts = dataUrl.split(',');
+    var mime = parts[0].match(/data:([^;]+)/)[1];
+    var bin = atob(parts[1]);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  document.getElementById('detailShare').addEventListener('click', async function(){
+    if (!currentDetail) return;
+    var blob = buildBlob(currentDetail);
+    var ext = blob.type === 'image/png' ? '.png' : '.jpg';
+    var fname = (currentDetail.type === 'animation' ? 'nigel-animation-frame1' : 'nigel-sketch') + ext;
+    var file = new File([blob], fname, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files:[file] })) {
+      try { await navigator.share({ files:[file], title:'My art', text:'Made in Hero Academy!' }); }
+      catch(e) { /* user cancelled */ }
+    } else {
+      // Fallback: trigger download
+      doDownload(blob, fname);
+    }
+  });
+
+  document.getElementById('detailDownload').addEventListener('click', function(){
+    if (!currentDetail) return;
+    var blob = buildBlob(currentDetail);
+    var ext = blob.type === 'image/png' ? '.png' : '.jpg';
+    var fname = (currentDetail.type === 'animation' ? 'nigel-animation-frame1' : 'nigel-sketch') + ext;
+    doDownload(blob, fname);
+  });
+
+  function doDownload(blob, fname) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  }
+
+  // ---------- Filter buttons ----------
+  document.querySelectorAll('.filter-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      filter = b.dataset.filter;
+      document.querySelectorAll('.filter-btn').forEach(function(x){
+        x.classList.toggle('active', x.dataset.filter === filter);
+      });
+      paintGrid();
+    });
+  });
+
+  function updateCount() {
+    var n = all.length;
+    var s = filter === 'all' ? n : all.filter(function(x){ return x.type === filter; }).length;
+    document.getElementById('countRow').textContent =
+      n === 0 ? 'Your gallery is empty.' :
+      (n + (n === 1 ? ' creation total' : ' creations total'));
+  }
+
+  // ---------- Boot ----------
+  if (!window.HeroAcademy || !window.HeroAcademy.ArtGallery) {
+    document.getElementById('countRow').textContent = 'Storage not available.';
+    document.getElementById('emptyState').hidden = false;
+    return;
+  }
+  HeroAcademy.ArtGallery.list({limit:200}).then(function(items){
+    all = items;
+    updateCount();
+    paintGrid();
+    // If URL has #<id>, auto-open that detail
+    var hashId = window.location.hash.slice(1);
+    if (hashId) {
+      var found = all.filter(function(x){ return x.id === hashId; })[0];
+      if (found) openDetail(found);
+    }
+  }).catch(function(e){
+    document.getElementById('countRow').textContent = 'Could not load gallery.';
+  });
+
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'gallery' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Creation Studio · Hero Academy</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+  :root {
+    --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
+    --gold:#ffd147; --gold-deep:#f5b800; --gold-bright:#ffe580;
+    --orange:#ff8b3d; --orange-bright:#ffa86b;
+    --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
+    --cyan:#14b8d4; --red:#ef4444;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --text:#fff;
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; min-height:100%;
+    background:linear-gradient(160deg,var(--bg-space) 0%,#2e0a3e 40%,var(--bg-purple) 100%);
+    font-family:var(--font-display); color:var(--text);
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow-x:hidden;
+  }
+  body { padding-top:var(--safe-top); padding-bottom:calc(var(--safe-bottom) + 24px); }
+
+  /* Floating paint splats background */
+  .splat-bg { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:0; }
+  .splat-bg span {
+    position:absolute; font-size:38px;
+    animation:floatSplat 22s linear infinite;
+  }
+  .splat-bg span:nth-child(1){ left:5%;  top:120%; animation-duration:24s; animation-delay:0s; color:rgba(236,72,153,0.18); font-size:48px;}
+  .splat-bg span:nth-child(2){ left:22%; top:115%; animation-duration:28s; animation-delay:4s; color:rgba(20,184,212,0.18);}
+  .splat-bg span:nth-child(3){ left:38%; top:130%; animation-duration:20s; animation-delay:8s; color:rgba(255,209,71,0.16); font-size:44px;}
+  .splat-bg span:nth-child(4){ left:58%; top:118%; animation-duration:26s; animation-delay:2s; color:rgba(46,194,126,0.18);}
+  .splat-bg span:nth-child(5){ left:74%; top:128%; animation-duration:30s; animation-delay:6s; color:rgba(168,85,247,0.18); font-size:42px;}
+  .splat-bg span:nth-child(6){ left:88%; top:122%; animation-duration:24s; animation-delay:10s; color:rgba(255,139,61,0.18);}
+  @keyframes floatSplat {
+    0% { transform:translateY(0) rotate(0deg); opacity:0; }
+    8% { opacity:1; }
+    92% { opacity:1; }
+    100% { transform:translateY(-150vh) rotate(360deg); opacity:0; }
+  }
+
+  /* Header */
+  .header { position:relative; z-index:2; padding:14px 18px 0; display:flex; align-items:center; gap:10px; }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:var(--text); padding:9px 16px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    text-decoration:none; backdrop-filter:blur(10px);
+    display:inline-flex; align-items:center; gap:6px;
+    transition:transform .12s;
+  }
+  .back-btn:active { transform:scale(0.96); }
+
+  /* Marquee */
+  .marquee { position:relative; z-index:2; padding:18px 22px 8px; text-align:center; }
+  .marquee-tag {
+    display:inline-block; font-family:var(--font-display);
+    font-weight:700; font-size:12px; letter-spacing:0.18em;
+    color:var(--magenta); text-transform:uppercase;
+    background:rgba(236,72,153,0.14);
+    border:1px solid rgba(236,72,153,0.36);
+    padding:5px 12px; border-radius:999px; margin-bottom:14px;
+  }
+  .marquee-title {
+    font-family:var(--font-title);
+    font-size:clamp(36px, 9vw, 60px); line-height:1;
+    color:var(--gold-bright);
+    text-shadow:0 0 24px rgba(255,209,71,0.45),
+                0 4px 0 var(--magenta),
+                0 8px 18px rgba(236,72,153,0.55);
+    margin-bottom:8px;
+  }
+  .marquee-sub {
+    font-family:var(--font-display);
+    font-size:clamp(15px, 4vw, 18px);
+    color:rgba(255,255,255,0.82); max-width:520px; margin:0 auto;
+    font-weight:500;
+  }
+
+  /* Welcome strip with Humphrey portrait */
+  .welcome-strip {
+    position:relative; z-index:2; margin:14px 18px 0;
+    padding:12px 14px;
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
+    border-radius:16px;
+    display:flex; gap:12px; align-items:center;
+    backdrop-filter:blur(6px);
+  }
+  .welcome-strip img { width:54px; height:54px; border-radius:50%; flex-shrink:0; }
+  .welcome-strip-text {
+    flex:1; font-family:var(--font-display);
+    font-size:14px; color:rgba(255,255,255,0.88); line-height:1.35;
+  }
+  .welcome-strip-text strong { color:var(--gold); font-weight:700; }
+
+  /* Activity cards */
+  .studio-grid {
+    position:relative; z-index:2;
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;
+    padding:18px 16px 12px;
+    max-width:780px; margin:0 auto;
+  }
+  @media (max-width:600px) {
+    .studio-grid { grid-template-columns:1fr 1fr; }
+  }
+  .studio-card {
+    position:relative; border-radius:22px;
+    padding:16px 14px 18px;
+    background:linear-gradient(160deg, var(--card-from, #ec4899), var(--card-to, #a855f7));
+    border:2px solid rgba(255,255,255,0.16);
+    box-shadow:0 12px 36px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    cursor:pointer; text-align:center; color:#fff; text-decoration:none;
+    transition:transform .14s ease;
+    overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    min-height:180px;
+  }
+  .studio-card::before {
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(circle at 50% 0%, rgba(255,255,255,0.25), transparent 60%);
+    pointer-events:none;
+  }
+  .studio-card:active { transform:scale(0.97); }
+  .studio-card-emoji {
+    font-size:54px; line-height:1; margin:6px 0 4px;
+    filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45));
+    z-index:1; position:relative;
+  }
+  .studio-card-title {
+    font-family:var(--font-title); font-size:22px; line-height:1.05;
+    margin-bottom:6px;
+    text-shadow:0 2px 0 rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.45);
+    z-index:1; position:relative;
+  }
+  .studio-card-sub {
+    font-family:var(--font-display); font-size:13px; font-weight:500;
+    color:rgba(255,255,255,0.92); line-height:1.25;
+    z-index:1; position:relative;
+  }
+  .studio-card-badge {
+    position:absolute; top:10px; right:10px;
+    background:var(--gold); color:#0a0b2e;
+    font-family:var(--font-display);
+    font-size:10px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700;
+    padding:3px 8px; border-radius:999px; z-index:2;
+  }
+  .card-sketch  { --card-from:#ec4899; --card-to:#831843; }
+  .card-anim    { --card-from:#a855f7; --card-to:#5b21b6; }
+  .card-gallery { --card-from:#14b8d4; --card-to:#0e7490; }
+
+  /* Recent creations strip */
+  .recent {
+    position:relative; z-index:2;
+    margin:14px 16px 0; padding:16px;
+    background:rgba(255,255,255,0.04); border:1px solid var(--border-light);
+    border-radius:18px;
+  }
+  .recent-head {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:10px;
+  }
+  .recent-title {
+    font-family:var(--font-title); font-size:18px; color:var(--gold-bright);
+  }
+  .recent-link {
+    font-size:13px; font-weight:600; color:var(--cyan);
+    text-decoration:none;
+  }
+  .recent-row {
+    display:flex; gap:10px; overflow-x:auto; padding:4px 0 6px;
+  }
+  .recent-thumb {
+    width:96px; height:96px; flex-shrink:0;
+    background:#fff; border:2px solid var(--border-light); border-radius:12px;
+    overflow:hidden; position:relative; cursor:pointer;
+    transition:transform .1s;
+  }
+  .recent-thumb:active { transform:scale(0.96); }
+  .recent-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .recent-thumb .type-pill {
+    position:absolute; bottom:4px; right:4px;
+    background:rgba(0,0,0,0.55); color:#fff;
+    font-size:9px; padding:1px 5px; border-radius:5px;
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  .recent-empty {
+    text-align:center; opacity:0.7; font-size:14px; padding:18px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="splat-bg" aria-hidden="true">
+  <span>🎨</span><span>✨</span><span>🖌️</span><span>🌈</span><span>🖼️</span><span>🎬</span>
+</div>
+
+<header class="header">
+  <a href="index.html" class="back-btn">← Home</a>
+</header>
+
+<section class="marquee">
+  <span class="marquee-tag">Ms. Humphrey's</span>
+  <h1 class="marquee-title">CREATION STUDIO</h1>
+  <p class="marquee-sub">Make beautiful things. Save them. Share them.</p>
+</section>
+
+<div class="welcome-strip">
+  <img src="assets/humphrey/humphrey_base_256.webp" alt="Ms. Humphrey">
+  <div class="welcome-strip-text">
+    <strong>Welcome to the studio, Nigel!</strong> Pick a room. Sketch Lab has every brush you can dream of. Animation Studio makes your pictures move.
+  </div>
+</div>
+
+<main class="studio-grid">
+  <a href="sketch-lab.html" class="studio-card card-sketch">
+    <span class="studio-card-badge">NEW</span>
+    <div class="studio-card-emoji">🎨</div>
+    <div class="studio-card-title">Sketch Lab</div>
+    <div class="studio-card-sub">Paint, draw, sparkle. 8 brushes &amp; a kaleidoscope.</div>
+  </a>
+  <a href="animation-studio.html" class="studio-card card-anim">
+    <span class="studio-card-badge">NEW</span>
+    <div class="studio-card-emoji">🎬</div>
+    <div class="studio-card-title">Animation Studio</div>
+    <div class="studio-card-sub">Make pictures move. Export as a real GIF.</div>
+  </a>
+  <a href="gallery.html" class="studio-card card-gallery">
+    <span class="studio-card-badge">NEW</span>
+    <div class="studio-card-emoji">🖼️</div>
+    <div class="studio-card-title">My Gallery</div>
+    <div class="studio-card-sub">Every drawing &amp; animation you've made.</div>
+  </a>
+</main>
+
+<section class="recent">
+  <div class="recent-head">
+    <span class="recent-title">Recent creations</span>
+    <a href="gallery.html" class="recent-link">View all →</a>
+  </div>
+  <div class="recent-row" id="recentRow">
+    <div class="recent-empty">No creations yet — start drawing!</div>
+  </div>
+</section>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script src="js/art-gallery.js"></script>
+<script>
+(function(){
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-creation-studio', kidName:'Nigel',
+    });
+  }
+
+  // Load recent creations (max 6)
+  if (window.HeroAcademy && window.HeroAcademy.ArtGallery) {
+    HeroAcademy.ArtGallery.list({limit:6}).then(function(items){
+      if (!items.length) return;
+      var row = document.getElementById('recentRow');
+      row.innerHTML = '';
+      items.forEach(function(item){
+        var t = document.createElement('div');
+        t.className = 'recent-thumb';
+        t.innerHTML = '<img src="' + item.thumbDataUrl + '" alt="">' +
+                      '<span class="type-pill">' + (item.type === 'animation' ? '🎬' : '🎨') + '</span>';
+        t.addEventListener('click', function(){ window.location.href = 'gallery.html#' + item.id; });
+        row.appendChild(t);
+      });
+    }).catch(function(){ /* IndexedDB not supported — show empty state */ });
+  }
+
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'hub' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>
