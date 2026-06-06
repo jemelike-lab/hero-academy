@@ -640,33 +640,93 @@
     { id: 'potato', label: 'Potatoes', symbol: 'veg-potato' },
   ];
 
-  // ----- Recipe templates (cooking math, generated locally) -----
-  // 2nd-grade addition/subtraction within 20, scoped to "cook a dish" framing
+  // ----- Local fallback recipe generator (used only if the server is unreachable) -----
+  // Stretched to grade-2 upper range: sums up to 30, 2-3 ingredient mixes.
   function generateRecipes() {
     const dishes = [
-      'Carrot stew', 'Tomato soup', 'Hearty potato stew',
-      'Garden vegetable soup', 'Chef\'s special', 'Cassava-leaf base'
+      'Sunset stew', 'Jollof-style rice', 'Garden hash',
+      'Cassava-leaf base', 'Chef Ralphie special', 'Tomato curry',
+      'Three-veg soup', 'Country chowder'
     ];
+    const rand = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+    const pickN = (arr, n) => {
+      const pool = arr.slice();
+      const out = [];
+      for (let i = 0; i < n && pool.length; i++) {
+        out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      }
+      return out;
+    };
     const recipes = [];
     for (let i = 0; i < 5; i++) {
-      // Pick 2 distinct veggies and counts
-      const v1 = VEGGIES[Math.floor(Math.random() * VEGGIES.length)];
-      let v2 = VEGGIES[Math.floor(Math.random() * VEGGIES.length)];
-      while (v2.id === v1.id) v2 = VEGGIES[Math.floor(Math.random() * VEGGIES.length)];
-      const c1 = 2 + Math.floor(Math.random() * 5); // 2-6
-      const c2 = 2 + Math.floor(Math.random() * 5); // 2-6
+      // Vary ingredient count 2-3
+      const ingCount = i < 3 ? 2 : 3;
+      const veggies = pickN(VEGGIES, ingCount);
+      const counts = veggies.map(() => rand(5, 14));
+      const ingredients = veggies.map((v, idx) => ({ veggie: v, count: counts[idx] }));
+      const total = counts.reduce((a, b) => a + b, 0);
+      const equation = counts.join(' + ') + ' = ?';
+      const ingNames = ingredients.map(ing => `${ing.count} ${ing.veggie.label.toLowerCase()}`);
       recipes.push({
         name: dishes[i % dishes.length],
-        ingredients: [
-          { veggie: v1, count: c1 },
-          { veggie: v2, count: c2 },
-        ],
-        prompt: `Add ${c1} ${v1.label.toLowerCase()} and ${c2} ${v2.label.toLowerCase()}. How many ingredients altogether?`,
-        equation: `${c1} + ${c2} = ?`,
-        answer: c1 + c2,
+        ingredients: ingredients,
+        prompt: `Tonight's ${dishes[i % dishes.length].toLowerCase()} needs ${ingNames.slice(0, -1).join(', ')}${ingNames.length > 1 ? ' and ' : ''}${ingNames[ingNames.length-1]}. How many ingredients altogether?`,
+        equation: equation,
+        answer: total,
       });
     }
     return recipes;
+  }
+
+  // ----- Fresh-content fetch: replaces fallback with AI-generated recipes per visit -----
+  // Local recipes from the server arrive in a different shape ({veggie: "carrot", count: 8})
+  // and need to be hydrated to the same shape the scene uses ({veggie: VEGGIES_BY_ID["carrot"], count: 8}).
+  const VEGGIES_BY_ID = VEGGIES.reduce((acc, v) => { acc[v.id] = v; return acc; }, {});
+  function hydrateServerRecipe(r) {
+    const ingredients = (r.ingredients || []).map(ing => {
+      const v = VEGGIES_BY_ID[ing.veggie];
+      if (!v) return null;
+      return { veggie: v, count: ing.count };
+    }).filter(Boolean);
+    if (!ingredients.length) return null;
+    return {
+      name: r.name,
+      ingredients: ingredients,
+      prompt: r.prompt,
+      equation: r.equation,
+      answer: r.answer,
+      skill: r.skill,
+      fresh: true,
+    };
+  }
+  // localStorage tracks last 12 recipe titles seen, sent to server to bias against repeats
+  function readSeenTitles() {
+    try {
+      const raw = localStorage.getItem('cauldron_seen_titles');
+      return raw ? JSON.parse(raw) : [];
+    } catch (_) { return []; }
+  }
+  function writeSeenTitles(titles) {
+    try { localStorage.setItem('cauldron_seen_titles', JSON.stringify(titles.slice(0, 12))); } catch (_) {}
+  }
+  function fetchFreshRecipes() {
+    const seen = readSeenTitles();
+    return fetch('/api/cauldron-recipes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ avoidTitles: seen }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        if (!j || !Array.isArray(j.recipes)) return null;
+        const hydrated = j.recipes.map(hydrateServerRecipe).filter(Boolean);
+        if (hydrated.length < 3) return null;
+        // Record seen titles
+        const newTitles = hydrated.map(r => r.name).filter(Boolean);
+        writeSeenTitles([...newTitles, ...seen]);
+        return hydrated;
+      })
+      .catch(() => null);
   }
 
   // ----- State -----
@@ -1053,6 +1113,29 @@
         kidName: 'Nigel',
       });
     }
+    // Kick off fresh-recipe fetch in the background. We don't block boot — the
+    // fallback recipes already render so Nigel can play immediately. When the
+    // server response arrives, we swap in the fresh batch from his CURRENT
+    // recipe forward (any recipe he's already started stays the same).
+    fetchFreshRecipes().then((fresh) => {
+      if (!fresh || !fresh.length) return;
+      // Keep the recipe he is currently looking at — replace future ones.
+      const idx = state.currentRecipeIdx;
+      const currentlyOn = state.recipes[idx];
+      // If he hasn't added anything to the current recipe yet, replace it too
+      const noProgress = Object.values(state.addedCounts).every(v => !v);
+      if (noProgress) {
+        state.recipes = fresh;
+        state.currentRecipeIdx = 0;
+        loadCurrentRecipe();
+      } else {
+        // Splice in fresh recipes after the current one
+        state.recipes = [currentlyOn, ...fresh];
+        // currentRecipeIdx stays at 0 in the new array since current is at 0
+        state.currentRecipeIdx = 0;
+        recipeProgressEl.textContent = `Recipe 1 of ${state.recipes.length}`;
+      }
+    });
     // Start ambient observer 32s after load
     setTimeout(startAmbientObserver, 32000);
   }
