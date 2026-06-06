@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Music Video Theater · Sound Stage</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; min-height:100%;
+    background:linear-gradient(170deg,var(--bg-space) 0%,#1f0a3b 50%,var(--bg-purple) 100%);
+    font-family:var(--font-display); color:#fff;
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow-x:hidden;
+  }
+  body {
+    padding-top:var(--safe-top);
+    padding-bottom:calc(var(--safe-bottom) + 16px);
+    min-height:100vh;
+  }
+
+  /* === Top bar === */
+  .top-bar {
+    display:flex; align-items:center; gap:10px;
+    padding:12px 14px 8px;
+    position:sticky; top:0; z-index:5;
+    background:linear-gradient(180deg, rgba(6,8,31,0.95), rgba(6,8,31,0.7));
+    backdrop-filter:blur(8px);
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; padding:8px 14px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    cursor:pointer; backdrop-filter:blur(10px);
+    display:inline-flex; align-items:center; gap:6px;
+    text-decoration:none;
+    border:1px solid var(--border-light);
+  }
+  .back-btn:active { transform:scale(0.96); }
+  .title-stack {
+    flex:1; text-align:center; line-height:1;
+  }
+  .title-stack-eyebrow {
+    font-family:var(--font-display); font-weight:700;
+    font-size:11px; letter-spacing:0.18em;
+    color:var(--gold); text-transform:uppercase; margin-bottom:2px;
+  }
+  .title-stack-title {
+    font-family:var(--font-title);
+    font-size:22px; color:var(--gold-bright);
+    text-shadow:0 0 18px rgba(255,209,71,0.4), 0 3px 0 var(--orange);
+  }
+
+  /* === Category grid === */
+  .scene {
+    display:none;
+    padding:14px 16px 24px;
+    max-width:760px;
+    margin:0 auto;
+  }
+  .scene.active { display:block; animation:fadeIn .25s ease; }
+  @keyframes fadeIn { from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+
+  .section-eyebrow {
+    text-align:center;
+    font-family:var(--font-display); font-weight:700;
+    font-size:12px; letter-spacing:0.16em;
+    color:rgba(255,255,255,0.65); text-transform:uppercase;
+    margin:6px 0 4px;
+  }
+  .section-title {
+    text-align:center;
+    font-family:var(--font-title);
+    font-size:28px; line-height:1.1;
+    color:var(--gold-bright);
+    text-shadow:0 0 18px rgba(255,209,71,0.35), 0 3px 0 var(--orange);
+    margin-bottom:14px;
+  }
+
+  .cat-grid {
+    display:grid;
+    grid-template-columns:1fr;
+    gap:14px;
+  }
+  @media (min-width: 540px){
+    .cat-grid { grid-template-columns:1fr 1fr; }
+  }
+  .cat-card {
+    position:relative;
+    background:linear-gradient(160deg, var(--card-from,#a855f7), var(--card-to,#5b21b6));
+    border-radius:20px;
+    padding:18px 18px 18px 78px;
+    border:2px solid rgba(255,255,255,0.16);
+    box-shadow:0 12px 30px rgba(0,0,0,0.36);
+    cursor:pointer;
+    display:flex; flex-direction:column;
+    text-align:left;
+    overflow:hidden;
+    transition:transform .14s ease;
+    min-height:104px;
+  }
+  .cat-card::before {
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(circle at 0% 0%, rgba(255,255,255,0.22), transparent 55%);
+    pointer-events:none;
+  }
+  .cat-card:active { transform:scale(0.97); }
+  .cat-card .cat-emoji {
+    position:absolute; left:16px; top:50%; transform:translateY(-50%);
+    width:54px; height:54px;
+    background:rgba(0,0,0,0.22);
+    border-radius:16px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:32px;
+    border:1.5px solid rgba(255,255,255,0.2);
+  }
+  .cat-card .cat-title {
+    font-family:var(--font-title); font-size:22px;
+    line-height:1.05; margin-bottom:4px;
+    text-shadow:0 2px 0 rgba(0,0,0,0.18);
+    position:relative; z-index:1;
+  }
+  .cat-card .cat-tag {
+    font-family:var(--font-display); font-weight:500;
+    font-size:13px; color:rgba(255,255,255,0.88);
+    line-height:1.3;
+    position:relative; z-index:1;
+  }
+  .cat-card .cat-count {
+    position:absolute; right:14px; top:14px;
+    background:rgba(0,0,0,0.35);
+    border:1px solid rgba(255,255,255,0.2);
+    padding:3px 9px;
+    border-radius:999px;
+    font-family:var(--font-display); font-weight:700;
+    font-size:11px; letter-spacing:0.08em;
+  }
+  .cat-violet { --card-from:#a855f7; --card-to:#5b21b6; }
+  .cat-cyan   { --card-from:#14b8d4; --card-to:#0e7490; }
+  .cat-emerald{ --card-from:#2ec27e; --card-to:#14532d; }
+  .cat-magenta{ --card-from:#ec4899; --card-to:#831843; }
+  .cat-orange { --card-from:#ff8b3d; --card-to:#9a3412; }
+
+  /* === Video list === */
+  .video-list {
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .video-row {
+    background:rgba(255,255,255,0.05);
+    border:1.5px solid rgba(255,255,255,0.12);
+    border-radius:16px;
+    padding:14px;
+    cursor:pointer;
+    display:flex; gap:14px; align-items:center;
+    transition:transform .14s ease;
+  }
+  .video-row:active { transform:scale(0.98); }
+  .video-row-thumb {
+    width:108px; height:64px;
+    border-radius:10px;
+    overflow:hidden;
+    background:#000;
+    flex-shrink:0;
+    position:relative;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .video-row-thumb img {
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .video-row-thumb .play-icon {
+    position:absolute;
+    width:36px; height:36px; border-radius:50%;
+    background:rgba(0,0,0,0.6); border:2px solid #fff;
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; padding-left:3px;
+  }
+  .video-row-body { flex:1; min-width:0; }
+  .video-row-title {
+    font-family:var(--font-display); font-weight:700;
+    font-size:15px; color:#fff;
+    line-height:1.25;
+    margin-bottom:3px;
+    overflow:hidden;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  }
+  .video-row-meta {
+    font-family:var(--font-display);
+    font-size:12px; color:rgba(255,255,255,0.6);
+    line-height:1.2;
+  }
+  .video-row-meta .composer { color:var(--gold); font-weight:600; }
+
+  /* === Player scene === */
+  .player-wrap {
+    background:#000;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 12px 36px rgba(0,0,0,0.5);
+    margin-bottom:14px;
+    border:2px solid rgba(255,209,71,0.18);
+  }
+  .player-wrap iframe {
+    width:100%;
+    aspect-ratio: 16 / 9;
+    display:block; border:0;
+  }
+  .player-meta {
+    background:rgba(255,255,255,0.05);
+    border:1.5px solid rgba(255,255,255,0.12);
+    border-radius:16px;
+    padding:14px 16px;
+    margin-bottom:14px;
+  }
+  .player-title {
+    font-family:var(--font-title);
+    font-size:20px; color:var(--gold-bright);
+    line-height:1.15; margin-bottom:4px;
+  }
+  .player-composer {
+    font-family:var(--font-display); font-weight:600;
+    color:var(--gold); font-size:13px;
+    margin-bottom:8px;
+  }
+  .player-desc {
+    font-family:var(--font-display); font-weight:500;
+    font-size:14px; color:rgba(255,255,255,0.82);
+    line-height:1.4;
+  }
+
+  .done-btn {
+    width:100%;
+    background:linear-gradient(135deg, var(--gold), var(--orange));
+    color:#0a0b2e;
+    border:none;
+    padding:14px;
+    border-radius:14px;
+    font-family:var(--font-title);
+    font-size:18px;
+    cursor:pointer;
+    box-shadow:0 6px 20px rgba(255,139,61,0.4);
+  }
+  .done-btn:active { transform:scale(0.98); }
+
+  /* === Post-question === */
+  .post {
+    background:rgba(255,255,255,0.05);
+    border:1.5px solid rgba(255,255,255,0.12);
+    border-radius:18px;
+    padding:18px 16px;
+    text-align:center;
+  }
+  .post-icon {
+    width:64px; height:64px; margin:0 auto 12px;
+    border-radius:50%;
+    background:linear-gradient(135deg, var(--violet), #6d28d9);
+    display:flex; align-items:center; justify-content:center;
+    font-size:32px;
+    box-shadow:0 6px 18px rgba(168,85,247,0.45);
+  }
+  .post-question {
+    font-family:var(--font-display); font-weight:600;
+    font-size:17px; color:#fff;
+    line-height:1.35;
+    margin-bottom:16px;
+  }
+  .post-choices {
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .post-choice {
+    background:rgba(255,255,255,0.07);
+    border:1.5px solid rgba(255,255,255,0.16);
+    color:#fff;
+    padding:13px 16px;
+    border-radius:14px;
+    font-family:var(--font-display); font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .post-choice:active { transform:scale(0.98); background:rgba(255,255,255,0.14); }
+  .post-choice.picked {
+    background:linear-gradient(135deg, var(--emerald), #14532d);
+    border-color:var(--emerald);
+  }
+  .post-thanks {
+    margin-top:16px;
+    font-family:var(--font-display); font-style:italic;
+    color:var(--gold);
+    font-size:14px;
+    min-height:1.2em;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a class="back-btn" id="backBtn" href="sound-stage.html">←</a>
+  <div class="title-stack">
+    <div class="title-stack-eyebrow">SOUND STAGE</div>
+    <div class="title-stack-title">🎬 VIDEO THEATER</div>
+  </div>
+  <div style="width:40px"></div>
+</div>
+
+<!-- Scene 1: Categories -->
+<section class="scene active" id="sceneCats">
+  <p class="section-eyebrow">Pick a flavor of music</p>
+  <h2 class="section-title">What sounds fun today?</h2>
+  <div class="cat-grid" id="catGrid"></div>
+</section>
+
+<!-- Scene 2: Video list -->
+<section class="scene" id="sceneVideos">
+  <p class="section-eyebrow" id="catBreadcrumb">Category</p>
+  <h2 class="section-title" id="catTitle">Videos</h2>
+  <div class="video-list" id="videoList"></div>
+</section>
+
+<!-- Scene 3: Player -->
+<section class="scene" id="scenePlayer">
+  <div class="player-wrap" id="playerWrap"></div>
+  <div class="player-meta">
+    <div class="player-title" id="playerTitle"></div>
+    <div class="player-composer" id="playerComposer"></div>
+    <div class="player-desc" id="playerDesc"></div>
+  </div>
+  <button class="done-btn" id="doneBtn">✓ I'M DONE WATCHING</button>
+</section>
+
+<!-- Scene 4: Post-question -->
+<section class="scene" id="scenePost">
+  <div class="post">
+    <div class="post-icon">💜</div>
+    <div class="post-question" id="postQuestion">What did you think?</div>
+    <div class="post-choices" id="postChoices"></div>
+    <div class="post-thanks" id="postThanks"></div>
+  </div>
+</section>
+
+<!-- Humphrey + data -->
+<script src="data/sound-stage.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+
+<script>
+(function(){
+  'use strict';
+
+  const COLOR_CYCLE = ['cat-violet','cat-cyan','cat-emerald','cat-magenta','cat-orange'];
+
+  const CATS = (window.HeroAcademy && window.HeroAcademy.SoundStage && window.HeroAcademy.SoundStage.videoCategories) || [];
+
+  let currentCat = null;
+  let currentVideo = null;
+
+  // ── Scene switching ──
+  function showScene(id){
+    document.querySelectorAll('.scene').forEach(function(s){ s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+    updateBackButton(id);
+  }
+
+  function updateBackButton(sceneId){
+    const back = document.getElementById('backBtn');
+    if (sceneId === 'sceneCats') {
+      back.href = 'sound-stage.html';
+      back.removeAttribute('data-action');
+    } else {
+      back.href = '#';
+      back.setAttribute('data-action', 'back');
+    }
+  }
+
+  document.getElementById('backBtn').addEventListener('click', function(ev){
+    if (this.getAttribute('data-action') !== 'back') return; // let link work
+    ev.preventDefault();
+    // Stop any playing iframe by clearing its src
+    clearPlayer();
+    if (document.getElementById('scenePlayer').classList.contains('active') ||
+        document.getElementById('scenePost').classList.contains('active')) {
+      // back to video list
+      renderVideoList(currentCat);
+      showScene('sceneVideos');
+    } else if (document.getElementById('sceneVideos').classList.contains('active')) {
+      // back to categories
+      showScene('sceneCats');
+    }
+  });
+
+  // ── Categories scene ──
+  function renderCats(){
+    const grid = document.getElementById('catGrid');
+    grid.innerHTML = '';
+    if (!CATS.length) {
+      grid.innerHTML = '<div style="padding:32px;text-align:center;color:rgba(255,255,255,0.6)">No categories yet. Check back soon!</div>';
+      return;
+    }
+    CATS.forEach(function(cat, i){
+      const cls = COLOR_CYCLE[i % COLOR_CYCLE.length];
+      const count = (cat.videos || []).length;
+      const card = document.createElement('div');
+      card.className = 'cat-card ' + cls;
+      card.innerHTML = '' +
+        '<div class="cat-emoji">' + cat.emoji + '</div>' +
+        '<div class="cat-count">' + count + ' ' + (count === 1 ? 'video' : 'videos') + '</div>' +
+        '<div class="cat-title">' + cat.title + '</div>' +
+        '<div class="cat-tag">' + cat.tagline + '</div>';
+      card.addEventListener('click', function(){ pickCategory(cat.id); });
+      grid.appendChild(card);
+    });
+  }
+
+  function pickCategory(id){
+    const cat = CATS.find(function(c){ return c.id === id; });
+    if (!cat) return;
+    currentCat = cat;
+    document.getElementById('catBreadcrumb').textContent = 'Category';
+    document.getElementById('catTitle').textContent = cat.emoji + ' ' + cat.title;
+    renderVideoList(cat);
+    showScene('sceneVideos');
+  }
+
+  // ── Video list scene ──
+  function renderVideoList(cat){
+    const list = document.getElementById('videoList');
+    list.innerHTML = '';
+    (cat.videos || []).forEach(function(v){
+      const row = document.createElement('div');
+      row.className = 'video-row';
+
+      // Use YouTube's thumbnail CDN. mqdefault is lightweight (320x180).
+      // For playlists, we don't have a single thumbnail — show a film-strip icon.
+      let thumbHtml;
+      if (v.youtubeId) {
+        const thumbUrl = 'https://i.ytimg.com/vi/' + v.youtubeId + '/mqdefault.jpg';
+        thumbHtml = '<img src="' + thumbUrl + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+                    '<div class="play-icon">▶</div>';
+      } else if (v.playlistId) {
+        thumbHtml = '<div style="font-size:34px">🎞️</div>' +
+                    '<div class="play-icon" style="background:rgba(168,85,247,0.85);">▶</div>';
+      } else {
+        thumbHtml = '<div style="font-size:34px">🎵</div>';
+      }
+
+      row.innerHTML = '' +
+        '<div class="video-row-thumb">' + thumbHtml + '</div>' +
+        '<div class="video-row-body">' +
+          '<div class="video-row-title">' + v.title + '</div>' +
+          '<div class="video-row-meta">' +
+            (v.composer ? '<span class="composer">' + v.composer + '</span> · ' : '') +
+            (v.duration || '') +
+          '</div>' +
+        '</div>';
+      row.addEventListener('click', function(){ pickVideo(cat.id, v.id); });
+      list.appendChild(row);
+    });
+  }
+
+  function pickVideo(catId, videoId){
+    const cat = CATS.find(function(c){ return c.id === catId; });
+    if (!cat) return;
+    const v = cat.videos.find(function(x){ return x.id === videoId; });
+    if (!v) return;
+    currentVideo = v;
+
+    // Build the embed URL. Prefer youtube-nocookie.com for privacy.
+    let embedUrl;
+    if (v.playlistId) {
+      embedUrl = 'https://www.youtube-nocookie.com/embed/videoseries?list=' + encodeURIComponent(v.playlistId) +
+                 '&rel=0&modestbranding=1&playsinline=1';
+    } else if (v.youtubeId) {
+      embedUrl = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(v.youtubeId) +
+                 '?rel=0&modestbranding=1&playsinline=1';
+    } else {
+      embedUrl = '';
+    }
+
+    const wrap = document.getElementById('playerWrap');
+    wrap.innerHTML = '<iframe src="' + embedUrl + '" ' +
+      'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" ' +
+      'allowfullscreen></iframe>';
+
+    document.getElementById('playerTitle').textContent = v.title;
+    document.getElementById('playerComposer').textContent = v.composer || '';
+    document.getElementById('playerDesc').textContent = v.description || '';
+    showScene('scenePlayer');
+
+    // Telemetry: record the view
+    recordPractice(catId + '/' + v.id, 'video-start', true);
+  }
+
+  function clearPlayer(){
+    const wrap = document.getElementById('playerWrap');
+    if (wrap) wrap.innerHTML = ''; // stops audio/video immediately
+  }
+
+  document.getElementById('doneBtn').addEventListener('click', function(){
+    clearPlayer();
+    renderPost(currentVideo);
+    showScene('scenePost');
+    recordPractice((currentCat && currentCat.id) + '/' + (currentVideo && currentVideo.id), 'video-complete', true);
+  });
+
+  // ── Post-question scene ──
+  function renderPost(v){
+    const q = document.getElementById('postQuestion');
+    const choicesEl = document.getElementById('postChoices');
+    const thanks = document.getElementById('postThanks');
+    thanks.textContent = '';
+    choicesEl.innerHTML = '';
+
+    const post = (v && v.post) || { text: 'How did that make you feel?', choices: ['😊 Happy', '🤔 Curious', '💃 I want to dance'] };
+    q.textContent = post.text;
+
+    (post.choices || []).forEach(function(c){
+      const btn = document.createElement('button');
+      btn.className = 'post-choice';
+      btn.textContent = c;
+      btn.addEventListener('click', function(){
+        // Mark picked, lock others
+        document.querySelectorAll('.post-choice').forEach(function(b){ b.disabled = true; });
+        btn.classList.add('picked');
+        recordPractice('post/' + (v && v.id), 'post-answered', true);
+        thanks.textContent = 'Love that, hero. Pick another video or head back to the stage.';
+        try {
+          if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+            window.HeroAcademy.Humphrey.say('video-post-thanks', {
+              kidName: 'Nigel',
+              text: 'I love that you said: ' + c + '!',
+            });
+          }
+        } catch(e){}
+        // After 2s offer a way back
+        setTimeout(function(){
+          thanks.innerHTML = '';
+          const back = document.createElement('button');
+          back.className = 'done-btn';
+          back.style.marginTop = '4px';
+          back.textContent = '📺 PICK ANOTHER VIDEO';
+          back.addEventListener('click', function(){
+            renderVideoList(currentCat);
+            showScene('sceneVideos');
+          });
+          thanks.appendChild(back);
+        }, 1400);
+      });
+      choicesEl.appendChild(btn);
+    });
+
+    // Speak the question via Humphrey for engagement
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+        window.HeroAcademy.Humphrey.say('video-post-question', {
+          kidName: 'Nigel',
+          text: post.text,
+        });
+      }
+    } catch(e){}
+  }
+
+  function recordPractice(itemId, eventType, correct){
+    try {
+      fetch('/api/practice/record', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          zone: 'sound-stage',
+          activity: 'video-theater',
+          itemId: itemId,
+          eventType: eventType,
+          correct: !!correct,
+          ts: new Date().toISOString(),
+        }),
+      }).catch(function(){});
+    } catch(e){}
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Telemetry && window.HeroAcademy.Telemetry.recordAttempt) {
+        window.HeroAcademy.Telemetry.recordAttempt(
+          !!correct,
+          'video-theater/' + itemId,
+          eventType,
+          correct ? 'watched' : 'incomplete'
+        );
+      }
+    } catch(e){}
+  }
+
+  // Initialize Humphrey
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position: 'bottom-left',
+      audioEnabled: true,
+      debug: false,
+      welcomeEvent: 'welcome-video-theater',
+      kidName: 'Nigel',
+    });
+  }
+
+  renderCats();
+})();
+</script>
+</body>
+</html>

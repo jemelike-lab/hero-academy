@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Sound Stage · Hero Academy</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+  :root {
+    --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
+    --gold:#ffd147; --gold-deep:#f5b800; --gold-bright:#ffe580;
+    --orange:#ff8b3d; --orange-bright:#ffa86b;
+    --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
+    --cyan:#14b8d4; --red:#ef4444;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --text:#fff;
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; min-height:100%;
+    background:linear-gradient(160deg,var(--bg-space) 0%,#1a0b3e 40%,var(--bg-purple) 100%);
+    font-family:var(--font-display);
+    color:var(--text);
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow-x:hidden;
+  }
+  body { padding-top:var(--safe-top); padding-bottom:calc(var(--safe-bottom) + 24px); }
+
+  /* === Floating music notes background === */
+  .note-bg { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:0; }
+  .note-bg span {
+    position:absolute; color:rgba(255,255,255,0.08);
+    font-size:36px; animation:floatNote 18s linear infinite;
+  }
+  .note-bg span:nth-child(1){ left:5%; top:120%; animation-duration:22s; animation-delay:0s; font-size:42px; color:rgba(168,85,247,0.18); }
+  .note-bg span:nth-child(2){ left:18%; top:110%; animation-duration:26s; animation-delay:4s; font-size:32px; color:rgba(20,184,212,0.18); }
+  .note-bg span:nth-child(3){ left:35%; top:130%; animation-duration:20s; animation-delay:9s; font-size:48px; color:rgba(236,72,153,0.18); }
+  .note-bg span:nth-child(4){ left:55%; top:115%; animation-duration:24s; animation-delay:2s; font-size:38px; color:rgba(255,209,71,0.16); }
+  .note-bg span:nth-child(5){ left:72%; top:125%; animation-duration:30s; animation-delay:7s; font-size:44px; color:rgba(46,194,126,0.16); }
+  .note-bg span:nth-child(6){ left:88%; top:118%; animation-duration:22s; animation-delay:5s; font-size:36px; color:rgba(168,85,247,0.18); }
+  .note-bg span:nth-child(7){ left:10%; top:140%; animation-duration:28s; animation-delay:14s; font-size:30px; color:rgba(255,139,61,0.16); }
+  .note-bg span:nth-child(8){ left:60%; top:135%; animation-duration:25s; animation-delay:11s; font-size:40px; color:rgba(20,184,212,0.18); }
+  @keyframes floatNote {
+    0% { transform:translateY(0) rotate(0deg); opacity:0; }
+    8% { opacity:1; }
+    92% { opacity:1; }
+    100% { transform:translateY(-150vh) rotate(360deg); opacity:0; }
+  }
+
+  /* === Header === */
+  .header {
+    position:relative; z-index:2;
+    padding:14px 18px 0;
+    display:flex; align-items:center; gap:10px;
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:var(--text); padding:9px 16px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    text-decoration:none; backdrop-filter:blur(10px);
+    display:inline-flex; align-items:center; gap:6px;
+    transition:transform .12s ease;
+  }
+  .back-btn:active { transform:scale(0.96); }
+
+  /* === Hero / Marquee === */
+  .marquee {
+    position:relative; z-index:2;
+    padding:18px 22px 8px;
+    text-align:center;
+  }
+  .marquee-tag {
+    display:inline-block;
+    font-family:var(--font-display);
+    font-weight:700; font-size:12px; letter-spacing:0.18em;
+    color:var(--gold); text-transform:uppercase;
+    background:rgba(255,209,71,0.12);
+    border:1px solid rgba(255,209,71,0.32);
+    padding:5px 12px; border-radius:999px;
+    margin-bottom:14px;
+  }
+  .marquee-title {
+    font-family:var(--font-title);
+    font-size:clamp(38px, 9vw, 64px);
+    line-height:1;
+    color:var(--gold-bright);
+    text-shadow: 0 0 24px rgba(255,209,71,0.45), 0 4px 0 var(--orange), 0 8px 18px rgba(255,139,61,0.55);
+    margin-bottom:8px;
+  }
+  .marquee-sub {
+    font-family:var(--font-display);
+    font-size:clamp(15px, 4vw, 18px);
+    color:rgba(255,255,255,0.78);
+    max-width:520px;
+    margin:0 auto;
+    font-weight:500;
+  }
+  .marquee-bulbs {
+    display:flex; justify-content:center; gap:8px;
+    margin-top:14px;
+  }
+  .marquee-bulbs span {
+    width:10px; height:10px; border-radius:50%;
+    background:var(--gold); box-shadow:0 0 12px var(--gold);
+    animation: bulb 1.4s ease-in-out infinite;
+  }
+  .marquee-bulbs span:nth-child(2){ animation-delay:.18s; background:var(--magenta); box-shadow:0 0 12px var(--magenta);}
+  .marquee-bulbs span:nth-child(3){ animation-delay:.36s; background:var(--cyan); box-shadow:0 0 12px var(--cyan);}
+  .marquee-bulbs span:nth-child(4){ animation-delay:.54s; background:var(--emerald); box-shadow:0 0 12px var(--emerald);}
+  .marquee-bulbs span:nth-child(5){ animation-delay:.72s; background:var(--violet); box-shadow:0 0 12px var(--violet);}
+  @keyframes bulb { 0%,100%{ opacity:1; transform:scale(1);} 50%{ opacity:.35; transform:scale(.85);} }
+
+  /* === Activity grid === */
+  .stage-grid {
+    position:relative; z-index:2;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    padding:18px 16px 24px;
+    max-width:760px;
+    margin:0 auto;
+  }
+  .stage-card {
+    position:relative;
+    border-radius:22px;
+    padding:16px 14px 18px;
+    background:linear-gradient(160deg, var(--card-from, #ec4899), var(--card-to, #a855f7));
+    border:2px solid rgba(255,255,255,0.16);
+    box-shadow:
+      0 12px 36px rgba(0,0,0,0.32),
+      0 0 0 1px rgba(255,255,255,0.04) inset;
+    cursor:pointer; text-align:center;
+    transition:transform .14s ease, box-shadow .14s ease;
+    overflow:hidden;
+    color:#fff;
+    text-decoration:none;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    min-height:180px;
+  }
+  .stage-card::before {
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(circle at 50% 0%, rgba(255,255,255,0.25), transparent 60%);
+    pointer-events:none;
+  }
+  .stage-card:active { transform:scale(0.97); }
+  .stage-card.coming-soon {
+    opacity:0.65; filter:saturate(0.6);
+    cursor:not-allowed;
+  }
+  .stage-card-emoji {
+    font-size:54px; line-height:1;
+    margin:6px 0 4px;
+    filter:drop-shadow(0 4px 8px rgba(0,0,0,0.45));
+    z-index:1; position:relative;
+  }
+  .stage-card-title {
+    font-family:var(--font-title);
+    font-size:22px; line-height:1.05;
+    margin-bottom:6px;
+    text-shadow:0 2px 0 rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.45);
+    z-index:1; position:relative;
+  }
+  .stage-card-sub {
+    font-family:var(--font-display);
+    font-size:13px; font-weight:500;
+    color:rgba(255,255,255,0.92);
+    line-height:1.25;
+    z-index:1; position:relative;
+  }
+  .stage-card-badge {
+    position:absolute; top:10px; right:10px;
+    background:rgba(0,0,0,0.4);
+    color:#fff;
+    font-family:var(--font-display);
+    font-size:10px; letter-spacing:0.1em; text-transform:uppercase;
+    font-weight:700;
+    padding:3px 8px; border-radius:999px;
+    z-index:2;
+    border:1px solid rgba(255,255,255,0.2);
+  }
+  .stage-card-badge.new { background:var(--gold); color:#0a0b2e; border-color:transparent; }
+
+  /* Per-card themes */
+  .card-piano   { --card-from:#a855f7; --card-to:#5b21b6; }
+  .card-video   { --card-from:#14b8d4; --card-to:#0e7490; }
+  .card-beat    { --card-from:#ef4444; --card-to:#7f1d1d; }
+  .card-listen  { --card-from:#2ec27e; --card-to:#14532d; }
+  .card-sing    { --card-from:#ec4899; --card-to:#831843; }
+
+  /* Welcome bubble (Humphrey's first-visit intro) */
+  .welcome-strip {
+    position:relative; z-index:2;
+    margin:6px 18px 0;
+    padding:12px 14px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:16px;
+    display:flex; gap:12px; align-items:center;
+    backdrop-filter:blur(6px);
+  }
+  .welcome-strip img { width:54px; height:54px; border-radius:50%; flex-shrink:0; }
+  .welcome-strip-text {
+    flex:1;
+    font-family:var(--font-display);
+    font-size:14px; color:rgba(255,255,255,0.88); line-height:1.35;
+  }
+  .welcome-strip-text strong { color:var(--gold); font-weight:700; }
+
+  /* Larger screens: 3-up */
+  @media (min-width: 720px) {
+    .stage-grid { grid-template-columns:1fr 1fr 1fr; gap:18px; }
+  }
+
+  .badge-corner {
+    position:fixed; bottom:calc(var(--safe-bottom) + 8px); right:12px;
+    color:rgba(255,209,71,0.45); font-size:11px;
+    font-family:var(--font-display); pointer-events:none; z-index:1;
+  }
+</style>
+</head>
+<body>
+
+<div class="note-bg" aria-hidden="true">
+  <span>♪</span><span>♫</span><span>♩</span><span>♬</span><span>♪</span><span>♫</span><span>♩</span><span>♬</span>
+</div>
+
+<header class="header">
+  <a href="index.html" class="back-btn">← Home</a>
+</header>
+
+<section class="marquee">
+  <span class="marquee-tag">Ms. Humphrey's</span>
+  <h1 class="marquee-title">SOUND STAGE</h1>
+  <p class="marquee-sub">Make music, hear music, feel music. Pick a room to start.</p>
+  <div class="marquee-bulbs" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+</section>
+
+<div class="welcome-strip" id="welcomeStrip">
+  <img src="assets/humphrey/humphrey_base_256.webp" alt="Ms. Humphrey">
+  <div class="welcome-strip-text" id="welcomeStripText">
+    <strong>Welcome to the studio, Nigel!</strong> Tap any room. The Piano Lab is great for warming up your ears.
+  </div>
+</div>
+
+<main class="stage-grid" id="stageGrid">
+
+  <a href="piano-lab.html" class="stage-card card-piano" data-activity="piano">
+    <span class="stage-card-badge new">NEW</span>
+    <div class="stage-card-emoji">🎹</div>
+    <div class="stage-card-title">Piano Lab</div>
+    <div class="stage-card-sub">Play real piano sounds. Learn songs like Twinkle Twinkle.</div>
+  </a>
+
+  <a href="video-theater.html" class="stage-card card-video" data-activity="video">
+    <span class="stage-card-badge new">NEW</span>
+    <div class="stage-card-emoji">🎬</div>
+    <div class="stage-card-title">Video Theater</div>
+    <div class="stage-card-sub">Watch real music videos and discover composers.</div>
+  </a>
+
+  <div class="stage-card card-beat coming-soon" data-activity="beat" role="button" aria-disabled="true">
+    <span class="stage-card-badge">SOON</span>
+    <div class="stage-card-emoji">🥁</div>
+    <div class="stage-card-title">Beat Box</div>
+    <div class="stage-card-sub">Tap a drum pad. Make your own beats.</div>
+  </div>
+
+  <div class="stage-card card-listen coming-soon" data-activity="listen" role="button" aria-disabled="true">
+    <span class="stage-card-badge">SOON</span>
+    <div class="stage-card-emoji">🎼</div>
+    <div class="stage-card-title">Name That Instrument</div>
+    <div class="stage-card-sub">Listen and guess: violin, trumpet, flute?</div>
+  </div>
+
+  <div class="stage-card card-sing coming-soon" data-activity="sing" role="button" aria-disabled="true">
+    <span class="stage-card-badge">SOON</span>
+    <div class="stage-card-emoji">🎤</div>
+    <div class="stage-card-title">Sing It Back</div>
+    <div class="stage-card-sub">Sing along with Ms. Humphrey.</div>
+  </div>
+
+</main>
+
+<div class="badge-corner">Sound Stage · v0.1</div>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script>
+  (function(){
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        welcomeEvent: 'welcome-sound-stage',
+        kidName: 'Nigel',
+      });
+    }
+
+    // Gentle nudge on "Coming Soon" cards — instead of opening, show a tiny
+    // shake + speech bubble so Nigel knows he's not broken anything.
+    var grid = document.getElementById('stageGrid');
+    if (grid) {
+      grid.addEventListener('click', function(ev){
+        var card = ev.target.closest('.stage-card.coming-soon');
+        if (!card) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        card.style.transform = 'translateX(-6px)';
+        setTimeout(function(){ card.style.transform = 'translateX(6px)'; }, 80);
+        setTimeout(function(){ card.style.transform = ''; }, 160);
+        var text = document.getElementById('welcomeStripText');
+        if (text) {
+          var name = card.querySelector('.stage-card-title').textContent;
+          text.innerHTML = '<strong>' + name + ' is coming soon!</strong> Try the Piano Lab or the Video Theater for now.';
+        }
+        try {
+          if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+            window.HeroAcademy.Humphrey.say('soft-redirect', {
+              kidName: 'Nigel',
+              text: name + ' is still being built. Try the Piano Lab — it is so much fun!',
+            });
+          }
+        } catch(e){}
+      });
+    }
+  })();
+</script>
+</body>
+</html>

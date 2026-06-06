@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Piano Lab · Sound Stage</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<!-- Tone.js for high-quality piano synthesis -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%;
+    background:linear-gradient(170deg,var(--bg-space),#160a3b 45%,var(--bg-purple));
+    font-family:var(--font-display); color:#fff;
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overflow:hidden; touch-action:manipulation;
+  }
+  body {
+    padding-top:var(--safe-top);
+    padding-bottom:var(--safe-bottom);
+    display:flex; flex-direction:column; height:100vh;
+  }
+
+  /* === Top bar === */
+  .top-bar {
+    display:flex; align-items:center; gap:10px;
+    padding:12px 14px 8px;
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; padding:8px 14px; border-radius:999px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    text-decoration:none; backdrop-filter:blur(10px);
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  .title-stack {
+    flex:1; text-align:center;
+    line-height:1;
+  }
+  .title-stack-eyebrow {
+    font-family:var(--font-display); font-weight:700;
+    font-size:11px; letter-spacing:0.18em;
+    color:var(--gold); text-transform:uppercase; margin-bottom:2px;
+  }
+  .title-stack-title {
+    font-family:var(--font-title);
+    font-size:24px; color:var(--gold-bright);
+    text-shadow:0 0 18px rgba(255,209,71,0.4), 0 3px 0 var(--orange);
+  }
+  .mute-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; width:40px; height:40px; border-radius:50%;
+    font-size:18px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+
+  /* === Mode tabs === */
+  .modes {
+    display:flex; justify-content:center; gap:8px;
+    padding:4px 14px 10px;
+  }
+  .mode-tab {
+    background:rgba(255,255,255,0.06);
+    border:1.5px solid rgba(255,255,255,0.12);
+    color:rgba(255,255,255,0.7);
+    padding:9px 16px; border-radius:999px;
+    font-family:var(--font-display); font-weight:700; font-size:13px;
+    cursor:pointer; transition:all .15s ease;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .mode-tab:active { transform:scale(0.96); }
+  .mode-tab.active {
+    background:linear-gradient(135deg, var(--violet), #6d28d9);
+    border-color:rgba(255,255,255,0.4);
+    color:#fff;
+    box-shadow:0 6px 20px rgba(168,85,247,0.45);
+  }
+
+  /* === Mode body (above keys) === */
+  .mode-body {
+    flex:1; min-height:0;
+    display:flex; flex-direction:column;
+    padding:6px 14px 8px;
+    overflow:hidden;
+  }
+
+  /* Song picker */
+  .song-list {
+    display:flex; gap:10px; overflow-x:auto; padding:6px 4px 12px;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .song-list::-webkit-scrollbar { display:none; }
+  .song-chip {
+    flex-shrink:0;
+    background:rgba(255,255,255,0.06);
+    border:1.5px solid rgba(255,255,255,0.14);
+    padding:9px 14px 9px 10px;
+    border-radius:14px;
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--font-display); font-weight:600; font-size:14px;
+    color:#fff; cursor:pointer;
+    min-width:fit-content;
+  }
+  .song-chip-emoji { font-size:22px; }
+  .song-chip:active { transform:scale(0.96); }
+  .song-chip.active {
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color:#0a0b2e;
+    border-color:var(--gold-bright);
+    box-shadow:0 4px 18px rgba(255,209,71,0.45);
+  }
+
+  /* Status display (shows what to do next) */
+  .status-card {
+    background:rgba(255,255,255,0.05);
+    border:1.5px solid rgba(255,255,255,0.12);
+    border-radius:16px;
+    padding:12px 16px;
+    margin-top:auto;
+    margin-bottom:8px;
+    display:flex; align-items:center; gap:12px;
+    backdrop-filter:blur(8px);
+  }
+  .status-card-icon {
+    width:50px; height:50px; flex-shrink:0;
+    background:linear-gradient(135deg, var(--gold), var(--orange));
+    border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px;
+    box-shadow:0 4px 14px rgba(255,209,71,0.35);
+  }
+  .status-card-body { flex:1; min-width:0; }
+  .status-card-eyebrow {
+    font-family:var(--font-display); font-weight:700;
+    font-size:11px; letter-spacing:0.16em;
+    color:var(--gold); text-transform:uppercase; margin-bottom:3px;
+  }
+  .status-card-text {
+    font-family:var(--font-display); font-weight:600;
+    font-size:16px; color:#fff;
+    line-height:1.25;
+  }
+  .status-card-action {
+    background:linear-gradient(135deg, var(--violet), #6d28d9);
+    border:none; color:#fff;
+    padding:9px 14px; border-radius:999px;
+    font-family:var(--font-display); font-weight:700; font-size:13px;
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(168,85,247,0.4);
+    flex-shrink:0;
+  }
+  .status-card-action:active { transform:scale(0.95); }
+
+  /* Progress dots for songs */
+  .song-progress {
+    display:flex; gap:5px; justify-content:center;
+    padding:0 0 8px;
+  }
+  .song-progress span {
+    width:8px; height:8px; border-radius:50%;
+    background:rgba(255,255,255,0.18);
+    transition:all .2s ease;
+  }
+  .song-progress span.done {
+    background:var(--emerald);
+    box-shadow:0 0 8px var(--emerald);
+  }
+  .song-progress span.current {
+    background:var(--gold);
+    box-shadow:0 0 10px var(--gold);
+    transform:scale(1.4);
+  }
+
+  /* === KEYBOARD === */
+  .keyboard-wrap {
+    position:relative;
+    padding:0 8px 12px;
+  }
+  .keyboard {
+    position:relative;
+    width:100%;
+    height:240px;
+    background:#0a0410;
+    border-radius:18px 18px 6px 6px;
+    padding:14px 8px 8px;
+    box-shadow:
+      0 -8px 0 #1a0820 inset,
+      0 18px 36px rgba(0,0,0,0.5),
+      0 0 0 2px rgba(255,209,71,0.18);
+    overflow:hidden;
+  }
+  .keyboard::before {
+    content:'';
+    position:absolute; top:0; left:0; right:0; height:10px;
+    background:linear-gradient(180deg, var(--gold-deep), var(--orange));
+    box-shadow:0 4px 12px rgba(255,209,71,0.4);
+  }
+
+  .white-keys {
+    display:flex; gap:2px; height:100%; padding-top:6px;
+  }
+  .white-key {
+    flex:1; min-width:0;
+    background:linear-gradient(180deg, #fffdf6 0%, #fff8e1 80%, #f3e9c4 100%);
+    border-radius:0 0 8px 8px;
+    box-shadow:
+      0 4px 0 #c9b890,
+      inset 0 -10px 14px rgba(180,150,80,0.25);
+    position:relative;
+    cursor:pointer;
+    transition:transform .04s ease, box-shadow .04s ease;
+    display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:8px;
+  }
+  .white-key.pressed,
+  .white-key:active {
+    transform:translateY(3px);
+    background:linear-gradient(180deg, #fff8d0 0%, var(--gold-bright) 100%);
+    box-shadow:
+      0 1px 0 #c9b890,
+      inset 0 -8px 18px rgba(255,139,61,0.4),
+      0 0 24px rgba(255,209,71,0.55);
+  }
+  .white-key.glow {
+    animation:keyGlow 1.2s ease-in-out infinite;
+    background:linear-gradient(180deg, #ffeaa0, var(--gold-bright));
+  }
+  @keyframes keyGlow {
+    0%,100% { box-shadow:0 4px 0 #c9b890, 0 0 0 rgba(255,209,71,0); }
+    50% { box-shadow:0 4px 0 #c9b890, 0 0 24px var(--gold), 0 0 40px rgba(255,209,71,0.6); }
+  }
+  .white-key .label {
+    font-family:var(--font-display); font-weight:700;
+    font-size:14px; color:#0a0b2e;
+    opacity:0.35;
+    pointer-events:none;
+  }
+  .white-key.pressed .label { opacity:0.85; color:var(--magenta); }
+  .white-key.glow .label { opacity:1; color:var(--magenta); font-size:16px; }
+
+  .black-keys {
+    position:absolute; top:14px; left:8px; right:8px;
+    height:60%;
+    pointer-events:none;
+  }
+  .black-key {
+    position:absolute; top:0;
+    width:9%; height:100%;
+    background:linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 80%, #050505 100%);
+    border-radius:0 0 6px 6px;
+    box-shadow:
+      0 3px 0 #000,
+      inset 0 -6px 10px rgba(255,255,255,0.05),
+      inset 0 2px 0 rgba(255,255,255,0.1);
+    pointer-events:auto;
+    cursor:pointer;
+    transition:transform .04s ease;
+    display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:6px;
+  }
+  .black-key.pressed,
+  .black-key:active {
+    transform:translateY(2px);
+    background:linear-gradient(180deg, #4a3060 0%, #1f0f30 100%);
+    box-shadow:0 0 18px rgba(168,85,247,0.6);
+  }
+  .black-key.glow {
+    animation:blackGlow 1.2s ease-in-out infinite;
+  }
+  @keyframes blackGlow {
+    0%,100% { box-shadow:0 3px 0 #000, 0 0 0 rgba(168,85,247,0); }
+    50% { box-shadow:0 3px 0 #000, 0 0 18px var(--violet), 0 0 32px rgba(168,85,247,0.7); }
+  }
+  .black-key .label {
+    font-family:var(--font-display); font-weight:700;
+    font-size:10px; color:#ffd147;
+    opacity:0;
+  }
+  .black-key.glow .label { opacity:1; }
+
+  /* Loading veil */
+  .loading {
+    position:fixed; inset:0;
+    background:rgba(10,11,46,0.92);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:100;
+    backdrop-filter:blur(6px);
+    transition:opacity .3s ease;
+  }
+  .loading.hidden { opacity:0; pointer-events:none; }
+  .loading-spinner {
+    width:60px; height:60px;
+    border:5px solid rgba(255,255,255,0.15);
+    border-top-color:var(--gold);
+    border-radius:50%;
+    animation:spin 0.9s linear infinite;
+    margin-bottom:18px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text {
+    font-family:var(--font-display); font-weight:600;
+    color:var(--gold); font-size:18px;
+  }
+
+  /* Confetti for song completion */
+  .confetti-piece {
+    position:fixed; top:-20px;
+    width:10px; height:14px;
+    pointer-events:none;
+    z-index:50;
+    animation:confettiFall 3s cubic-bezier(0.2,0.6,0.4,1) forwards;
+  }
+  @keyframes confettiFall {
+    0% { transform:translateY(0) rotate(0); opacity:1; }
+    100% { transform:translateY(110vh) rotate(720deg); opacity:0; }
+  }
+
+  /* Bigger keyboard on landscape / tablet */
+  @media (min-height: 700px) {
+    .keyboard { height:280px; }
+  }
+  @media (orientation:landscape) and (max-height: 500px) {
+    .keyboard { height:160px; }
+    .mode-body { padding:2px 14px 4px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Tuning the piano…</div>
+</div>
+
+<div class="top-bar">
+  <a href="sound-stage.html" class="back-btn">←</a>
+  <div class="title-stack">
+    <div class="title-stack-eyebrow">SOUND STAGE</div>
+    <div class="title-stack-title">🎹 PIANO LAB</div>
+  </div>
+  <button class="mute-btn" id="muteBtn" aria-label="Mute">🔊</button>
+</div>
+
+<div class="modes" role="tablist">
+  <button class="mode-tab active" data-mode="free" role="tab">🎵 Free Play</button>
+  <button class="mode-tab" data-mode="song" role="tab">⭐ Learn a Song</button>
+  <button class="mode-tab" data-mode="echo" role="tab">👂 Echo Me</button>
+</div>
+
+<div class="mode-body" id="modeBody">
+  <!-- Populated per mode -->
+</div>
+
+<div class="keyboard-wrap">
+  <div class="keyboard" id="keyboard">
+    <div class="white-keys" id="whiteKeys"></div>
+    <div class="black-keys" id="blackKeys"></div>
+  </div>
+</div>
+
+<!-- Humphrey + telemetry -->
+<script src="data/sound-stage.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+
+<script>
+(function(){
+  'use strict';
+
+  // ====================== Configuration ======================
+  // The keyboard spans C4 (middle C) up to C5. 8 white keys, 5 black.
+  const WHITE_KEYS = ['C4','D4','E4','F4','G4','A4','B4','C5'];
+  // Black-key positions: each maps to a percentage offset along the keyboard.
+  // The keyboard is 8 white keys wide. Black keys sit BETWEEN whites at the
+  // boundaries (no black between E-F or B-C).
+  // Each white key is 100/8 = 12.5% wide. Black key center sits right at the
+  // boundary between two whites. Black key width is 9% (defined in CSS) so
+  // we subtract 4.5% to center it.
+  const BLACK_KEYS = [
+    { note: 'C#4', leftPct: 12.5 - 4.5 },  // between C4 (0-12.5) and D4 (12.5-25)
+    { note: 'D#4', leftPct: 25.0 - 4.5 },  // between D4 and E4
+    // gap between E4 and F4
+    { note: 'F#4', leftPct: 50.0 - 4.5 },  // between F4 and G4
+    { note: 'G#4', leftPct: 62.5 - 4.5 },  // between G4 and A4
+    { note: 'A#4', leftPct: 75.0 - 4.5 },  // between A4 and B4
+    // gap between B4 and C5
+  ];
+
+  // ====================== State ======================
+  const state = {
+    mode: 'free',            // 'free' | 'song' | 'echo'
+    muted: false,
+    pianoReady: false,
+    audioStarted: false,
+    // Song mode
+    currentSong: null,
+    songIdx: 0,
+    songStartedAt: 0,
+    // Echo mode
+    echoSeq: [],
+    echoIdx: 0,
+    echoLevel: 3,             // current sequence length
+    echoPlaying: false,       // Humphrey is currently playing
+  };
+
+  // Pull songs from data/sound-stage.js
+  const SONGS = (window.HeroAcademy && window.HeroAcademy.SoundStage && window.HeroAcademy.SoundStage.songs) || [];
+
+  // ====================== Piano synth (Tone.js Sampler) ======================
+  // We load 6 piano samples spread across the octaves and let Tone.js
+  // pitch-shift to fill in the gaps. This sounds far more like a real piano
+  // than a synthesized oscillator while keeping the network footprint small
+  // (~150KB total, hosted on tonejs.github.io).
+  const piano = new Tone.Sampler({
+    urls: {
+      A3: 'A3.mp3',
+      C4: 'C4.mp3',
+      'D#4': 'Ds4.mp3',
+      'F#4': 'Fs4.mp3',
+      A4: 'A4.mp3',
+      C5: 'C5.mp3',
+      'D#5': 'Ds5.mp3',
+      'F#5': 'Fs5.mp3',
+    },
+    release: 1.2,
+    baseUrl: 'https://tonejs.github.io/audio/salamander/',
+    onload: function(){
+      state.pianoReady = true;
+      const loading = document.getElementById('loading');
+      if (loading) loading.classList.add('hidden');
+      // Tiny "ready" ping so Nigel knows it's ready
+      // (only if audio context already started — otherwise wait for tap)
+      if (state.audioStarted) {
+        try { piano.triggerAttackRelease('C5', '8n', undefined, 0.4); } catch(e){}
+      }
+    },
+  }).toDestination();
+  piano.volume.value = -3;   // Slightly quieter than full output
+
+  // Some browsers (Galaxy Tab Chrome included) block AudioContext until a
+  // user gesture. We arm a one-shot listener that fires Tone.start() on the
+  // first tap anywhere on the page.
+  function armAudioStart() {
+    const arm = function(){
+      if (state.audioStarted) return;
+      Tone.start().then(function(){
+        state.audioStarted = true;
+        // If the loading veil is still up, we leave it — onload will dismiss.
+        // If samples already loaded, play the ready ping.
+        if (state.pianoReady) {
+          try { piano.triggerAttackRelease('C5', '8n', undefined, 0.4); } catch(e){}
+        }
+      }).catch(function(e){
+        console.warn('[piano-lab] Tone.start failed', e);
+      });
+      document.removeEventListener('pointerdown', arm, true);
+    };
+    document.addEventListener('pointerdown', arm, true);
+  }
+  armAudioStart();
+
+  function playNote(note, durSec, velocity){
+    if (state.muted || !state.pianoReady) return;
+    try {
+      piano.triggerAttackRelease(note, durSec || '8n', undefined, velocity || 0.85);
+    } catch(e) {
+      console.warn('[piano-lab] play failed', note, e);
+    }
+  }
+
+  function playSequence(notes, baseBpm) {
+    // notes: array of { note, beats }
+    if (!notes || !notes.length) return Promise.resolve();
+    const bpm = baseBpm || 100;
+    const secPerBeat = 60 / bpm;
+    let t = Tone.now() + 0.05;
+    notes.forEach(function(n){
+      const dur = n.beats * secPerBeat * 0.95;
+      try { piano.triggerAttackRelease(n.note, dur, t, 0.85); } catch(e){}
+      t += n.beats * secPerBeat;
+    });
+    // Resolve after the last note has had time to play
+    const totalSec = notes.reduce(function(s,n){ return s + n.beats * secPerBeat; }, 0);
+    return new Promise(function(resolve){ setTimeout(resolve, totalSec * 1000 + 50); });
+  }
+
+  // ====================== Keyboard rendering ======================
+  function buildKeyboard() {
+    const wWrap = document.getElementById('whiteKeys');
+    const bWrap = document.getElementById('blackKeys');
+    wWrap.innerHTML = '';
+    bWrap.innerHTML = '';
+    WHITE_KEYS.forEach(function(note){
+      const el = document.createElement('div');
+      el.className = 'white-key';
+      el.dataset.note = note;
+      el.innerHTML = '<span class="label">' + note[0] + '</span>';
+      attachKeyHandlers(el);
+      wWrap.appendChild(el);
+    });
+    BLACK_KEYS.forEach(function(b){
+      const el = document.createElement('div');
+      el.className = 'black-key';
+      el.dataset.note = b.note;
+      el.style.left = b.leftPct + '%';
+      el.innerHTML = '<span class="label">' + b.note.replace('4','').replace('5','') + '</span>';
+      attachKeyHandlers(el);
+      bWrap.appendChild(el);
+    });
+  }
+
+  function attachKeyHandlers(el){
+    let isDown = false;
+    const press = function(ev){
+      if (isDown) return;
+      isDown = true;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const note = el.dataset.note;
+      el.classList.add('pressed');
+      playNote(note, '8n', 0.85);
+      onUserKey(note, el);
+    };
+    const release = function(){
+      isDown = false;
+      el.classList.remove('pressed');
+    };
+    el.addEventListener('pointerdown', press);
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', release);
+  }
+
+  function findKeyEl(note){
+    const sel = '[data-note="' + note.replace(/"/g,'') + '"]';
+    return document.querySelector(sel);
+  }
+
+  function highlightKey(note, on){
+    document.querySelectorAll('.white-key.glow, .black-key.glow').forEach(function(k){ k.classList.remove('glow'); });
+    if (on && note) {
+      const el = findKeyEl(note);
+      if (el) el.classList.add('glow');
+    }
+  }
+
+  function flashKey(note){
+    const el = findKeyEl(note);
+    if (!el) return;
+    el.classList.add('pressed');
+    setTimeout(function(){ el.classList.remove('pressed'); }, 220);
+  }
+
+  // ====================== Per-mode user input ======================
+  function onUserKey(note, el){
+    if (state.mode === 'song') onUserKeySong(note);
+    else if (state.mode === 'echo') onUserKeyEcho(note);
+    // free play needs no extra handling
+  }
+
+  // ====================== Mode: Free Play ======================
+  function renderFree(){
+    const body = document.getElementById('modeBody');
+    body.innerHTML = '' +
+      '<div class="status-card">' +
+        '<div class="status-card-icon">🎵</div>' +
+        '<div class="status-card-body">' +
+          '<div class="status-card-eyebrow">FREE PLAY</div>' +
+          '<div class="status-card-text">Tap any key to play. Try a tune you know!</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ====================== Mode: Learn a Song ======================
+  function renderSong(){
+    const body = document.getElementById('modeBody');
+    let chips = '';
+    SONGS.forEach(function(s){
+      chips += '<div class="song-chip" data-song-id="' + s.id + '">' +
+        '<span class="song-chip-emoji">' + s.emoji + '</span>' +
+        '<span>' + s.title + '</span>' +
+      '</div>';
+    });
+    body.innerHTML = '' +
+      '<div class="song-list" id="songList">' + chips + '</div>' +
+      '<div class="song-progress" id="songProgress"></div>' +
+      '<div class="status-card">' +
+        '<div class="status-card-icon" id="songIcon">⭐</div>' +
+        '<div class="status-card-body">' +
+          '<div class="status-card-eyebrow" id="songEyebrow">PICK A SONG</div>' +
+          '<div class="status-card-text" id="songText">Tap a song chip above to start.</div>' +
+        '</div>' +
+        '<button class="status-card-action" id="songAction" hidden>▶ LISTEN</button>' +
+      '</div>';
+
+    document.getElementById('songList').addEventListener('click', function(ev){
+      const chip = ev.target.closest('.song-chip');
+      if (!chip) return;
+      pickSong(chip.dataset.songId);
+    });
+    document.getElementById('songAction').addEventListener('click', function(){
+      if (!state.currentSong) return;
+      previewSong();
+    });
+  }
+
+  function pickSong(id){
+    const song = SONGS.find(function(s){ return s.id === id; });
+    if (!song) return;
+    state.currentSong = song;
+    state.songIdx = 0;
+    state.songStartedAt = Date.now();
+    document.querySelectorAll('.song-chip').forEach(function(c){
+      c.classList.toggle('active', c.dataset.songId === id);
+    });
+    document.getElementById('songEyebrow').textContent = song.title.toUpperCase();
+    document.getElementById('songText').textContent = 'Listen first, then play along!';
+    document.getElementById('songIcon').textContent = song.emoji;
+    const btn = document.getElementById('songAction');
+    btn.hidden = false;
+    btn.textContent = '▶ LISTEN';
+    renderSongProgress();
+    highlightKey(song.notes[0].note, true);
+    sayHumphrey('song-picked', "Let's learn " + song.title + "! Tap the glowing key first.");
+  }
+
+  function renderSongProgress(){
+    const el = document.getElementById('songProgress');
+    if (!el || !state.currentSong) return;
+    let html = '';
+    state.currentSong.notes.forEach(function(_, i){
+      let cls = '';
+      if (i < state.songIdx) cls = 'done';
+      else if (i === state.songIdx) cls = 'current';
+      html += '<span class="' + cls + '"></span>';
+    });
+    el.innerHTML = html;
+  }
+
+  function previewSong(){
+    if (!state.currentSong || !state.pianoReady) return;
+    const btn = document.getElementById('songAction');
+    btn.disabled = true;
+    btn.textContent = '♪ playing…';
+    // Highlight each note as it plays for visual learning
+    let t = 0;
+    const bpm = state.currentSong.tempoBpm || 100;
+    const secPerBeat = 60 / bpm;
+    state.currentSong.notes.forEach(function(n, i){
+      setTimeout(function(){
+        flashKey(n.note);
+        if (i === state.songIdx) highlightKey(n.note, true);
+      }, t * 1000);
+      t += n.beats * secPerBeat;
+    });
+    playSequence(state.currentSong.notes, bpm).then(function(){
+      btn.disabled = false;
+      btn.textContent = '▶ AGAIN';
+      // Restore highlight on current key
+      if (state.songIdx < state.currentSong.notes.length) {
+        highlightKey(state.currentSong.notes[state.songIdx].note, true);
+      }
+    });
+  }
+
+  function onUserKeySong(note){
+    if (!state.currentSong) return;
+    const expected = state.currentSong.notes[state.songIdx];
+    if (!expected) return;
+    if (note === expected.note) {
+      state.songIdx += 1;
+      renderSongProgress();
+      if (state.songIdx >= state.currentSong.notes.length) {
+        // SONG COMPLETE
+        highlightKey(null, false);
+        document.getElementById('songEyebrow').textContent = 'YOU DID IT!';
+        document.getElementById('songText').textContent = 'You played the whole song. Amazing!';
+        document.getElementById('songIcon').textContent = '🎉';
+        confetti();
+        recordPractice(state.currentSong.id, 'song-complete', true);
+        sayHumphrey('song-complete', "Bravo, Nigel! You played " + state.currentSong.title + "!");
+      } else {
+        const next = state.currentSong.notes[state.songIdx];
+        highlightKey(next.note, true);
+        document.getElementById('songText').textContent = 'Great! Now ' + simplifyNote(next.note) + '.';
+      }
+    } else {
+      // wrong key — gentle reset, don't advance
+      document.getElementById('songText').textContent = 'Almost! Try the glowing key — that\'s ' + simplifyNote(expected.note) + '.';
+      const el = findKeyEl(expected.note);
+      if (el) {
+        el.classList.add('glow');
+        // brief amplification
+        el.style.animation = 'none';
+        void el.offsetHeight;
+        el.style.animation = '';
+      }
+    }
+  }
+
+  function simplifyNote(note){
+    return note[0] + (note.indexOf('#') > -1 ? ' sharp' : '');
+  }
+
+  // ====================== Mode: Echo Me ======================
+  function renderEcho(){
+    const body = document.getElementById('modeBody');
+    body.innerHTML = '' +
+      '<div class="status-card">' +
+        '<div class="status-card-icon" id="echoIcon">👂</div>' +
+        '<div class="status-card-body">' +
+          '<div class="status-card-eyebrow" id="echoEyebrow">ECHO ME</div>' +
+          '<div class="status-card-text" id="echoText">I\'ll play notes — you copy them back!</div>' +
+        '</div>' +
+        '<button class="status-card-action" id="echoStart">▶ START</button>' +
+      '</div>';
+    document.getElementById('echoStart').addEventListener('click', startEchoRound);
+    state.echoLevel = 3;
+  }
+
+  function startEchoRound(){
+    if (!state.pianoReady) return;
+    // Build a random sequence of WHITE keys (simpler for ears + fingers)
+    const len = state.echoLevel;
+    const seq = [];
+    for (let i = 0; i < len; i++){
+      seq.push(WHITE_KEYS[Math.floor(Math.random() * WHITE_KEYS.length)]);
+    }
+    state.echoSeq = seq;
+    state.echoIdx = 0;
+    state.echoPlaying = true;
+
+    document.getElementById('echoEyebrow').textContent = 'LISTEN…';
+    document.getElementById('echoText').textContent = 'Notes coming: ' + len + ' to remember.';
+    document.getElementById('echoIcon').textContent = '👂';
+    document.getElementById('echoStart').hidden = true;
+
+    // Play with visual highlights
+    let t = 0;
+    seq.forEach(function(n, i){
+      setTimeout(function(){
+        flashKey(n);
+        if (i === seq.length - 1) {
+          setTimeout(function(){
+            state.echoPlaying = false;
+            document.getElementById('echoEyebrow').textContent = 'YOUR TURN';
+            document.getElementById('echoText').textContent = 'Now play those ' + len + ' notes in order!';
+            document.getElementById('echoIcon').textContent = '🎯';
+          }, 600);
+        }
+      }, t);
+      try { piano.triggerAttackRelease(n, '4n', Tone.now() + t/1000, 0.85); } catch(e){}
+      t += 600;
+    });
+  }
+
+  function onUserKeyEcho(note){
+    if (state.echoPlaying || !state.echoSeq.length) return;
+    const expected = state.echoSeq[state.echoIdx];
+    if (note === expected) {
+      state.echoIdx += 1;
+      if (state.echoIdx >= state.echoSeq.length) {
+        // Round complete
+        document.getElementById('echoEyebrow').textContent = 'PERFECT!';
+        document.getElementById('echoText').textContent = "Round " + state.echoLevel + " done. Let\'s make it harder!";
+        document.getElementById('echoIcon').textContent = '🌟';
+        confetti();
+        recordPractice('echo-' + state.echoLevel, 'echo-complete', true);
+        sayHumphrey('echo-correct', "Nice ear, Nigel! Ready for one more?");
+        state.echoLevel = Math.min(6, state.echoLevel + 1);
+        const btn = document.getElementById('echoStart');
+        btn.hidden = false;
+        btn.textContent = '▶ NEXT (' + state.echoLevel + ' notes)';
+        state.echoSeq = [];
+      }
+    } else {
+      // wrong
+      document.getElementById('echoText').textContent = "Whoops — it was " + simplifyNote(expected) + ". Let's try again!";
+      document.getElementById('echoIcon').textContent = '🙃';
+      recordPractice('echo-' + state.echoLevel, 'echo-wrong', false);
+      state.echoLevel = Math.max(3, state.echoLevel - 1);
+      const btn = document.getElementById('echoStart');
+      btn.hidden = false;
+      btn.textContent = '▶ TRY AGAIN (' + state.echoLevel + ' notes)';
+      state.echoSeq = [];
+    }
+  }
+
+  // ====================== Helpers ======================
+  function sayHumphrey(eventName, fallbackText){
+    if (state.muted) return;
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+        window.HeroAcademy.Humphrey.say(eventName, { kidName: 'Nigel', text: fallbackText });
+        return;
+      }
+    } catch(e){}
+    // Fallback to local TTS only if Humphrey isn't loaded
+    if (window.speechSynthesis && fallbackText) {
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(fallbackText);
+        u.rate = 0.96; u.pitch = 1.05;
+        speechSynthesis.speak(u);
+      } catch(e){}
+    }
+  }
+
+  function recordPractice(itemId, eventType, correct){
+    // Tracks each session for parent reporting. Endpoint may not exist yet
+    // (Open work item from handoff: ha_record_letter_practice equivalent).
+    // We POST anyway; if it 404s, we ignore silently — no UX impact.
+    try {
+      fetch('/api/practice/record', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          zone: 'sound-stage',
+          activity: 'piano-lab',
+          itemId: itemId,
+          eventType: eventType,
+          correct: !!correct,
+          ts: new Date().toISOString(),
+        }),
+      }).catch(function(){});
+    } catch(e){}
+
+    // Also log via existing telemetry if available
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Telemetry && window.HeroAcademy.Telemetry.recordAttempt) {
+        window.HeroAcademy.Telemetry.recordAttempt(
+          !!correct,
+          'piano-lab/' + itemId,
+          eventType,
+          correct ? 'correct' : 'incorrect'
+        );
+      }
+    } catch(e){}
+  }
+
+  function confetti(){
+    const colors = ['#ffd147','#ec4899','#a855f7','#14b8d4','#2ec27e','#ff8b3d'];
+    for (let i = 0; i < 50; i++){
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      p.style.animationDelay = (Math.random() * 0.4) + 's';
+      p.style.animationDuration = (2.4 + Math.random() * 1.2) + 's';
+      p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      document.body.appendChild(p);
+      setTimeout(function(){ p.remove(); }, 4000);
+    }
+  }
+
+  // ====================== Mode switching ======================
+  function setMode(mode){
+    state.mode = mode;
+    document.querySelectorAll('.mode-tab').forEach(function(t){
+      t.classList.toggle('active', t.dataset.mode === mode);
+    });
+    // clear any highlights
+    highlightKey(null, false);
+    state.currentSong = null;
+    state.echoSeq = [];
+    state.echoIdx = 0;
+    if (mode === 'free') renderFree();
+    else if (mode === 'song') renderSong();
+    else if (mode === 'echo') renderEcho();
+  }
+
+  // ====================== Boot ======================
+  buildKeyboard();
+  renderFree();
+
+  document.querySelectorAll('.mode-tab').forEach(function(t){
+    t.addEventListener('click', function(){ setMode(t.dataset.mode); });
+  });
+
+  // Mute toggle
+  document.getElementById('muteBtn').addEventListener('click', function(){
+    state.muted = !state.muted;
+    this.textContent = state.muted ? '🔇' : '🔊';
+    if (state.muted) {
+      try { piano.releaseAll(); } catch(e){}
+      try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e){}
+    }
+  });
+
+  // Initialize Humphrey
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position: 'bottom-left',
+      audioEnabled: true,
+      debug: false,
+      welcomeEvent: 'welcome-piano-lab',
+      kidName: 'Nigel',
+    });
+  }
+
+  // Safety: if Tone.js fails to load samples within 10s, hide the loader
+  // so Nigel can at least see the UI. Tone.js will retry on each tap.
+  setTimeout(function(){
+    if (!state.pianoReady) {
+      const loading = document.getElementById('loading');
+      const text = loading && loading.querySelector('.loading-text');
+      if (text) text.textContent = 'Tap a key — sounds will load when ready.';
+      if (loading) {
+        loading.style.background = 'rgba(10,11,46,0.6)';
+        setTimeout(function(){ loading.classList.add('hidden'); }, 1500);
+      }
+    }
+  }, 10000);
+
+})();
+</script>
+</body>
+</html>
