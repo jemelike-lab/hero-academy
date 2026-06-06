@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/generate-daily-content",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/generate-expedition",
+      "schedule": "30 8 * * *"
     }
   ]
 }
