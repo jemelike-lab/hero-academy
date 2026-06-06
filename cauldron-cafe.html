@@ -304,6 +304,19 @@
     box-shadow: 0 0 0 3px var(--fire-amber), 0 6px 18px rgba(245, 162, 61, 0.55);
     border-color: var(--fire-amber);
   }
+  /* Rejected tap (wrong veggie or already at max) — brief red shake, no add */
+  .veggie-card.reject {
+    animation: reject-shake 0.4s ease-in-out;
+    box-shadow: 0 0 0 3px #c0392b;
+    border-color: #c0392b;
+  }
+  @keyframes reject-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
   @keyframes focus-pulse {
     0%, 100% { transform: translateY(0) scale(1); }
     50%      { transform: translateY(-4px) scale(1.04); }
@@ -666,9 +679,9 @@
 
   // ----- Ingredient catalog -----
   const VEGGIES = [
-    { id: 'carrot', label: 'Carrots', symbol: 'veg-carrot' },
-    { id: 'tomato', label: 'Tomatoes', symbol: 'veg-tomato' },
-    { id: 'potato', label: 'Potatoes', symbol: 'veg-potato' },
+    { id: 'carrot', label: 'Carrots', singular: 'carrot', symbol: 'veg-carrot' },
+    { id: 'tomato', label: 'Tomatoes', singular: 'tomato', symbol: 'veg-tomato' },
+    { id: 'potato', label: 'Potatoes', singular: 'potato', symbol: 'veg-potato' },
   ];
 
   // ----- Local fallback recipe generator (used only if the server is unreachable) -----
@@ -801,15 +814,38 @@
     });
   }
 
-  // ----- Add a veggie: flying animation + count update + Humphrey reaction -----
+  // ----- Add a veggie: validate FIRST, then animate + increment if valid -----
   function onAddVeggie(veg) {
     if (state.awaitingCheck) return;
     const card = veggieShelf.querySelector(`[data-veggie-id="${veg.id}"]`);
     if (!card) return;
+
+    // VALIDATE before we animate or increment.
+    const recipe = state.recipes[state.currentRecipeIdx];
+    const ing = recipe ? recipe.ingredients.find(i => i.veggie.id === veg.id) : null;
+    const currentCount = state.addedCounts[veg.id] || 0;
+
+    // Case 1: This veggie isn't in the recipe at all → reject, no add.
+    if (!ing) {
+      shakeReject(card);
+      safeSay('cauldron-wrong-veggie',
+        `Not ${veg.label.toLowerCase()} today — let's stick to the recipe.`,
+        'concerned');
+      return;
+    }
+    // Case 2: Already have enough → reject, no add.
+    if (currentCount >= ing.count) {
+      shakeReject(card);
+      safeSay('cauldron-already-enough',
+        `We already have all ${ing.count} ${veg.label.toLowerCase()}. Try a different ingredient.`,
+        'concerned');
+      return;
+    }
+
+    // Valid tap — proceed with animation + increment.
     const cardRect = card.getBoundingClientRect();
     const cauldronRect = cauldronZone.getBoundingClientRect();
 
-    // Build the flying veggie
     const flier = document.createElement('div');
     flier.className = 'flying-veggie';
     flier.innerHTML = `<svg viewBox="0 0 60 60" width="56" height="56"><use href="#${veg.symbol}"/></svg>`;
@@ -817,7 +853,6 @@
     flier.style.top  = (cardRect.top  + cardRect.height/2 - 28) + 'px';
     document.body.appendChild(flier);
 
-    // Trigger transform on next frame
     const targetX = cauldronRect.left + cauldronRect.width/2 - cardRect.left - cardRect.width/2;
     const targetY = cauldronRect.top  + cauldronRect.height*0.32 - cardRect.top  - cardRect.height/2;
     requestAnimationFrame(() => {
@@ -826,8 +861,7 @@
     });
     setTimeout(() => flier.remove(), 600);
 
-    // Update count
-    state.addedCounts[veg.id] = (state.addedCounts[veg.id] || 0) + 1;
+    state.addedCounts[veg.id] = currentCount + 1;
     const badge = veggieShelf.querySelector(`[data-count-for="${veg.id}"]`);
     if (badge) {
       badge.textContent = state.addedCounts[veg.id];
@@ -837,6 +871,13 @@
     updateStepHint();
     sayCountReaction(veg);
     enableCheckIfReady();
+  }
+
+  function shakeReject(card) {
+    card.classList.remove('reject'); // restart animation if already there
+    void card.offsetWidth;            // force reflow
+    card.classList.add('reject');
+    setTimeout(() => card.classList.remove('reject'), 450);
   }
 
   // ----- Humphrey reactions -----
@@ -863,31 +904,28 @@
     const ing = recipe.ingredients.find(i => i.veggie.id === veg.id);
     const count = state.addedCounts[veg.id] || 0;
     const need = ing ? ing.count : 0;
-    if (ing && count <= need) {
-      const labelSingular = veg.label.slice(0, -1).toLowerCase();
-      if (count === need) {
-        // Look ahead — is there a next ingredient still needed?
-        const recipe = state.recipes[state.currentRecipeIdx];
-        const nextIng = recipe.ingredients.find(i => (state.addedCounts[i.veggie.id] || 0) < i.count);
-        const handoff = nextIng
-          ? ` Now we need ${nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0)} ${nextIng.veggie.label.toLowerCase()}.`
-          : ' All the ingredients are in. Tap Serve it up.';
-        safeSay('cauldron-ingredient-done',
-          `Perfect — that's ${need} ${veg.label.toLowerCase()}.${handoff}`,
-          'encouraging');
-      } else {
-        safeSay('cauldron-count',
-          `${count} ${labelSingular}${count > 1 ? 's' : ''}.`,
-          'encouraging');
-      }
-    } else if (ing && count > need) {
-      safeSay('cauldron-too-many',
-        `That's one too many ${veg.label.toLowerCase()}. We need ${need}.`,
-        'concerned');
+    // onAddVeggie has already validated — only valid taps reach this function,
+    // so we just narrate the count (possibly with the next-ingredient handoff).
+    if (!ing) return;
+    const labelSingular = veg.singular || veg.label.slice(0, -1).toLowerCase();
+    if (count === need) {
+      // Look ahead — is there a next ingredient still needed?
+      const recipe = state.recipes[state.currentRecipeIdx];
+      const nextIng = recipe.ingredients.find(i => (state.addedCounts[i.veggie.id] || 0) < i.count);
+      const stillNeeded = nextIng ? nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0) : 0;
+      const nextWord = nextIng && stillNeeded === 1
+        ? (nextIng.veggie.singular || nextIng.veggie.label.slice(0, -1).toLowerCase())
+        : (nextIng ? nextIng.veggie.label.toLowerCase() : '');
+      const handoff = nextIng
+        ? ` Now we need ${stillNeeded} ${nextWord}.`
+        : ' All the ingredients are in. Tap Serve it up.';
+      safeSay('cauldron-ingredient-done',
+        `Perfect — that's ${need} ${veg.label.toLowerCase()}.${handoff}`,
+        'encouraging');
     } else {
-      safeSay('cauldron-wrong-veggie',
-        `Hmm — the recipe doesn't ask for ${veg.label.toLowerCase()} today.`,
-        'concerned');
+      safeSay('cauldron-count',
+        `${count} ${count === 1 ? labelSingular : veg.label.toLowerCase()}.`,
+        'encouraging');
     }
   }
 
@@ -910,7 +948,7 @@
     // She reads the recipe aloud + tells Nigel what to tap first
     const firstIng = r.ingredients[0];
     const firstStep = firstIng
-      ? ` Start by tapping ${firstIng.count} ${firstIng.veggie.label.toLowerCase()}.`
+      ? ` Start by tapping ${firstIng.count} ${firstIng.count === 1 ? (firstIng.veggie.singular || 'one') : firstIng.veggie.label.toLowerCase()}.`
       : '';
     setTimeout(() => {
       safeSay('cauldron-recipe-intro',
@@ -960,7 +998,7 @@
       return;
     }
     const need = nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0);
-    const word = need === 1 ? nextIng.veggie.label.slice(0, -1).toLowerCase() : nextIng.veggie.label.toLowerCase();
+    const word = need === 1 ? (nextIng.veggie.singular || nextIng.veggie.label.slice(0, -1).toLowerCase()) : nextIng.veggie.label.toLowerCase();
     hint.textContent = `Next: tap ${need} ${word}`;
     hint.hidden = false;
     // Pulse the right card
@@ -984,7 +1022,7 @@
       feedbackEl.textContent = `Yes! ${r.equation.replace('?', r.answer)}`;
       feedbackEl.className = 'parchment-feedback correct';
       safeSay('cauldron-correct',
-        `Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name.toLowerCase()} is ready.`,
+        `Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name} is ready.`,
         'cheering');
       state.completed++;
       try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: true }); } catch (_) {}
