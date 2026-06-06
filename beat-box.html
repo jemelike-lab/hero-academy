@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Beat Box · Sound Stage</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family:var(--font-display);
+    background:radial-gradient(circle at 50% 20%, var(--bg-purple) 0%, var(--bg-deep) 50%, var(--bg-space) 100%);
+    color:#fff; min-height:100vh; overflow-x:hidden;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+    user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  /* Header */
+  header.beat-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; gap:12px;
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:14px;
+    padding:9px 14px; border-radius:999px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  h1.title {
+    font-family:var(--font-title); font-size:24px; color:var(--gold);
+    text-shadow:0 2px 8px rgba(255,209,71,0.35);
+    margin:0; flex:1; text-align:center;
+  }
+  .header-spacer { width:80px; }
+
+  /* Mode picker */
+  .mode-picker {
+    display:flex; justify-content:center; gap:10px;
+    padding:0 18px 14px;
+  }
+  .mode-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:14px;
+    padding:10px 22px; border-radius:14px; cursor:pointer;
+    transition:all .18s;
+  }
+  .mode-btn.active {
+    background:var(--gold); color:var(--bg-deep);
+    border-color:var(--gold-bright);
+    box-shadow:0 4px 16px rgba(255,209,71,0.35);
+  }
+  .mode-btn:active { transform:scale(0.96); }
+
+  /* Free play: pad grid */
+  .pad-grid {
+    display:grid; grid-template-columns:repeat(4, 1fr);
+    gap:12px; padding:0 18px 22px;
+    max-width:600px; margin:0 auto;
+  }
+  .pad {
+    aspect-ratio:1;
+    background:linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+    border:2px solid var(--border-light); border-radius:18px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff; cursor:pointer; transition:transform .08s, box-shadow .08s;
+    position:relative; overflow:hidden;
+  }
+  .pad-emoji { font-size:40px; line-height:1; margin-bottom:6px; }
+  .pad-label {
+    font-size:11px; font-weight:700; letter-spacing:0.06em;
+    text-transform:uppercase; opacity:0.85;
+  }
+  .pad.active, .pad:active {
+    transform:scale(0.96);
+    box-shadow:0 0 0 3px var(--gold), 0 0 24px rgba(255,209,71,0.6);
+  }
+  .pad.flash {
+    background:linear-gradient(135deg, var(--gold-bright), var(--gold));
+    color:var(--bg-deep);
+  }
+
+  /* Beat maker */
+  .beatmaker {
+    padding:0 14px 22px;
+    max-width:680px; margin:0 auto;
+  }
+  .transport {
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    margin-bottom:18px; flex-wrap:wrap;
+  }
+  .play-btn {
+    background:var(--gold); color:var(--bg-deep); border:none;
+    font-family:var(--font-display); font-weight:700; font-size:18px;
+    padding:12px 28px; border-radius:999px; cursor:pointer;
+    box-shadow:0 4px 16px rgba(255,209,71,0.45);
+  }
+  .play-btn:active { transform:scale(0.96); }
+  .play-btn.playing { background:var(--red); color:#fff; }
+  .small-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+    padding:8px 14px; border-radius:10px; cursor:pointer;
+  }
+  .small-btn:active { transform:scale(0.96); }
+  .tempo-display { font-family:var(--font-title); font-size:18px; color:var(--gold); }
+
+  .seq-row {
+    display:grid; grid-template-columns:60px repeat(16, 1fr);
+    gap:3px; margin-bottom:6px; align-items:center;
+  }
+  .seq-label {
+    font-size:11px; font-weight:700; letter-spacing:0.06em;
+    text-transform:uppercase; text-align:left; padding-left:4px;
+    color:rgba(255,255,255,0.75);
+  }
+  .seq-cell {
+    aspect-ratio:1; min-height:22px;
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+    border-radius:6px; cursor:pointer;
+    transition:all .08s;
+  }
+  .seq-cell.on { background:var(--magenta); border-color:#fff; }
+  .seq-cell.active-step { box-shadow:0 0 0 2px var(--gold), 0 0 8px var(--gold); }
+  .seq-cell.beat-emphasis { background:rgba(255,255,255,0.08); }
+  .seq-cell.on.beat-emphasis { background:var(--magenta); }
+  .seq-cell:active { transform:scale(0.9); }
+
+  .presets {
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+    margin-top:14px;
+  }
+
+  /* Welcome strip */
+  .welcome-strip {
+    background:rgba(255,209,71,0.08); border:1px solid rgba(255,209,71,0.22);
+    border-radius:14px; padding:10px 14px; margin:0 18px 14px;
+    font-size:13px; color:rgba(255,255,255,0.92); text-align:center;
+  }
+  .hide { display:none !important; }
+</style>
+</head>
+<body>
+
+<header class="beat-header">
+  <a href="sound-stage.html" class="back-btn">← Back</a>
+  <h1 class="title">🥁 Beat Box</h1>
+  <div class="header-spacer"></div>
+</header>
+
+<div class="welcome-strip" id="welcomeStripText">
+  Tap the drum pads to play — or switch to <strong>Beat Maker</strong> to build a beat.
+</div>
+
+<div class="mode-picker">
+  <button class="mode-btn active" id="modeFree" data-mode="free">Free Play</button>
+  <button class="mode-btn" id="modeMaker" data-mode="maker">Beat Maker</button>
+</div>
+
+<!-- FREE PLAY -->
+<section id="freePlay">
+  <div class="pad-grid" id="padGrid">
+    <div class="pad" data-drum="kick"><div class="pad-emoji">🥁</div><div class="pad-label">Kick</div></div>
+    <div class="pad" data-drum="snare"><div class="pad-emoji">🔵</div><div class="pad-label">Snare</div></div>
+    <div class="pad" data-drum="hat-closed"><div class="pad-emoji">🔆</div><div class="pad-label">Hat</div></div>
+    <div class="pad" data-drum="hat-open"><div class="pad-emoji">✨</div><div class="pad-label">Open Hat</div></div>
+    <div class="pad" data-drum="clap"><div class="pad-emoji">👏</div><div class="pad-label">Clap</div></div>
+    <div class="pad" data-drum="tom-low"><div class="pad-emoji">🟤</div><div class="pad-label">Low Tom</div></div>
+    <div class="pad" data-drum="tom-high"><div class="pad-emoji">🟠</div><div class="pad-label">High Tom</div></div>
+    <div class="pad" data-drum="crash"><div class="pad-emoji">💥</div><div class="pad-label">Crash</div></div>
+  </div>
+</section>
+
+<!-- BEAT MAKER -->
+<section id="beatMaker" class="hide">
+  <div class="beatmaker">
+    <div class="transport">
+      <button class="play-btn" id="playBtn">▶ Play</button>
+      <button class="small-btn" id="clearBtn">Clear</button>
+      <span class="tempo-display" id="tempoDisplay">100 BPM</span>
+      <button class="small-btn" id="tempoDown">−</button>
+      <button class="small-btn" id="tempoUp">+</button>
+    </div>
+    <div id="sequencer"></div>
+    <div class="presets">
+      <button class="small-btn" data-preset="rock">Rock Beat</button>
+      <button class="small-btn" data-preset="hiphop">Hip-Hop</button>
+      <button class="small-btn" data-preset="four">Four on the Floor</button>
+    </div>
+  </div>
+</section>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Humphrey init ----------
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-beat-box', kidName:'Nigel',
+    });
+  }
+
+  // ---------- Drum synth recipes (Tone.js) ----------
+  // Created lazily after first user gesture (Tone.start required by browser
+  // autoplay policy). Free play and Beat Maker share the same kit.
+  var armed = false;
+  var kit = null;
+
+  function buildKit() {
+    var dest = Tone.Destination;
+    // Master compression + light limiter so multiple hits don't clip.
+    var comp = new Tone.Compressor(-18, 4).connect(dest);
+
+    var kick = new Tone.MembraneSynth({
+      pitchDecay:0.05, octaves:6,
+      oscillator:{type:'sine'},
+      envelope:{attack:0.001, decay:0.4, sustain:0.01, release:1.2},
+    }).connect(comp);
+    kick.volume.value = -2;
+
+    var snareNoise = new Tone.NoiseSynth({
+      noise:{type:'white'},
+      envelope:{attack:0.001, decay:0.15, sustain:0},
+    }).connect(comp);
+    snareNoise.volume.value = -8;
+    var snareTone = new Tone.MembraneSynth({
+      pitchDecay:0.02, octaves:3,
+      envelope:{attack:0.001, decay:0.1, sustain:0},
+    }).connect(comp);
+    snareTone.volume.value = -10;
+
+    var hatClosed = new Tone.MetalSynth({
+      frequency:250, harmonicity:5.1, modulationIndex:32,
+      resonance:4000, octaves:1.5,
+      envelope:{attack:0.001, decay:0.04, release:0.01},
+    }).connect(comp);
+    hatClosed.volume.value = -22;
+
+    var hatOpen = new Tone.MetalSynth({
+      frequency:250, harmonicity:5.1, modulationIndex:32,
+      resonance:4000, octaves:1.5,
+      envelope:{attack:0.001, decay:0.35, release:0.2},
+    }).connect(comp);
+    hatOpen.volume.value = -22;
+
+    var clap = new Tone.NoiseSynth({
+      noise:{type:'pink'},
+      envelope:{attack:0.005, decay:0.18, sustain:0, release:0.1},
+    }).connect(comp);
+    clap.volume.value = -6;
+
+    var tomLow = new Tone.MembraneSynth({
+      pitchDecay:0.03, octaves:4,
+      envelope:{attack:0.001, decay:0.35, sustain:0.01, release:0.5},
+    }).connect(comp);
+    tomLow.volume.value = -6;
+
+    var tomHigh = new Tone.MembraneSynth({
+      pitchDecay:0.02, octaves:4,
+      envelope:{attack:0.001, decay:0.25, sustain:0.01, release:0.4},
+    }).connect(comp);
+    tomHigh.volume.value = -6;
+
+    var crash = new Tone.MetalSynth({
+      frequency:180, harmonicity:8.5, modulationIndex:40,
+      resonance:6000, octaves:2,
+      envelope:{attack:0.001, decay:1.8, release:0.6},
+    }).connect(comp);
+    crash.volume.value = -22;
+
+    return {
+      kick:function(t){ kick.triggerAttackRelease('C1', '8n', t); },
+      snare:function(t){
+        snareNoise.triggerAttackRelease('16n', t);
+        snareTone.triggerAttackRelease('G2', '32n', t);
+      },
+      'hat-closed':function(t){ hatClosed.triggerAttackRelease('32n', t); },
+      'hat-open':function(t){ hatOpen.triggerAttackRelease('8n', t); },
+      clap:function(t){ clap.triggerAttackRelease('16n', t); },
+      'tom-low':function(t){ tomLow.triggerAttackRelease('A1', '8n', t); },
+      'tom-high':function(t){ tomHigh.triggerAttackRelease('E2', '8n', t); },
+      crash:function(t){ crash.triggerAttackRelease('4n', t); },
+    };
+  }
+
+  async function arm() {
+    if (armed) return;
+    try { await Tone.start(); } catch(e){}
+    if (!kit) kit = buildKit();
+    armed = true;
+  }
+
+  function playDrum(name) {
+    if (!armed || !kit) return;
+    var fn = kit[name];
+    if (fn) fn(Tone.now());
+  }
+
+  // ---------- Mode switching ----------
+  var modeFree = document.getElementById('modeFree');
+  var modeMaker = document.getElementById('modeMaker');
+  var freeSec = document.getElementById('freePlay');
+  var makerSec = document.getElementById('beatMaker');
+
+  function switchMode(m) {
+    if (m === 'free') {
+      modeFree.classList.add('active');
+      modeMaker.classList.remove('active');
+      freeSec.classList.remove('hide');
+      makerSec.classList.add('hide');
+      stopSequencer();
+    } else {
+      modeMaker.classList.add('active');
+      modeFree.classList.remove('active');
+      makerSec.classList.remove('hide');
+      freeSec.classList.add('hide');
+    }
+  }
+  modeFree.addEventListener('click', function(){ arm(); switchMode('free'); });
+  modeMaker.addEventListener('click', function(){ arm(); switchMode('maker'); buildSequencer(); });
+
+  // ---------- Free play pads ----------
+  var padGrid = document.getElementById('padGrid');
+  padGrid.addEventListener('pointerdown', async function(ev){
+    var pad = ev.target.closest('.pad');
+    if (!pad) return;
+    ev.preventDefault();
+    await arm();
+    var drum = pad.dataset.drum;
+    playDrum(drum);
+    pad.classList.add('flash');
+    setTimeout(function(){ pad.classList.remove('flash'); }, 90);
+  }, {passive:false});
+
+  // ---------- Beat Maker sequencer ----------
+  var TRACKS = ['kick', 'snare', 'hat-closed', 'clap'];
+  var TRACK_LABELS = { kick:'Kick', snare:'Snare', 'hat-closed':'Hat', clap:'Clap' };
+  var STEPS = 16;
+  // pattern[track][step] = 0|1
+  var pattern = TRACKS.map(function(){ return Array(STEPS).fill(0); });
+  var tempo = 100;
+  var loopId = null;
+  var currentStep = 0;
+  var built = false;
+
+  function buildSequencer() {
+    if (built) return;
+    var seq = document.getElementById('sequencer');
+    seq.innerHTML = '';
+    TRACKS.forEach(function(trackName, tIdx) {
+      var row = document.createElement('div');
+      row.className = 'seq-row';
+      var label = document.createElement('div');
+      label.className = 'seq-label';
+      label.textContent = TRACK_LABELS[trackName];
+      row.appendChild(label);
+      for (var s = 0; s < STEPS; s++) {
+        var cell = document.createElement('div');
+        cell.className = 'seq-cell';
+        if (s % 4 === 0) cell.classList.add('beat-emphasis');
+        cell.dataset.track = String(tIdx);
+        cell.dataset.step = String(s);
+        row.appendChild(cell);
+      }
+      seq.appendChild(row);
+    });
+    seq.addEventListener('pointerdown', function(ev){
+      var cell = ev.target.closest('.seq-cell');
+      if (!cell) return;
+      ev.preventDefault();
+      var t = parseInt(cell.dataset.track, 10);
+      var s = parseInt(cell.dataset.step, 10);
+      pattern[t][s] = pattern[t][s] ? 0 : 1;
+      cell.classList.toggle('on');
+      // Hot tap: when toggling on while not playing, give immediate auditory feedback.
+      if (pattern[t][s] && !loopId && armed && kit) {
+        playDrum(TRACKS[t]);
+      }
+    }, {passive:false});
+    built = true;
+  }
+
+  function repaintSeq() {
+    var cells = document.querySelectorAll('#sequencer .seq-cell');
+    cells.forEach(function(c){
+      var t = parseInt(c.dataset.track, 10);
+      var s = parseInt(c.dataset.step, 10);
+      c.classList.toggle('on', !!pattern[t][s]);
+    });
+  }
+
+  function highlightStep(step) {
+    var cells = document.querySelectorAll('#sequencer .seq-cell');
+    cells.forEach(function(c){
+      c.classList.toggle('active-step', parseInt(c.dataset.step, 10) === step);
+    });
+  }
+
+  var playBtn = document.getElementById('playBtn');
+  var clearBtn = document.getElementById('clearBtn');
+  var tempoUp = document.getElementById('tempoUp');
+  var tempoDown = document.getElementById('tempoDown');
+  var tempoDisplay = document.getElementById('tempoDisplay');
+
+  async function startSequencer() {
+    await arm();
+    if (loopId !== null) return;
+    Tone.Transport.bpm.value = tempo;
+    currentStep = 0;
+    // 16 steps per measure = sixteenth notes.
+    loopId = Tone.Transport.scheduleRepeat(function(time){
+      // Schedule hits for this step
+      TRACKS.forEach(function(trackName, tIdx){
+        if (pattern[tIdx][currentStep]) {
+          kit[trackName](time);
+        }
+      });
+      // Repaint UI on next animation frame (slight latency vs audio is fine)
+      var step = currentStep;
+      Tone.Draw.schedule(function(){ highlightStep(step); }, time);
+      currentStep = (currentStep + 1) % STEPS;
+    }, '16n');
+    Tone.Transport.start();
+    playBtn.textContent = '■ Stop';
+    playBtn.classList.add('playing');
+  }
+
+  function stopSequencer() {
+    if (loopId === null) return;
+    Tone.Transport.stop();
+    Tone.Transport.clear(loopId);
+    loopId = null;
+    highlightStep(-1);
+    playBtn.textContent = '▶ Play';
+    playBtn.classList.remove('playing');
+  }
+
+  playBtn.addEventListener('click', function(){
+    if (loopId === null) startSequencer(); else stopSequencer();
+  });
+  clearBtn.addEventListener('click', function(){
+    pattern = TRACKS.map(function(){ return Array(STEPS).fill(0); });
+    repaintSeq();
+  });
+  function setTempo(t) {
+    tempo = Math.max(60, Math.min(180, t));
+    tempoDisplay.textContent = tempo + ' BPM';
+    if (loopId !== null) Tone.Transport.bpm.value = tempo;
+  }
+  tempoUp.addEventListener('click', function(){ setTempo(tempo + 10); });
+  tempoDown.addEventListener('click', function(){ setTempo(tempo - 10); });
+
+  // ---------- Presets ----------
+  // Each preset is a 16-step pattern for [kick, snare, hat, clap].
+  var PRESETS = {
+    rock: [
+      [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],  // kick on 1,5,9,13
+      [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],  // snare on 5,13
+      [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0],  // hat 8th notes
+      [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+    ],
+    hiphop: [
+      [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+      [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+      [1,0,1,1, 1,0,1,0, 1,0,1,1, 1,0,1,0],
+      [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    ],
+    four: [
+      [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+      [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+      [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+      [0,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,1],
+    ],
+  };
+  document.querySelectorAll('[data-preset]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var p = PRESETS[btn.dataset.preset];
+      if (!p) return;
+      pattern = p.map(function(row){ return row.slice(); });
+      repaintSeq();
+    });
+  });
+
+  // ---------- Telemetry ping ----------
+  // Light fire-and-forget — used elsewhere in the app for session tracking.
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'sound-stage', activity:'beat-box' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

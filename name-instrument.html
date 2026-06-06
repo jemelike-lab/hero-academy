@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Name That Instrument · Sound Stage</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family:var(--font-display);
+    background:radial-gradient(circle at 50% 20%, var(--bg-purple) 0%, var(--bg-deep) 50%, var(--bg-space) 100%);
+    color:#fff; min-height:100vh; overflow-x:hidden;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+    user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  header.nti-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; gap:12px;
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:14px;
+    padding:9px 14px; border-radius:999px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  h1.title {
+    font-family:var(--font-title); font-size:22px; color:var(--gold);
+    text-shadow:0 2px 8px rgba(255,209,71,0.35);
+    margin:0; flex:1; text-align:center;
+  }
+  .header-spacer { width:80px; }
+
+  .score-bar {
+    display:flex; justify-content:space-around; align-items:center;
+    padding:0 18px 14px; gap:12px;
+    font-size:13px; font-weight:600;
+  }
+  .score-bar .pill {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    border-radius:999px; padding:7px 18px;
+  }
+  .score-bar .pill strong { color:var(--gold); font-family:var(--font-title); font-size:18px; margin-right:4px; }
+
+  .main-area {
+    max-width:520px; margin:0 auto; padding:0 18px 22px;
+  }
+  .listen-card {
+    background:linear-gradient(135deg, rgba(168,85,247,0.18), rgba(20,184,212,0.12));
+    border:2px solid rgba(168,85,247,0.4); border-radius:24px;
+    padding:30px 22px; text-align:center;
+    margin-bottom:18px;
+  }
+  .listen-card .prompt {
+    font-size:15px; font-weight:600; opacity:0.85;
+    margin-bottom:18px;
+  }
+  .big-play {
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color:var(--bg-deep); border:none;
+    font-family:var(--font-display); font-weight:800; font-size:18px;
+    padding:18px 36px; border-radius:999px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(255,209,71,0.45);
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .big-play:active { transform:scale(0.96); }
+  .big-play .play-icon { font-size:22px; }
+  .big-play.playing { background:linear-gradient(135deg, var(--magenta), var(--violet)); color:#fff; }
+  .replay-hint {
+    margin-top:12px; font-size:12px; opacity:0.7;
+  }
+
+  .choices-grid {
+    display:grid; grid-template-columns:repeat(2, 1fr);
+    gap:12px;
+  }
+  .choice-btn {
+    background:linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    border:2px solid var(--border-light); border-radius:18px;
+    padding:18px 12px;
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:15px;
+    cursor:pointer; transition:transform .12s, box-shadow .12s, background .12s;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .choice-btn:active { transform:scale(0.96); }
+  .choice-btn .emoji { font-size:42px; line-height:1; }
+  .choice-btn.correct {
+    background:linear-gradient(135deg, var(--emerald), #1aa86e);
+    border-color:var(--emerald);
+    box-shadow:0 0 0 3px rgba(46,194,126,0.6), 0 0 24px rgba(46,194,126,0.5);
+  }
+  .choice-btn.wrong {
+    background:linear-gradient(135deg, var(--red), #c62a2a);
+    border-color:var(--red);
+  }
+  .choice-btn.disabled { pointer-events:none; opacity:0.65; }
+
+  /* Final screen */
+  .final-card {
+    background:linear-gradient(135deg, rgba(255,209,71,0.18), rgba(236,72,153,0.12));
+    border:2px solid rgba(255,209,71,0.4); border-radius:24px;
+    padding:30px 22px; text-align:center;
+  }
+  .final-card h2 {
+    font-family:var(--font-title); font-size:28px; color:var(--gold);
+    margin-bottom:12px;
+  }
+  .final-card .big-score {
+    font-family:var(--font-title); font-size:52px; color:#fff;
+    margin:12px 0;
+  }
+  .final-card .quip {
+    font-size:15px; line-height:1.45; opacity:0.92; margin-bottom:18px;
+  }
+  .final-card button {
+    background:var(--gold); color:var(--bg-deep); border:none;
+    font-family:var(--font-display); font-weight:700; font-size:16px;
+    padding:13px 28px; border-radius:999px; cursor:pointer;
+    box-shadow:0 6px 18px rgba(255,209,71,0.45);
+    margin:6px;
+  }
+  .final-card button.secondary {
+    background:var(--surface-glass); color:#fff;
+    border:1px solid var(--border-light); box-shadow:none;
+  }
+  .hide { display:none !important; }
+
+  .welcome-strip {
+    background:rgba(255,209,71,0.08); border:1px solid rgba(255,209,71,0.22);
+    border-radius:14px; padding:10px 14px; margin:0 18px 14px;
+    font-size:13px; color:rgba(255,255,255,0.92); text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<header class="nti-header">
+  <a href="sound-stage.html" class="back-btn">← Back</a>
+  <h1 class="title">🎼 Name That Instrument</h1>
+  <div class="header-spacer"></div>
+</header>
+
+<div class="welcome-strip" id="welcomeStripText">
+  Listen to the sound, then pick the right instrument.
+</div>
+
+<div class="score-bar">
+  <div class="pill">Round <strong id="roundNum">1</strong>/10</div>
+  <div class="pill">Score <strong id="scoreNum">0</strong></div>
+</div>
+
+<div class="main-area">
+  <!-- Quiz view -->
+  <section id="quizView">
+    <div class="listen-card">
+      <div class="prompt">Listen carefully — what instrument is this?</div>
+      <button class="big-play" id="playBtn">
+        <span class="play-icon">▶</span><span>Play sound</span>
+      </button>
+      <div class="replay-hint" id="replayHint">Tap to play. You can replay before answering.</div>
+    </div>
+    <div class="choices-grid" id="choicesGrid"></div>
+  </section>
+
+  <!-- Final screen -->
+  <section id="finalView" class="hide">
+    <div class="final-card">
+      <h2 id="finalHeadline">Nice work!</h2>
+      <div class="big-score"><span id="finalScore">0</span>/10</div>
+      <div class="quip" id="finalQuip">You're getting great at this.</div>
+      <button id="againBtn">Play again</button>
+      <a href="sound-stage.html" class="back-btn" style="margin:6px; padding:13px 28px; font-size:16px;">← Sound Stage</a>
+    </div>
+  </section>
+</div>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-name-instrument', kidName:'Nigel',
+    });
+  }
+
+  // ---------- Instrument synth recipes ----------
+  // Each plays a short 4-note motif (C-E-G-C) so the player hears the timbre,
+  // not just one note. The motifs are designed to be ~2.5 seconds.
+  var armed = false;
+  var synths = null;
+
+  function buildSynths() {
+    var comp = new Tone.Compressor(-18, 4).toDestination();
+
+    var piano = new Tone.Sampler({
+      urls: { A3:'A3.mp3', C4:'C4.mp3', 'D#4':'Ds4.mp3', 'F#4':'Fs4.mp3', A4:'A4.mp3' },
+      release:1, baseUrl:'https://tonejs.github.io/audio/salamander/',
+    }).connect(comp);
+    piano.volume.value = -6;
+
+    var drums = {
+      kick: new Tone.MembraneSynth({pitchDecay:0.05, octaves:6}).connect(comp),
+      snareNoise: new Tone.NoiseSynth({noise:{type:'white'}, envelope:{attack:0.001,decay:0.15,sustain:0}}).connect(comp),
+    };
+    drums.kick.volume.value = -2;
+    drums.snareNoise.volume.value = -10;
+
+    var guitar = new Tone.PluckSynth({
+      attackNoise:1, dampening:4000, resonance:0.92,
+    }).connect(comp);
+    guitar.volume.value = -2;
+
+    var trumpet = new Tone.FMSynth({
+      harmonicity:1.5, modulationIndex:8,
+      oscillator:{type:'sawtooth'},
+      envelope:{attack:0.05, decay:0.1, sustain:0.6, release:0.4},
+      modulation:{type:'square'},
+      modulationEnvelope:{attack:0.04, decay:0.2, sustain:0.5, release:0.4},
+    }).connect(comp);
+    trumpet.volume.value = -10;
+
+    var flute = new Tone.AMSynth({
+      harmonicity:2,
+      oscillator:{type:'sine'},
+      envelope:{attack:0.12, decay:0.05, sustain:0.85, release:0.6},
+      modulation:{type:'sine'},
+      modulationEnvelope:{attack:0.1, decay:0.1, sustain:0.4, release:0.5},
+    }).connect(comp);
+    flute.volume.value = -8;
+
+    var violin = new Tone.AMSynth({
+      harmonicity:3,
+      oscillator:{type:'sawtooth'},
+      envelope:{attack:0.2, decay:0.1, sustain:0.85, release:0.6},
+      modulation:{type:'sine'},
+      modulationEnvelope:{attack:0.15, decay:0.2, sustain:0.6, release:0.5},
+    }).connect(comp);
+    violin.volume.value = -12;
+    // Subtle vibrato
+    var violinLfo = new Tone.LFO('5hz', -8, 8).start();
+    violinLfo.connect(violin.detune);
+
+    var xylophone = new Tone.FMSynth({
+      harmonicity:8, modulationIndex:2,
+      oscillator:{type:'sine'},
+      envelope:{attack:0.001, decay:0.25, sustain:0, release:0.3},
+      modulation:{type:'sine'},
+      modulationEnvelope:{attack:0.001, decay:0.1, sustain:0, release:0.1},
+    }).connect(comp);
+    xylophone.volume.value = -6;
+
+    var sax = new Tone.FMSynth({
+      harmonicity:1, modulationIndex:14,
+      oscillator:{type:'sawtooth'},
+      envelope:{attack:0.08, decay:0.1, sustain:0.7, release:0.5},
+      modulation:{type:'sawtooth'},
+      modulationEnvelope:{attack:0.05, decay:0.1, sustain:0.5, release:0.5},
+    }).connect(comp);
+    sax.volume.value = -10;
+
+    function playMotif(s, notes, dur) {
+      var t = Tone.now() + 0.1;
+      notes.forEach(function(n, i){
+        s.triggerAttackRelease(n, dur, t + i * dur * 0.85);
+      });
+    }
+
+    return {
+      piano: function(){ playMotif(piano, ['C4','E4','G4','C5'], 0.45); },
+      drums: function(){
+        var t = Tone.now() + 0.1;
+        // K-S-K-S pattern
+        drums.kick.triggerAttackRelease('C1', '8n', t);
+        drums.snareNoise.triggerAttackRelease('16n', t + 0.4);
+        drums.kick.triggerAttackRelease('C1', '8n', t + 0.8);
+        drums.snareNoise.triggerAttackRelease('16n', t + 1.2);
+        drums.kick.triggerAttackRelease('C1', '8n', t + 1.6);
+        drums.snareNoise.triggerAttackRelease('16n', t + 2.0);
+      },
+      guitar: function(){ playMotif(guitar, ['C3','E3','G3','C4'], 0.5); },
+      trumpet: function(){ playMotif(trumpet, ['C4','E4','G4','C5'], 0.5); },
+      flute: function(){ playMotif(flute, ['G4','B4','D5','G5'], 0.5); },
+      violin: function(){ playMotif(violin, ['G3','B3','D4','G4'], 0.55); },
+      xylophone: function(){ playMotif(xylophone, ['C5','E5','G5','C6'], 0.4); },
+      sax: function(){ playMotif(sax, ['G3','C4','E4','G4'], 0.55); },
+    };
+  }
+
+  async function arm() {
+    if (armed) return;
+    try { await Tone.start(); } catch(e){}
+    if (!synths) synths = buildSynths();
+    // Give piano sampler a moment to load (cached after first time)
+    await new Promise(function(res){ setTimeout(res, 200); });
+    armed = true;
+  }
+
+  // ---------- Instrument catalog ----------
+  var CATALOG = [
+    { id:'piano',     name:'Piano',     emoji:'🎹' },
+    { id:'drums',     name:'Drums',     emoji:'🥁' },
+    { id:'guitar',    name:'Guitar',    emoji:'🎸' },
+    { id:'trumpet',   name:'Trumpet',   emoji:'🎺' },
+    { id:'flute',     name:'Flute',     emoji:'🪈' },
+    { id:'violin',    name:'Violin',    emoji:'🎻' },
+    { id:'xylophone', name:'Xylophone', emoji:'🎶' },
+    { id:'sax',       name:'Saxophone', emoji:'🎷' },
+  ];
+
+  // ---------- Game state ----------
+  var TOTAL_ROUNDS = 10;
+  var round = 0;
+  var score = 0;
+  var currentAnswer = null;
+  var answered = false;
+  var deck = [];  // shuffled CATALOG, ensures each instrument appears once before repeat
+
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function refillDeck() {
+    deck = shuffle(CATALOG.slice());
+  }
+
+  function nextRound() {
+    if (round >= TOTAL_ROUNDS) {
+      showFinal();
+      return;
+    }
+    round++;
+    document.getElementById('roundNum').textContent = String(round);
+    if (deck.length === 0) refillDeck();
+    currentAnswer = deck.pop();
+
+    // Build 4 choices: the correct one + 3 random distractors
+    var distractors = shuffle(CATALOG.filter(function(c){ return c.id !== currentAnswer.id; })).slice(0, 3);
+    var choices = shuffle([currentAnswer].concat(distractors));
+
+    var grid = document.getElementById('choicesGrid');
+    grid.innerHTML = '';
+    choices.forEach(function(c){
+      var btn = document.createElement('button');
+      btn.className = 'choice-btn';
+      btn.dataset.id = c.id;
+      btn.innerHTML = '<span class="emoji">' + c.emoji + '</span><span>' + c.name + '</span>';
+      btn.addEventListener('click', function(){ onChoice(c.id, btn); });
+      grid.appendChild(btn);
+    });
+    answered = false;
+    document.getElementById('replayHint').textContent = 'Tap to play. You can replay before answering.';
+    // Auto-play the sound after a brief beat so the player hears it without extra taps
+    setTimeout(function(){ playCurrent(); }, 350);
+  }
+
+  function playCurrent() {
+    if (!currentAnswer || !synths) return;
+    var btn = document.getElementById('playBtn');
+    btn.classList.add('playing');
+    var fn = synths[currentAnswer.id];
+    if (fn) fn();
+    setTimeout(function(){ btn.classList.remove('playing'); }, 2500);
+  }
+
+  function onChoice(id, btn) {
+    if (answered) return;
+    answered = true;
+    var grid = document.getElementById('choicesGrid');
+    grid.querySelectorAll('.choice-btn').forEach(function(b){
+      b.classList.add('disabled');
+      if (b.dataset.id === currentAnswer.id) b.classList.add('correct');
+    });
+    if (id === currentAnswer.id) {
+      score++;
+      document.getElementById('scoreNum').textContent = String(score);
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('quick-praise', { kidName:'Nigel', text:'Yes! That was the ' + currentAnswer.name + '.' });
+        }
+      } catch(e){}
+    } else {
+      btn.classList.add('wrong');
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('soft-redirect', { kidName:'Nigel', text:'That was the ' + currentAnswer.name + '. Listen for it next round.' });
+        }
+      } catch(e){}
+    }
+    setTimeout(nextRound, 1900);
+  }
+
+  function showFinal() {
+    document.getElementById('quizView').classList.add('hide');
+    document.getElementById('finalView').classList.remove('hide');
+    document.getElementById('finalScore').textContent = String(score);
+    var headline, quip;
+    if (score >= 9)      { headline = 'Music Master!';        quip = 'Wow — almost perfect ears on you.'; }
+    else if (score >= 7) { headline = 'Great listening!';     quip = 'You really know your instruments.'; }
+    else if (score >= 5) { headline = 'Nice work!';           quip = 'Halfway to expert — try again!'; }
+    else                 { headline = 'Good listening!';      quip = 'Some of these are tricky. Try once more.'; }
+    document.getElementById('finalHeadline').textContent = headline;
+    document.getElementById('finalQuip').textContent = quip;
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+        window.HeroAcademy.Humphrey.say('quick-praise', { kidName:'Nigel', text:headline + ' You got ' + score + ' out of ' + TOTAL_ROUNDS + '.' });
+      }
+    } catch(e){}
+  }
+
+  // ---------- Wire up ----------
+  var playBtn = document.getElementById('playBtn');
+  playBtn.addEventListener('click', async function(){
+    await arm();
+    if (currentAnswer === null) nextRound();
+    else playCurrent();
+  });
+
+  document.getElementById('againBtn').addEventListener('click', function(){
+    round = 0; score = 0; currentAnswer = null;
+    document.getElementById('scoreNum').textContent = '0';
+    document.getElementById('finalView').classList.add('hide');
+    document.getElementById('quizView').classList.remove('hide');
+    refillDeck();
+    nextRound();
+  });
+
+  refillDeck();
+  // First round will be triggered by the first Play tap (need user gesture for audio).
+
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'sound-stage', activity:'name-instrument' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

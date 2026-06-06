@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b2e">
+<title>Sing It Back · Sound Stage</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+<style>
+  :root {
+    --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+    --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+    --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+    --red:#ef4444; --orange:#ff8b3d;
+    --surface-glass:rgba(255,255,255,0.08);
+    --border-light:rgba(255,255,255,0.18);
+    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+    --font-title:'Cherry Bomb One',var(--font-display);
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family:var(--font-display);
+    background:radial-gradient(circle at 50% 20%, var(--bg-purple) 0%, var(--bg-deep) 50%, var(--bg-space) 100%);
+    color:#fff; min-height:100vh; overflow-x:hidden;
+    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+    user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  header.sib-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; gap:12px;
+  }
+  .back-btn {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:14px;
+    padding:9px 14px; border-radius:999px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+  }
+  .back-btn:active { transform:scale(0.96); }
+  h1.title {
+    font-family:var(--font-title); font-size:22px; color:var(--gold);
+    text-shadow:0 2px 8px rgba(255,209,71,0.35);
+    margin:0; flex:1; text-align:center;
+  }
+  .header-spacer { width:80px; }
+
+  .progress-bar {
+    display:flex; justify-content:center; gap:6px; padding:0 18px 14px;
+  }
+  .progress-dot {
+    width:18px; height:6px; border-radius:3px;
+    background:rgba(255,255,255,0.18);
+    transition:background .25s;
+  }
+  .progress-dot.done { background:var(--emerald); }
+  .progress-dot.current { background:var(--gold); }
+
+  .main-area {
+    max-width:520px; margin:0 auto; padding:0 18px 22px;
+  }
+
+  .pattern-card {
+    background:linear-gradient(135deg, rgba(168,85,247,0.22), rgba(236,72,153,0.18));
+    border:2px solid rgba(168,85,247,0.45); border-radius:24px;
+    padding:26px 22px; text-align:center;
+    margin-bottom:18px;
+  }
+  .pattern-card .label {
+    font-size:12px; font-weight:700; letter-spacing:0.14em;
+    text-transform:uppercase; opacity:0.75; margin-bottom:8px;
+  }
+  .pattern-card .syllables {
+    font-family:var(--font-title); font-size:32px; color:var(--gold-bright);
+    text-shadow:0 2px 12px rgba(255,209,71,0.45);
+    letter-spacing:0.04em; margin-bottom:10px;
+  }
+  .pattern-card .hint {
+    font-size:13px; opacity:0.78; margin-top:6px;
+  }
+  .pattern-card button {
+    background:var(--gold); color:var(--bg-deep); border:none;
+    font-family:var(--font-display); font-weight:700; font-size:15px;
+    padding:11px 22px; border-radius:999px; cursor:pointer;
+    box-shadow:0 6px 16px rgba(255,209,71,0.4);
+    margin-top:10px;
+  }
+  .pattern-card button:active { transform:scale(0.96); }
+
+  /* Mic */
+  .mic-section {
+    text-align:center; margin:18px 0;
+  }
+  .mic-button {
+    width:130px; height:130px; border-radius:50%;
+    background:linear-gradient(135deg, var(--magenta), var(--violet));
+    border:4px solid #fff;
+    color:#fff; font-size:54px; cursor:pointer;
+    box-shadow:0 12px 32px rgba(236,72,153,0.55);
+    display:inline-flex; align-items:center; justify-content:center;
+    transition:transform .15s;
+    position:relative;
+  }
+  .mic-button:active { transform:scale(0.94); }
+  .mic-button.recording {
+    background:linear-gradient(135deg, var(--red), #c62a2a);
+    animation:pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow:0 12px 32px rgba(239,68,68,0.55); transform:scale(1); }
+    50%      { box-shadow:0 12px 48px rgba(239,68,68,0.85); transform:scale(1.05); }
+  }
+  .mic-button.disabled {
+    background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.2);
+    color:rgba(255,255,255,0.4); pointer-events:none;
+    box-shadow:none;
+  }
+  .mic-label {
+    margin-top:14px; font-size:14px; font-weight:600; opacity:0.9;
+    min-height:21px;
+  }
+  .countdown {
+    font-family:var(--font-title); font-size:28px;
+    color:var(--gold); margin-top:8px; min-height:36px;
+  }
+
+  /* Playback */
+  .playback-section {
+    background:rgba(255,255,255,0.04); border:1px solid var(--border-light);
+    border-radius:18px; padding:18px; text-align:center;
+    margin-top:18px;
+  }
+  .playback-section.hide { display:none; }
+  .playback-section .small-label {
+    font-size:12px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; opacity:0.7; margin-bottom:10px;
+  }
+  .playback-buttons { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .playback-buttons button {
+    background:var(--surface-glass); border:1px solid var(--border-light);
+    color:#fff; font-family:var(--font-display); font-weight:600; font-size:14px;
+    padding:10px 16px; border-radius:10px; cursor:pointer;
+  }
+  .playback-buttons button:active { transform:scale(0.96); }
+  .playback-buttons button.primary {
+    background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright);
+  }
+
+  /* Permission denied / unsupported */
+  .err-card {
+    background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.4);
+    border-radius:14px; padding:14px 18px; margin:16px 0;
+    font-size:14px; line-height:1.5;
+  }
+  .err-card.hide { display:none; }
+  .err-card strong { color:#ffb4b4; }
+
+  /* Final */
+  .final-card {
+    background:linear-gradient(135deg, rgba(255,209,71,0.18), rgba(236,72,153,0.12));
+    border:2px solid rgba(255,209,71,0.4); border-radius:24px;
+    padding:30px 22px; text-align:center;
+  }
+  .final-card h2 {
+    font-family:var(--font-title); font-size:28px; color:var(--gold);
+    margin-bottom:12px;
+  }
+  .final-card .quip { font-size:15px; line-height:1.45; opacity:0.92; margin-bottom:18px; }
+  .final-card button {
+    background:var(--gold); color:var(--bg-deep); border:none;
+    font-family:var(--font-display); font-weight:700; font-size:16px;
+    padding:13px 28px; border-radius:999px; cursor:pointer;
+    box-shadow:0 6px 18px rgba(255,209,71,0.45);
+    margin:6px;
+  }
+  .hide { display:none !important; }
+
+  .welcome-strip {
+    background:rgba(255,209,71,0.08); border:1px solid rgba(255,209,71,0.22);
+    border-radius:14px; padding:10px 14px; margin:0 18px 14px;
+    font-size:13px; color:rgba(255,255,255,0.92); text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<header class="sib-header">
+  <a href="sound-stage.html" class="back-btn">← Back</a>
+  <h1 class="title">🎤 Sing It Back</h1>
+  <div class="header-spacer"></div>
+</header>
+
+<div class="welcome-strip" id="welcomeStripText">
+  Listen to the pattern, then tap the mic and sing it back!
+</div>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<div class="main-area">
+  <section id="quizView">
+    <div class="pattern-card">
+      <div class="label">Sing this back</div>
+      <div class="syllables" id="patternSyllables">—</div>
+      <div class="hint" id="patternHint">Tap to hear it</div>
+      <button id="listenBtn">▶ Hear the pattern</button>
+    </div>
+
+    <div class="mic-section">
+      <button class="mic-button disabled" id="micBtn" aria-label="Record">🎤</button>
+      <div class="mic-label" id="micLabel">Listen first, then sing it back</div>
+      <div class="countdown" id="countdown"></div>
+    </div>
+
+    <div class="playback-section hide" id="playbackSection">
+      <div class="small-label">Your recording</div>
+      <div class="playback-buttons">
+        <button id="playMineBtn" class="primary">▶ Hear yours</button>
+        <button id="redoBtn">↻ Try again</button>
+        <button id="nextBtn">Next →</button>
+      </div>
+    </div>
+
+    <div class="err-card hide" id="errCard"></div>
+  </section>
+
+  <section id="finalView" class="hide">
+    <div class="final-card">
+      <h2 id="finalHeadline">Beautiful singing!</h2>
+      <div class="quip">You sang back <span id="finalCount">0</span> patterns today. That's how singers practice — listening, then matching with their voice.</div>
+      <button id="againBtn">Sing more</button>
+      <a href="sound-stage.html" class="back-btn" style="margin:6px; padding:13px 28px; font-size:16px;">← Sound Stage</a>
+    </div>
+  </section>
+</div>
+
+<!-- Humphrey -->
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-sing-it-back', kidName:'Nigel',
+    });
+  }
+
+  // ---------- Patterns ----------
+  // Each pattern: syllables shown to Nigel, notes played as a melody.
+  // Notes are simple 3-5 note phrases in the kid-friendly C/G major range.
+  var PATTERNS = [
+    { id:'do-re-mi',     syllables:'Do — Re — Mi',     hint:'Three notes going up',     notes:['C4','D4','E4'] },
+    { id:'mi-re-do',     syllables:'Mi — Re — Do',     hint:'Three notes coming down',  notes:['E4','D4','C4'] },
+    { id:'high-low-hi',  syllables:'High — Low — High', hint:'Up, down, up again',      notes:['E4','C4','E4'] },
+    { id:'sol-mi-do',    syllables:'Sol — Mi — Do',    hint:'Stepping all the way down', notes:['G4','E4','C4'] },
+    { id:'cdefg',        syllables:'Up, up, up, up!',  hint:'Five notes climbing',       notes:['C4','D4','E4','F4','G4'] },
+  ];
+
+  // ---------- Voice synth (the "call") ----------
+  // Tone.AMSynth with a vocal-ish envelope reads as "la-la-la"-style singing.
+  var armed = false;
+  var voice = null;
+
+  function buildVoice() {
+    voice = new Tone.AMSynth({
+      harmonicity:2,
+      oscillator:{type:'sine'},
+      envelope:{attack:0.06, decay:0.05, sustain:0.85, release:0.35},
+      modulation:{type:'sine'},
+      modulationEnvelope:{attack:0.05, decay:0.1, sustain:0.6, release:0.3},
+    }).toDestination();
+    voice.volume.value = -8;
+    // Subtle vibrato so it sounds vocal
+    var vibrato = new Tone.LFO('5.5hz', -10, 10).start();
+    vibrato.connect(voice.detune);
+  }
+
+  async function arm() {
+    if (armed) return;
+    try { await Tone.start(); } catch(e){}
+    if (!voice) buildVoice();
+    armed = true;
+  }
+
+  function playPattern(p) {
+    if (!voice) return Promise.resolve();
+    var t = Tone.now() + 0.1;
+    var dur = 0.6;
+    p.notes.forEach(function(n, i){
+      voice.triggerAttackRelease(n, dur, t + i * dur * 0.95);
+    });
+    var total = p.notes.length * dur * 0.95 + 0.2;
+    return new Promise(function(res){ setTimeout(res, total * 1000); });
+  }
+
+  // ---------- Mic + recording ----------
+  var micStream = null;
+  var recorder = null;
+  var recordedBlob = null;
+  var recordedUrl = null;
+  var micPermissionState = 'unknown';  // unknown | granted | denied | unsupported
+  var currentAudio = null;
+
+  function showErr(html) {
+    var el = document.getElementById('errCard');
+    el.innerHTML = html;
+    el.classList.remove('hide');
+  }
+  function hideErr() {
+    document.getElementById('errCard').classList.add('hide');
+  }
+
+  function isSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  }
+
+  async function ensureMic() {
+    if (micStream) return true;
+    if (!isSupported()) {
+      micPermissionState = 'unsupported';
+      showErr("<strong>Your browser can't record audio.</strong> Try Chrome on the Galaxy Tab.");
+      return false;
+    }
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      micPermissionState = 'granted';
+      hideErr();
+      return true;
+    } catch (e) {
+      micPermissionState = 'denied';
+      showErr('<strong>Microphone permission needed.</strong> Tap the lock icon in the address bar, allow microphone, then refresh.');
+      return false;
+    }
+  }
+
+  function pickMime() {
+    var prefer = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+    for (var i = 0; i < prefer.length; i++) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(prefer[i])) return prefer[i];
+    }
+    return '';
+  }
+
+  function startRecording() {
+    if (!micStream) return;
+    if (recordedUrl) { URL.revokeObjectURL(recordedUrl); recordedUrl = null; }
+    var mime = pickMime();
+    var opts = mime ? { mimeType:mime } : undefined;
+    var chunks = [];
+    recorder = new MediaRecorder(micStream, opts);
+    recorder.ondataavailable = function(e){ if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = function(){
+      recordedBlob = new Blob(chunks, { type: mime || 'audio/webm' });
+      recordedUrl = URL.createObjectURL(recordedBlob);
+      onRecordingDone();
+    };
+    recorder.start();
+  }
+
+  function stopRecording() {
+    if (recorder && recorder.state === 'recording') {
+      try { recorder.stop(); } catch(e){}
+    }
+  }
+
+  // ---------- Game state ----------
+  var deck = [];
+  var currentPattern = null;
+  var roundIdx = 0;
+  var TOTAL = PATTERNS.length;
+
+  function buildProgress() {
+    var bar = document.getElementById('progressBar');
+    bar.innerHTML = '';
+    for (var i = 0; i < TOTAL; i++) {
+      var d = document.createElement('div');
+      d.className = 'progress-dot';
+      bar.appendChild(d);
+    }
+  }
+  function repaintProgress() {
+    var dots = document.querySelectorAll('#progressBar .progress-dot');
+    dots.forEach(function(d, i){
+      d.classList.remove('done', 'current');
+      if (i < roundIdx) d.classList.add('done');
+      else if (i === roundIdx) d.classList.add('current');
+    });
+  }
+
+  function showQuiz() {
+    document.getElementById('quizView').classList.remove('hide');
+    document.getElementById('finalView').classList.add('hide');
+  }
+
+  function loadRound() {
+    if (roundIdx >= TOTAL) { showFinal(); return; }
+    currentPattern = PATTERNS[roundIdx];
+    document.getElementById('patternSyllables').textContent = currentPattern.syllables;
+    document.getElementById('patternHint').textContent = currentPattern.hint;
+    document.getElementById('playbackSection').classList.add('hide');
+    document.getElementById('micLabel').textContent = 'Listen first, then sing it back';
+    document.getElementById('countdown').textContent = '';
+    setMicEnabled(false);
+    repaintProgress();
+  }
+
+  function setMicEnabled(on) {
+    var b = document.getElementById('micBtn');
+    if (on) b.classList.remove('disabled');
+    else b.classList.add('disabled');
+  }
+
+  async function listenToPattern() {
+    await arm();
+    if (!currentPattern) return;
+    document.getElementById('micLabel').textContent = 'Listening to Ms. Humphrey…';
+    await playPattern(currentPattern);
+    document.getElementById('micLabel').textContent = 'Now tap the mic and sing it back!';
+    setMicEnabled(true);
+  }
+
+  async function onMicTap() {
+    if (!currentPattern) return;
+    if (recorder && recorder.state === 'recording') {
+      // Stop early
+      stopRecording();
+      var b = document.getElementById('micBtn');
+      b.classList.remove('recording');
+      b.textContent = '🎤';
+      document.getElementById('countdown').textContent = '';
+      return;
+    }
+    var ok = await ensureMic();
+    if (!ok) return;
+
+    startRecording();
+    var b = document.getElementById('micBtn');
+    b.classList.add('recording');
+    b.textContent = '■';
+    document.getElementById('micLabel').textContent = 'Sing! Tap again to stop early.';
+    // 5-second auto-stop with countdown
+    var remaining = 5;
+    document.getElementById('countdown').textContent = remaining + 's';
+    var iv = setInterval(function(){
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(iv);
+        document.getElementById('countdown').textContent = '';
+        if (recorder && recorder.state === 'recording') stopRecording();
+        b.classList.remove('recording');
+        b.textContent = '🎤';
+      } else {
+        document.getElementById('countdown').textContent = remaining + 's';
+      }
+    }, 1000);
+  }
+
+  function onRecordingDone() {
+    document.getElementById('micLabel').textContent = 'Great singing!';
+    document.getElementById('playbackSection').classList.remove('hide');
+    setMicEnabled(false);
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+        var praises = [
+          'Beautiful! Tap "Hear yours" to listen back.',
+          'I love your voice. Hear it back!',
+          'That sounded great, Nigel. Play it back!',
+          'Lovely! Listen to yourself sing.',
+        ];
+        var pick = praises[Math.floor(Math.random() * praises.length)];
+        window.HeroAcademy.Humphrey.say('quick-praise', { kidName:'Nigel', text:pick });
+      }
+    } catch(e){}
+  }
+
+  function playRecording() {
+    if (!recordedUrl) return;
+    if (currentAudio) { try { currentAudio.pause(); } catch(e){} }
+    currentAudio = new Audio(recordedUrl);
+    currentAudio.play().catch(function(){});
+  }
+
+  function showFinal() {
+    document.getElementById('quizView').classList.add('hide');
+    document.getElementById('finalView').classList.remove('hide');
+    document.getElementById('finalCount').textContent = String(TOTAL);
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+        window.HeroAcademy.Humphrey.say('quick-praise', { kidName:'Nigel', text:'Wonderful singing, Nigel! Singers practice their ears every day.' });
+      }
+    } catch(e){}
+  }
+
+  // ---------- Wire up ----------
+  document.getElementById('listenBtn').addEventListener('click', listenToPattern);
+  document.getElementById('micBtn').addEventListener('click', onMicTap);
+  document.getElementById('playMineBtn').addEventListener('click', playRecording);
+  document.getElementById('redoBtn').addEventListener('click', function(){
+    document.getElementById('playbackSection').classList.add('hide');
+    setMicEnabled(true);
+    document.getElementById('micLabel').textContent = 'Tap the mic and sing it back!';
+  });
+  document.getElementById('nextBtn').addEventListener('click', function(){
+    roundIdx++;
+    loadRound();
+  });
+  document.getElementById('againBtn').addEventListener('click', function(){
+    roundIdx = 0;
+    showQuiz();
+    loadRound();
+  });
+
+  // ---------- Boot ----------
+  buildProgress();
+  loadRound();
+
+  if (!isSupported()) {
+    showErr("<strong>Heads up:</strong> this browser doesn't support recording. Try Chrome on the Galaxy Tab.");
+  }
+
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'sound-stage', activity:'sing-it-back' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

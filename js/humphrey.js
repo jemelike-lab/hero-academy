@@ -545,6 +545,36 @@
         "Welcome in. Watching music is its own kind of magic.",
       ],
     },
+    'welcome-beat-box': {
+      expression: 'cheering',
+      lines: [
+        "Welcome to the Beat Box, {kidName}! Tap a drum pad to play.",
+        "Hi {kidName}! Time to make some beats. Tap any pad to start.",
+        "The Beat Box is open — let's build a beat together.",
+        "Drummer in the house! Tap a pad, {kidName}.",
+        "Beat Box ready, {kidName}. Free Play or Beat Maker — your call.",
+      ],
+    },
+    'welcome-name-instrument': {
+      expression: 'encouraging',
+      lines: [
+        "Welcome, {kidName}! Listen carefully and pick the right instrument.",
+        "Hi {kidName}! Ears on — let's see how well you know your instruments.",
+        "Time for Name That Instrument. Listen and choose.",
+        "Ready, {kidName}? Pick the instrument you hear.",
+        "Music quiz time, {kidName}! Tap Play to hear the sound.",
+      ],
+    },
+    'welcome-sing-it-back': {
+      expression: 'smile',
+      lines: [
+        "Welcome, {kidName}! I'll sing a little tune and you sing it back to me.",
+        "Hi {kidName}! Sing It Back is open. Tap to hear the pattern.",
+        "Time to sing, {kidName}. Listen first, then your turn.",
+        "Singers warm up by matching notes — let's try it together.",
+        "Ready to sing, {kidName}? Hear the pattern, then sing it back.",
+      ],
+    },
     // Fallback used if an unknown event is fired AND no { text } override
     // is supplied. Kept benign — no thinking-aloud filler.
     '_default': {
