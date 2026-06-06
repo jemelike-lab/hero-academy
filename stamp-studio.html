@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0b2e">
+<title>Stamp Studio · Creation Studio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+:root {
+  --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+  --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+  --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+  --red:#ef4444; --orange:#ff8b3d;
+  --surface-glass:rgba(255,255,255,0.08);
+  --border-light:rgba(255,255,255,0.18);
+  --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+  --font-title:'Cherry Bomb One',var(--font-display);
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family:var(--font-display);
+  background:radial-gradient(circle at 50% 0%, var(--bg-purple) 0%, var(--bg-deep) 60%, var(--bg-space) 100%);
+  color:#fff; min-height:100vh;
+  padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+  user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.top-bar { display:flex; align-items:center; gap:8px; padding:10px 12px 6px; }
+.btn-big {
+  font-family:var(--font-display); font-weight:700; font-size:14px;
+  padding:10px 16px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--border-light);
+  display:inline-flex; align-items:center; gap:6px; line-height:1;
+  text-decoration:none; white-space:nowrap;
+}
+.btn-big.back { background:var(--surface-glass); color:#fff; }
+.btn-big.save {
+  background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+  color:var(--bg-deep); border:1px solid var(--gold-bright);
+  box-shadow:0 4px 14px rgba(255,209,71,0.45);
+}
+.btn-big:active { transform:scale(0.96); }
+.title-pill {
+  flex:1; text-align:center; min-width:0; overflow:hidden;
+  font-family:var(--font-title); font-size:18px; color:var(--gold);
+  text-shadow:0 2px 8px rgba(255,209,71,0.35);
+}
+.icon-btn {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; font-size:18px;
+  width:38px; height:38px; border-radius:50%; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.icon-btn:active { transform:scale(0.94); }
+
+/* === Scene stage === */
+.stage-wrap {
+  position:relative;
+  display:flex; align-items:center; justify-content:center;
+  padding:6px 10px 4px;
+  height:calc(100vh - 60px - 70px - 120px - 70px - var(--safe-top) - var(--safe-bottom));
+  min-height:300px;
+}
+.scene {
+  position:relative; width:min(100%, calc(100vh - 60px - 70px - 120px - 70px - 30px));
+  aspect-ratio:1 / 1;
+  border-radius:18px; overflow:hidden;
+  box-shadow:0 20px 48px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.18);
+  touch-action:none;
+}
+.scene.bg-beach { background:linear-gradient(180deg, #87ceeb 0%, #87ceeb 55%, #f4d58d 55%, #c9985a 100%); }
+.scene.bg-space { background:linear-gradient(180deg, #050530 0%, #1a0844 50%, #3d1860 100%); }
+.scene.bg-jungle { background:linear-gradient(180deg, #aed581 0%, #66bb6a 60%, #2e7d32 100%); }
+.scene.bg-city { background:linear-gradient(180deg, #ff9a8b 0%, #fd5e85 35%, #4a3b69 75%, #1a1554 100%); }
+.scene.bg-castle { background:linear-gradient(180deg, #d4a4eb 0%, #ec4899 45%, #a855f7 100%); }
+/* Sprinkle of decoration emojis baked into the BG via pseudo-elements */
+.scene::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background-position:5% 12%, 25% 8%, 88% 14%, 70% 22%, 55% 6%;
+  background-repeat:no-repeat;
+  background-size:36px 36px;
+}
+.scene.bg-beach::before {
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36'><text x='0' y='28' font-size='28'>☁️</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36'><text x='0' y='28' font-size='28'>☀️</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36'><text x='0' y='28' font-size='28'>☁️</text></svg>");
+  background-position:8% 10%, 80% 14%, 50% 6%;
+}
+.scene.bg-space::before {
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>⭐</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>✨</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>🌟</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>⭐</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>✨</text></svg>");
+}
+.scene.bg-jungle::before {
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36'><text x='0' y='28' font-size='28'>☀️</text></svg>");
+  background-position:78% 8%;
+}
+.scene.bg-castle::before {
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>✨</text></svg>"),
+                   url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><text x='0' y='24' font-size='22'>⭐</text></svg>");
+  background-position:10% 8%, 85% 12%;
+}
+.placed-sticker {
+  position:absolute; cursor:grab;
+  line-height:1; user-select:none; -webkit-user-select:none;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.45));
+  touch-action:none;
+  transform:translate(-50%, -50%);
+}
+.placed-sticker.selected {
+  outline:3px dashed var(--gold); outline-offset:4px; border-radius:8px;
+}
+.placed-sticker.dragging { cursor:grabbing; opacity:0.85; }
+.sticker-actions {
+  position:fixed; z-index:50;
+  background:rgba(0,0,0,0.85); border-radius:10px;
+  padding:6px; display:flex; gap:4px;
+  border:1px solid var(--border-light);
+}
+.sticker-actions button {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; padding:6px 10px; border-radius:6px;
+  cursor:pointer; font-size:14px;
+}
+.sticker-actions button.danger { background:rgba(239,68,68,0.25); border-color:var(--red); }
+
+/* === Background picker === */
+.bg-picker {
+  display:flex; gap:6px; padding:8px 12px;
+  background:rgba(0,0,0,0.25); border-top:1px solid var(--border-light);
+  overflow-x:auto; height:70px; align-items:center; flex-shrink:0;
+}
+.bg-chip {
+  flex-shrink:0; height:48px; padding:0 14px;
+  border-radius:12px;
+  font-family:var(--font-display); font-weight:700; font-size:13px;
+  color:#fff; cursor:pointer; border:2px solid transparent;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.bg-chip:active { transform:scale(0.95); }
+.bg-chip.active { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-bright); }
+.bg-chip.beach  { background:linear-gradient(135deg, #87ceeb, #f4d58d); color:#1a1554; }
+.bg-chip.space  { background:linear-gradient(135deg, #1a0844, #3d1860); }
+.bg-chip.jungle { background:linear-gradient(135deg, #aed581, #2e7d32); }
+.bg-chip.city   { background:linear-gradient(135deg, #fd5e85, #1a1554); }
+.bg-chip.castle { background:linear-gradient(135deg, #d4a4eb, #a855f7); }
+
+/* === Sticker tray with category tabs === */
+.sticker-tray-wrap {
+  position:fixed; left:0; right:0; bottom:0; z-index:10;
+  background:rgba(0,0,0,0.3); border-top:1px solid var(--border-light);
+  padding-bottom:calc(8px + var(--safe-bottom));
+}
+.cat-tabs {
+  display:flex; gap:4px; padding:6px 8px 0; overflow-x:auto;
+}
+.cat-tab {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; font-family:var(--font-display); font-weight:600; font-size:12px;
+  padding:5px 10px; border-radius:8px 8px 0 0; cursor:pointer;
+  flex-shrink:0; white-space:nowrap;
+}
+.cat-tab.active { background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright); }
+.sticker-tray {
+  display:flex; gap:6px; padding:6px 8px 8px;
+  overflow-x:auto;
+  height:60px; align-items:center;
+}
+.sticker-btn {
+  width:46px; height:46px;
+  background:rgba(255,255,255,0.08); border:1px solid var(--border-light);
+  border-radius:12px; cursor:pointer; font-size:24px;
+  display:inline-flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.sticker-btn:active { transform:scale(0.9); }
+
+.toast {
+  position:fixed; bottom:160px; left:50%; transform:translateX(-50%);
+  background:var(--emerald); color:#fff;
+  font-weight:700; font-size:14px;
+  padding:10px 18px; border-radius:999px;
+  box-shadow:0 6px 24px rgba(46,194,126,0.6);
+  z-index:200; pointer-events:none;
+  opacity:0; transition:opacity .25s, transform .25s;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(-6px); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="creation-studio.html" class="btn-big back">← BACK</a>
+  <div class="title-pill">🎭 Stamp Studio</div>
+  <button class="icon-btn" id="clearBtn" title="Clear all stickers">✕</button>
+  <button class="btn-big save" id="saveBtn">💾 SAVE</button>
+</div>
+
+<div class="bg-picker" id="bgPicker">
+  <button class="bg-chip beach active" data-bg="beach">🏖️ Beach</button>
+  <button class="bg-chip space" data-bg="space">🚀 Space</button>
+  <button class="bg-chip jungle" data-bg="jungle">🌴 Jungle</button>
+  <button class="bg-chip city" data-bg="city">🏙️ City</button>
+  <button class="bg-chip castle" data-bg="castle">🏰 Castle</button>
+</div>
+
+<div class="stage-wrap">
+  <div class="scene bg-beach" id="scene"></div>
+</div>
+
+<div class="sticker-tray-wrap">
+  <div class="cat-tabs" id="catTabs"></div>
+  <div class="sticker-tray" id="stickerTray"></div>
+</div>
+
+<div class="toast" id="toast">Saved!</div>
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script src="js/art-gallery.js"></script>
+<script>
+(function(){
+  'use strict';
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-stamp-studio', kidName:'Nigel',
+    });
+  }
+
+  var scene = document.getElementById('scene');
+  var CANVAS_DIM = 720;   // virtual coords used for save canvas
+  var placedStickers = [];
+  var state = { bg: 'beach', category: 'animals', selectedId: null };
+
+  var CATEGORIES = {
+    animals: ['🐶','🐱','🐰','🦁','🐯','🐸','🐢','🦄','🦊','🐼','🐧','🦖','🐠','🐙','🦋','🐝','🐔','🐮'],
+    vehicles:['🚀','🚂','🚗','🏎️','🚕','🚲','🛸','🚁','✈️','⛵','🚤','🚜','🏍️','🚌','🚒','🚑'],
+    food:    ['🍕','🍔','🌭','🍦','🍩','🎂','🍪','🍎','🍌','🍓','🍇','🥕','🥪','🍿','🥨','🥑'],
+    people:  ['👦','👧','👨','👩','🧒','👶','🧑‍🚀','🧑‍🎤','🧑‍🍳','🧑‍🎨','🦸','🦹','🧙','🧚','👑','💂'],
+    magic:   ['⭐','✨','🌟','💫','🌈','🔮','💎','🔥','❄️','☀️','🌙','⚡','💖','🎉','🎈','🎁','🏆','💯'],
+    nature:  ['🌳','🌴','🌵','🌷','🌹','🌻','🌼','🍄','🪨','⛰️','🏔️','🌊','🌍','☁️','⛅','🌧️','❄️','🦋'],
+  };
+  var CAT_LABELS = {
+    animals:'🐶 Animals', vehicles:'🚀 Vehicles', food:'🍕 Food',
+    people:'👦 People', magic:'✨ Magic', nature:'🌳 Nature',
+  };
+
+  // --- Tabs + tray ---
+  function paintTabs() {
+    var tabs = document.getElementById('catTabs');
+    tabs.innerHTML = '';
+    Object.keys(CATEGORIES).forEach(function(key){
+      var b = document.createElement('button');
+      b.className = 'cat-tab' + (key === state.category ? ' active' : '');
+      b.textContent = CAT_LABELS[key];
+      b.dataset.cat = key;
+      b.addEventListener('click', function(){
+        state.category = key;
+        paintTabs();
+        paintTray();
+      });
+      tabs.appendChild(b);
+    });
+  }
+  function paintTray() {
+    var tray = document.getElementById('stickerTray');
+    tray.innerHTML = '';
+    CATEGORIES[state.category].forEach(function(emoji){
+      var b = document.createElement('button');
+      b.className = 'sticker-btn';
+      b.textContent = emoji;
+      b.title = 'Add ' + emoji;
+      b.addEventListener('click', function(){ addSticker(emoji); });
+      tray.appendChild(b);
+    });
+  }
+
+  // --- Background switching ---
+  document.getElementById('bgPicker').addEventListener('click', function(ev){
+    var b = ev.target.closest('.bg-chip'); if (!b) return;
+    state.bg = b.dataset.bg;
+    scene.className = 'scene bg-' + state.bg;
+    document.querySelectorAll('.bg-chip').forEach(function(x){
+      x.classList.toggle('active', x.dataset.bg === state.bg);
+    });
+  });
+
+  // --- Stickers ---
+  function addSticker(emoji) {
+    var s = {
+      id: 's' + Date.now() + Math.random().toString(36).slice(2,5),
+      emoji: emoji,
+      xPct: 0.5, yPct: 0.5,  // position as fraction of scene size
+      size: 72,
+    };
+    placedStickers.push(s);
+    renderSticker(s);
+    selectSticker(s.id);
+  }
+  function renderSticker(s) {
+    var el = document.createElement('div');
+    el.className = 'placed-sticker';
+    el.textContent = s.emoji;
+    el.dataset.stickerId = s.id;
+    el.style.fontSize = s.size + 'px';
+    el.style.left = (s.xPct * 100) + '%';
+    el.style.top = (s.yPct * 100) + '%';
+    el.style.zIndex = '5';
+    scene.appendChild(el);
+    s.el = el;
+    var dragStart = null;
+    el.addEventListener('pointerdown', function(ev){
+      ev.stopPropagation();
+      try { el.setPointerCapture(ev.pointerId); } catch(e){}
+      selectSticker(s.id);
+      el.classList.add('dragging');
+      dragStart = { x:ev.clientX, y:ev.clientY, sxPct:s.xPct, syPct:s.yPct };
+    });
+    el.addEventListener('pointermove', function(ev){
+      if (!dragStart) return;
+      var rect = scene.getBoundingClientRect();
+      var dxPct = (ev.clientX - dragStart.x) / rect.width;
+      var dyPct = (ev.clientY - dragStart.y) / rect.height;
+      s.xPct = Math.max(0, Math.min(1, dragStart.sxPct + dxPct));
+      s.yPct = Math.max(0, Math.min(1, dragStart.syPct + dyPct));
+      el.style.left = (s.xPct * 100) + '%';
+      el.style.top = (s.yPct * 100) + '%';
+      updateActionsPosition();
+    });
+    el.addEventListener('pointerup', function(){ dragStart = null; el.classList.remove('dragging'); });
+    el.addEventListener('pointercancel', function(){ dragStart = null; el.classList.remove('dragging'); });
+  }
+
+  var actionsEl = null;
+  function selectSticker(id) {
+    state.selectedId = id;
+    placedStickers.forEach(function(s){ if (s.el) s.el.classList.toggle('selected', s.id === id); });
+    showActions();
+  }
+  function showActions() {
+    if (actionsEl) { actionsEl.remove(); actionsEl = null; }
+    var s = placedStickers.find(function(x){ return x.id === state.selectedId; });
+    if (!s) return;
+    actionsEl = document.createElement('div');
+    actionsEl.className = 'sticker-actions';
+    actionsEl.innerHTML = '<button data-act="smaller">−</button><button data-act="bigger">+</button><button data-act="delete" class="danger">🗑</button>';
+    actionsEl.addEventListener('click', function(ev){
+      var b = ev.target.closest('button'); if (!b) return;
+      var act = b.dataset.act;
+      if (act === 'bigger') { s.size = Math.min(240, s.size * 1.2); s.el.style.fontSize = s.size + 'px'; updateActionsPosition(); }
+      else if (act === 'smaller') { s.size = Math.max(24, s.size / 1.2); s.el.style.fontSize = s.size + 'px'; updateActionsPosition(); }
+      else if (act === 'delete') {
+        s.el.remove();
+        placedStickers = placedStickers.filter(function(x){ return x.id !== s.id; });
+        state.selectedId = null;
+        actionsEl.remove(); actionsEl = null;
+      }
+    });
+    document.body.appendChild(actionsEl);
+    updateActionsPosition();
+  }
+  function updateActionsPosition() {
+    if (!actionsEl) return;
+    var s = placedStickers.find(function(x){ return x.id === state.selectedId; });
+    if (!s || !s.el) return;
+    var rect = s.el.getBoundingClientRect();
+    actionsEl.style.left = Math.max(8, rect.left + rect.width/2 - 60) + 'px';
+    actionsEl.style.top  = Math.max(60, rect.top - 48) + 'px';
+  }
+  document.addEventListener('pointerdown', function(ev){
+    if (ev.target.classList && ev.target.classList.contains('placed-sticker')) return;
+    if (ev.target.closest('.sticker-actions')) return;
+    if (ev.target.closest('.sticker-btn') || ev.target.closest('.cat-tab') || ev.target.closest('.bg-chip')) return;
+    if (state.selectedId) {
+      var s = placedStickers.find(function(x){ return x.id === state.selectedId; });
+      if (s && s.el) s.el.classList.remove('selected');
+      state.selectedId = null;
+      if (actionsEl) { actionsEl.remove(); actionsEl = null; }
+    }
+  });
+
+  // --- Clear all ---
+  document.getElementById('clearBtn').addEventListener('click', function(){
+    if (placedStickers.length === 0) return;
+    if (!confirm('Remove all stickers?')) return;
+    placedStickers.forEach(function(s){ if (s.el) s.el.remove(); });
+    placedStickers = [];
+    if (actionsEl) { actionsEl.remove(); actionsEl = null; }
+    state.selectedId = null;
+  });
+
+  // --- Save: render scene background + stickers to a 720x720 canvas, then save ---
+  function showToast(text) {
+    var t = document.getElementById('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+  function paintBgToCanvas(ctx) {
+    var W = CANVAS_DIM, H = CANVAS_DIM;
+    var bg = state.bg;
+    var g;
+    if (bg === 'beach') {
+      g = ctx.createLinearGradient(0, 0, 0, H*0.55);
+      g.addColorStop(0, '#87ceeb'); g.addColorStop(1, '#87ceeb');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H*0.55);
+      g = ctx.createLinearGradient(0, H*0.55, 0, H);
+      g.addColorStop(0, '#f4d58d'); g.addColorStop(1, '#c9985a');
+      ctx.fillStyle = g; ctx.fillRect(0, H*0.55, W, H*0.45);
+      ctx.font = '60px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('☀️', W*0.85, H*0.15);
+      ctx.fillText('☁️', W*0.15, H*0.12);
+      ctx.fillText('☁️', W*0.55, H*0.08);
+    } else if (bg === 'space') {
+      g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#050530'); g.addColorStop(0.5, '#1a0844'); g.addColorStop(1, '#3d1860');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.font = '40px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ['⭐','✨','🌟','⭐','✨','🌟','⭐','✨'].forEach(function(s, i){
+        var x = ((i * 113.7) % W);
+        var y = ((i * 71.3 + 30) % (H*0.65));
+        ctx.fillText(s, x, y);
+      });
+    } else if (bg === 'jungle') {
+      g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#aed581'); g.addColorStop(0.6, '#66bb6a'); g.addColorStop(1, '#2e7d32');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.font = '60px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('☀️', W*0.82, H*0.12);
+    } else if (bg === 'city') {
+      g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#ff9a8b'); g.addColorStop(0.35, '#fd5e85');
+      g.addColorStop(0.75, '#4a3b69'); g.addColorStop(1, '#1a1554');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    } else if (bg === 'castle') {
+      g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#d4a4eb'); g.addColorStop(0.45, '#ec4899'); g.addColorStop(1, '#a855f7');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.font = '40px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✨', W*0.1, H*0.1);
+      ctx.fillText('⭐', W*0.85, H*0.13);
+    }
+  }
+  document.getElementById('saveBtn').addEventListener('click', async function(){
+    var out = document.createElement('canvas');
+    out.width = CANVAS_DIM; out.height = CANVAS_DIM;
+    var ctx = out.getContext('2d');
+    paintBgToCanvas(ctx);
+    // Render each sticker at its fractional position scaled to canvas size
+    placedStickers.forEach(function(s){
+      ctx.font = s.size + 'px serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(s.emoji, s.xPct * CANVAS_DIM, s.yPct * CANVAS_DIM);
+    });
+    var fullDataUrl = out.toDataURL('image/png');
+    var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(out, 128);
+    try {
+      await HeroAcademy.ArtGallery.save({
+        type: 'sketch',
+        title: "Nigel's scene",
+        thumbDataUrl: thumbDataUrl,
+        fullDataUrl: fullDataUrl,
+      });
+      showToast('✓ Saved to your gallery!');
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('quick-praise', {
+            kidName:'Nigel', text:"What a scene, Nigel! Saved to your gallery.",
+          });
+        }
+      } catch(e){}
+    } catch(e){ showToast('Save failed'); }
+  });
+
+  // --- Boot ---
+  paintTabs();
+  paintTray();
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'stamp-studio' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

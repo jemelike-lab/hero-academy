@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0b2e">
+<title>Photo Booth · Creation Studio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Cherry+Bomb+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/humphrey.css">
+<style>
+:root {
+  --bg-deep:#0a0b2e; --bg-purple:#1a1554; --bg-space:#06081f;
+  --gold:#ffd147; --gold-bright:#ffe580; --gold-deep:#f5b800;
+  --magenta:#ec4899; --violet:#a855f7; --cyan:#14b8d4; --emerald:#2ec27e;
+  --red:#ef4444; --orange:#ff8b3d;
+  --surface-glass:rgba(255,255,255,0.08);
+  --border-light:rgba(255,255,255,0.18);
+  --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
+  --font-title:'Cherry Bomb One',var(--font-display);
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family:var(--font-display);
+  background:radial-gradient(circle at 50% 0%, var(--bg-purple) 0%, var(--bg-deep) 60%, var(--bg-space) 100%);
+  color:#fff; min-height:100vh;
+  padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+  user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.top-bar { display:flex; align-items:center; gap:8px; padding:10px 12px 6px; }
+.btn-big {
+  font-family:var(--font-display); font-weight:700; font-size:14px;
+  padding:10px 16px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--border-light);
+  display:inline-flex; align-items:center; gap:6px; line-height:1;
+  text-decoration:none; white-space:nowrap;
+}
+.btn-big.back { background:var(--surface-glass); color:#fff; }
+.btn-big.save {
+  background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+  color:var(--bg-deep); border:1px solid var(--gold-bright);
+  box-shadow:0 4px 14px rgba(255,209,71,0.45);
+}
+.btn-big:active { transform:scale(0.96); }
+.btn-big.disabled { opacity:0.4; pointer-events:none; }
+.title-pill {
+  flex:1; text-align:center; min-width:0; overflow:hidden;
+  font-family:var(--font-title); font-size:18px; color:var(--gold);
+  text-shadow:0 2px 8px rgba(255,209,71,0.35);
+}
+.icon-btn {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; font-size:18px;
+  width:38px; height:38px; border-radius:50%; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.icon-btn:active { transform:scale(0.94); }
+.icon-btn.disabled { opacity:0.35; pointer-events:none; }
+
+/* === Camera capture stage === */
+.capture-stage {
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:8px 12px 12px;
+  height:calc(100vh - 60px - 110px - var(--safe-top) - var(--safe-bottom));
+  min-height:400px;
+}
+.video-wrap {
+  position:relative; width:min(100%, calc(100vh - 60px - 110px - 40px));
+  aspect-ratio:1 / 1;
+  background:#000; border-radius:18px;
+  overflow:hidden;
+  box-shadow:0 20px 48px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.18);
+}
+#cameraVideo, #capturedCanvas {
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; display:block;
+}
+#capturedCanvas { z-index:2; display:none; touch-action:none; }
+.camera-msg {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:24px;
+  color:#fff; background:rgba(0,0,0,0.6);
+  z-index:3;
+}
+.camera-msg h3 { font-family:var(--font-title); font-size:22px; color:var(--gold); margin-bottom:10px; }
+.camera-msg p { font-size:14px; opacity:0.9; line-height:1.4; max-width:280px; }
+.camera-msg.hide { display:none; }
+
+.capture-btn {
+  margin-top:18px;
+  background:linear-gradient(135deg, var(--red), #c62a2a);
+  color:#fff; border:3px solid #fff;
+  width:80px; height:80px; border-radius:50%;
+  font-size:32px; cursor:pointer;
+  box-shadow:0 6px 22px rgba(239,68,68,0.6);
+  display:flex; align-items:center; justify-content:center;
+}
+.capture-btn:active { transform:scale(0.92); }
+.capture-btn.disabled { opacity:0.3; pointer-events:none; }
+.camera-controls {
+  display:flex; gap:14px; align-items:center; justify-content:center;
+  margin-top:14px;
+}
+.flip-camera-btn {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; font-size:18px;
+  width:48px; height:48px; border-radius:50%; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.flip-camera-btn:active { transform:scale(0.92); }
+
+/* === Decorate mode (after photo capture) === */
+.decorate-stage {
+  display:none;
+}
+.decorate-stage.active { display:flex; flex-direction:column; }
+
+/* Sticker tray (emoji picker) */
+.sticker-tray {
+  display:flex; gap:6px; padding:6px 8px;
+  overflow-x:auto;
+  background:rgba(0,0,0,0.25); border-top:1px solid var(--border-light);
+  height:60px; align-items:center; flex-shrink:0;
+}
+.sticker-btn {
+  width:46px; height:46px;
+  background:rgba(255,255,255,0.08); border:1px solid var(--border-light);
+  border-radius:12px; cursor:pointer;
+  font-size:24px;
+  display:inline-flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.sticker-btn:active { transform:scale(0.9); }
+
+/* Floating stickers on the photo */
+.placed-sticker {
+  position:absolute; cursor:grab;
+  font-size:48px; line-height:1;
+  user-select:none; -webkit-user-select:none;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.45));
+  touch-action:none;
+  transform:translate(-50%, -50%);
+}
+.placed-sticker.selected {
+  outline:3px dashed var(--gold);
+  outline-offset:4px;
+  border-radius:8px;
+}
+.placed-sticker.dragging { cursor:grabbing; opacity:0.85; }
+.sticker-actions {
+  position:absolute; z-index:50;
+  background:rgba(0,0,0,0.85); border-radius:10px;
+  padding:6px; display:flex; gap:4px;
+  border:1px solid var(--border-light);
+}
+.sticker-actions button {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; padding:6px 10px; border-radius:6px;
+  cursor:pointer; font-size:14px;
+}
+.sticker-actions button.danger {
+  background:rgba(239,68,68,0.25); border-color:var(--red);
+}
+.sticker-actions.hide { display:none; }
+
+/* Bottom rail (brushes + colors in decorate mode) */
+.bottom-rail {
+  padding:8px 12px;
+  background:rgba(0,0,0,0.3); border-top:1px solid var(--border-light);
+  position:fixed; left:0; right:0; bottom:0;
+  padding-bottom:calc(8px + var(--safe-bottom)); z-index:10;
+}
+.palette-row { display:flex; gap:5px; justify-content:center; padding:2px 0 4px; overflow-x:auto; }
+.swatch {
+  width:30px; height:30px; border-radius:50%;
+  border:2px solid rgba(255,255,255,0.3);
+  cursor:pointer; flex-shrink:0;
+  box-shadow:0 2px 6px rgba(0,0,0,0.35);
+}
+.swatch:active { transform:scale(0.88); }
+.swatch.active { border-color:var(--gold); border-width:3px; transform:scale(1.12); }
+.controls-row {
+  display:flex; gap:8px; align-items:center; justify-content:space-between;
+  flex-wrap:wrap;
+}
+.control-group { display:flex; gap:5px; align-items:center; }
+.control-label { font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; opacity:0.7; }
+.ctl-btn {
+  background:var(--surface-glass); border:1px solid var(--border-light);
+  color:#fff; font-family:var(--font-display); font-weight:600; font-size:13px;
+  padding:7px 11px; border-radius:8px; cursor:pointer; min-width:34px;
+}
+.ctl-btn:active { transform:scale(0.94); }
+.ctl-btn.active { background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright); }
+
+.toast {
+  position:fixed; bottom:140px; left:50%; transform:translateX(-50%);
+  background:var(--emerald); color:#fff;
+  font-weight:700; font-size:14px;
+  padding:10px 18px; border-radius:999px;
+  box-shadow:0 6px 24px rgba(46,194,126,0.6);
+  z-index:200; pointer-events:none;
+  opacity:0; transition:opacity .25s, transform .25s;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(-6px); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="creation-studio.html" class="btn-big back">← BACK</a>
+  <div class="title-pill">📸 Photo Booth</div>
+  <button class="icon-btn disabled" id="undoBtn" title="Undo last stroke">↶</button>
+  <button class="btn-big save disabled" id="saveBtn">💾 SAVE</button>
+</div>
+
+<!-- Capture stage (first thing user sees) -->
+<div class="capture-stage" id="captureStage">
+  <div class="video-wrap">
+    <video id="cameraVideo" autoplay playsinline muted></video>
+    <canvas id="capturedCanvas" width="720" height="720"></canvas>
+    <div class="camera-msg" id="cameraMsg">
+      <h3>Starting camera…</h3>
+      <p>If you see a permission prompt, tap "Allow" so you can take a photo.</p>
+    </div>
+  </div>
+  <div class="camera-controls">
+    <button class="flip-camera-btn" id="flipCameraBtn" title="Flip camera">🔄</button>
+    <button class="capture-btn" id="captureBtn" title="Take photo">📷</button>
+    <button class="flip-camera-btn" id="retakeBtn" title="Retake" style="display:none;">↺</button>
+  </div>
+</div>
+
+<div class="bottom-rail" id="bottomRail" style="display:none;">
+  <div class="sticker-tray" id="stickerTray"></div>
+  <div class="palette-row" id="paletteRow"></div>
+  <div class="controls-row">
+    <div class="control-group">
+      <span class="control-label">Brush</span>
+      <button class="ctl-btn active" data-brush="marker">🖊️</button>
+      <button class="ctl-btn" data-brush="paint">🖌️</button>
+      <button class="ctl-btn" data-brush="eraser">🧽</button>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Size</span>
+      <button class="ctl-btn" data-size="small">S</button>
+      <button class="ctl-btn active" data-size="medium">M</button>
+      <button class="ctl-btn" data-size="large">L</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Saved!</div>
+<script src="js/telemetry.js"></script>
+<script src="js/humphrey.js"></script>
+<script src="js/humphrey-listener.js"></script>
+<script src="js/humphrey-chat.js"></script>
+<script src="js/humphrey-memory.js"></script>
+<script src="js/humphrey-qna.js"></script>
+<script src="js/humphrey-choices.js"></script>
+<script src="js/art-gallery.js"></script>
+<script>
+(function(){
+  'use strict';
+  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+    window.HeroAcademy.Humphrey.init({
+      position:'bottom-left', audioEnabled:true, debug:false,
+      welcomeEvent:'welcome-photo-booth', kidName:'Nigel',
+    });
+  }
+
+  var video = document.getElementById('cameraVideo');
+  var canvas = document.getElementById('capturedCanvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var cameraMsg = document.getElementById('cameraMsg');
+  var videoWrap = document.querySelector('.video-wrap');
+  var W = canvas.width, H = canvas.height;
+  var stream = null;
+  var facingMode = 'environment';   // rear camera per Galaxy Tab default
+  var hasCaptured = false;
+  var placedStickers = [];   // {id, emoji, x, y, size} — x/y in canvas pixels
+
+  var state = {
+    brush: 'marker', color: '#ec4899', size: 'medium',
+    selectedStickerId: null,
+  };
+
+  // --- Camera ---
+  async function startCamera() {
+    if (stream) stopCamera();
+    cameraMsg.textContent = '';
+    cameraMsg.innerHTML = '<h3>Starting camera…</h3><p>If you see a permission prompt, tap "Allow".</p>';
+    cameraMsg.classList.remove('hide');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 1280 } },
+        audio: false,
+      });
+      video.srcObject = stream;
+      video.style.display = 'block';
+      video.onloadedmetadata = function(){
+        video.play();
+        cameraMsg.classList.add('hide');
+      };
+    } catch(e) {
+      cameraMsg.classList.remove('hide');
+      var msg = String(e.name || e.message || e);
+      if (msg.indexOf('NotAllowedError') >= 0 || msg.indexOf('Permission') >= 0) {
+        cameraMsg.innerHTML = '<h3>Camera blocked</h3><p>To use Photo Booth, tap the lock icon in your browser address bar and allow camera access for this site.</p>';
+      } else if (msg.indexOf('NotFoundError') >= 0) {
+        cameraMsg.innerHTML = '<h3>No camera found</h3><p>This device does not have a camera available right now.</p>';
+      } else {
+        cameraMsg.innerHTML = '<h3>Couldn\'t start camera</h3><p>' + msg + '</p>';
+      }
+    }
+  }
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      stream = null;
+    }
+  }
+  document.getElementById('flipCameraBtn').addEventListener('click', function(){
+    facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+    startCamera();
+  });
+
+  // --- Capture: freeze video frame onto canvas, enter decorate mode ---
+  document.getElementById('captureBtn').addEventListener('click', function(){
+    if (!stream || !video.videoWidth) return;
+    // Center-crop the video to square at native resolution, draw into 720x720
+    var vw = video.videoWidth, vh = video.videoHeight;
+    var s = Math.min(vw, vh);
+    var sx = (vw - s) / 2, sy = (vh - s) / 2;
+    ctx.drawImage(video, sx, sy, s, s, 0, 0, W, H);
+    canvas.style.display = 'block';
+    video.style.display = 'none';
+    stopCamera();
+    hasCaptured = true;
+    enterDecorateMode();
+  });
+
+  function enterDecorateMode() {
+    document.getElementById('captureBtn').style.display = 'none';
+    document.getElementById('flipCameraBtn').style.display = 'none';
+    document.getElementById('retakeBtn').style.display = 'inline-flex';
+    document.getElementById('bottomRail').style.display = 'block';
+    document.getElementById('saveBtn').classList.remove('disabled');
+    document.getElementById('undoBtn').classList.remove('disabled');
+    // Adjust capture-stage height to leave room for the bottom rail
+    document.getElementById('captureStage').style.height = 'calc(100vh - 60px - 230px - var(--safe-top) - var(--safe-bottom))';
+  }
+
+  document.getElementById('retakeBtn').addEventListener('click', function(){
+    // Reset to camera view
+    document.getElementById('captureBtn').style.display = 'flex';
+    document.getElementById('flipCameraBtn').style.display = 'inline-flex';
+    document.getElementById('retakeBtn').style.display = 'none';
+    document.getElementById('bottomRail').style.display = 'none';
+    document.getElementById('saveBtn').classList.add('disabled');
+    document.getElementById('undoBtn').classList.add('disabled');
+    document.getElementById('captureStage').style.height = '';
+    canvas.style.display = 'none';
+    video.style.display = 'block';
+    ctx.clearRect(0, 0, W, H);
+    placedStickers.forEach(function(s){ if (s.el && s.el.parentNode) s.el.parentNode.removeChild(s.el); });
+    placedStickers = [];
+    undoStack = [];
+    hasCaptured = false;
+    startCamera();
+  });
+
+  // --- Drawing on the captured photo ---
+  var BRUSHES = {
+    marker: { sizes:[6, 12, 22], alpha:1.0 },
+    paint:  { sizes:[14, 24, 40], alpha:0.6 },
+    eraser: { sizes:[14, 28, 50], alpha:1.0 },
+  };
+  var SIZE_MAP = { small:0, medium:1, large:2 };
+  function currentBrushSize() {
+    return (BRUSHES[state.brush] || BRUSHES.marker).sizes[SIZE_MAP[state.size]||1];
+  }
+
+  function drawSeg(x0, y0, x1, y1) {
+    var sz = currentBrushSize();
+    if (state.brush === 'eraser') {
+      // 'destination-out' would erase straight to transparent. Instead replace with a copy of the original captured pixels
+      // — but we don't store them. Simpler: draw white over (works for photos with light backgrounds; for dark photos
+      // it acts more like a paint marker, but still gives the user a way to "remove" doodles).
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = state.color;
+      ctx.globalAlpha = (BRUSHES[state.brush] || BRUSHES.marker).alpha;
+    }
+    ctx.lineWidth = sz;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  var undoStack = [];
+  function pushUndo() {
+    try {
+      var c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      c.getContext('2d').drawImage(canvas, 0, 0);
+      undoStack.push(c);
+      if (undoStack.length > 30) undoStack.shift();
+    } catch(e){}
+  }
+  document.getElementById('undoBtn').addEventListener('click', function(){
+    if (!hasCaptured) return;
+    var c = undoStack.pop();
+    if (!c) return;
+    ctx.clearRect(0,0,W,H);
+    ctx.drawImage(c, 0, 0);
+  });
+
+  function eventToCanvas(ev) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: (ev.clientX - rect.left) / rect.width  * W,
+      y: (ev.clientY - rect.top)  / rect.height * H,
+    };
+  }
+  var drawing = false, lastPoint = null, undoSnapped = false;
+  canvas.addEventListener('pointerdown', function(ev){
+    if (!hasCaptured) return;
+    // If a sticker is being interacted with, drawing should NOT start
+    if (ev.target !== canvas) return;
+    try { canvas.setPointerCapture(ev.pointerId); } catch(e){}
+    ev.preventDefault();
+    if (!undoSnapped) { pushUndo(); undoSnapped = true; }
+    drawing = true;
+    var p = eventToCanvas(ev);
+    lastPoint = p;
+    drawSeg(p.x, p.y, p.x+0.01, p.y+0.01);
+  });
+  canvas.addEventListener('pointermove', function(ev){
+    if (!drawing) return;
+    ev.preventDefault();
+    var p = eventToCanvas(ev);
+    drawSeg(lastPoint.x, lastPoint.y, p.x, p.y);
+    lastPoint = p;
+  });
+  function endStroke() {
+    if (!drawing) return;
+    drawing = false; lastPoint = null; undoSnapped = false;
+  }
+  canvas.addEventListener('pointerup',     endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
+  canvas.addEventListener('pointerleave',  function(ev){ if (drawing) endStroke(); });
+
+  // --- Stickers ---
+  var STICKERS = ['😀','😎','🥳','😍','🤩','🦄','🌈','⭐','✨','🎉','🎈','❤️','💎','🚀','🐶','🐱','🦁','🐸','🌟','🔥','💯','👑','🦖','🤖','🍕','🍦','⚽','🎵','🌸','🍀'];
+  function paintStickerTray() {
+    var tray = document.getElementById('stickerTray');
+    tray.innerHTML = '';
+    STICKERS.forEach(function(emoji){
+      var b = document.createElement('button');
+      b.className = 'sticker-btn';
+      b.textContent = emoji;
+      b.title = 'Add ' + emoji + ' sticker';
+      b.addEventListener('click', function(){ addSticker(emoji); });
+      tray.appendChild(b);
+    });
+  }
+  function addSticker(emoji) {
+    var s = { id: 's' + Date.now() + Math.random().toString(36).slice(2,5), emoji: emoji, x: W/2, y: H/2, size: 96 };
+    placedStickers.push(s);
+    renderSticker(s);
+    selectSticker(s.id);
+  }
+  function renderSticker(s) {
+    var el = document.createElement('div');
+    el.className = 'placed-sticker';
+    el.textContent = s.emoji;
+    el.dataset.stickerId = s.id;
+    el.style.fontSize = s.size + 'px';
+    el.style.left = (s.x / W * 100) + '%';
+    el.style.top = (s.y / H * 100) + '%';
+    el.style.zIndex = '5';
+    videoWrap.appendChild(el);
+    s.el = el;
+    var dragStart = null;
+    el.addEventListener('pointerdown', function(ev){
+      ev.stopPropagation();
+      try { el.setPointerCapture(ev.pointerId); } catch(e){}
+      selectSticker(s.id);
+      el.classList.add('dragging');
+      dragStart = { x:ev.clientX, y:ev.clientY, sx:s.x, sy:s.y };
+    });
+    el.addEventListener('pointermove', function(ev){
+      if (!dragStart) return;
+      var rect = videoWrap.getBoundingClientRect();
+      var scale = W / rect.width;
+      s.x = Math.max(0, Math.min(W, dragStart.sx + (ev.clientX - dragStart.x) * scale));
+      s.y = Math.max(0, Math.min(H, dragStart.sy + (ev.clientY - dragStart.y) * scale));
+      el.style.left = (s.x / W * 100) + '%';
+      el.style.top = (s.y / H * 100) + '%';
+      updateStickerActionsPosition();
+    });
+    el.addEventListener('pointerup', function(){ dragStart = null; el.classList.remove('dragging'); });
+    el.addEventListener('pointercancel', function(){ dragStart = null; el.classList.remove('dragging'); });
+  }
+
+  var actionsEl = null;
+  function selectSticker(id) {
+    state.selectedStickerId = id;
+    placedStickers.forEach(function(s){ if (s.el) s.el.classList.toggle('selected', s.id === id); });
+    showStickerActions();
+  }
+  function showStickerActions() {
+    if (actionsEl) { actionsEl.remove(); actionsEl = null; }
+    var s = placedStickers.find(function(x){ return x.id === state.selectedStickerId; });
+    if (!s) return;
+    actionsEl = document.createElement('div');
+    actionsEl.className = 'sticker-actions';
+    actionsEl.innerHTML = '<button data-act="smaller">−</button><button data-act="bigger">+</button><button data-act="delete" class="danger">🗑</button>';
+    actionsEl.addEventListener('click', function(ev){
+      var b = ev.target.closest('button'); if (!b) return;
+      var act = b.dataset.act;
+      if (act === 'bigger') { s.size = Math.min(240, s.size * 1.2); s.el.style.fontSize = s.size + 'px'; }
+      else if (act === 'smaller') { s.size = Math.max(24, s.size / 1.2); s.el.style.fontSize = s.size + 'px'; }
+      else if (act === 'delete') {
+        s.el.remove();
+        placedStickers = placedStickers.filter(function(x){ return x.id !== s.id; });
+        state.selectedStickerId = null;
+        actionsEl.remove(); actionsEl = null;
+      }
+    });
+    videoWrap.parentNode.appendChild(actionsEl);
+    updateStickerActionsPosition();
+  }
+  function updateStickerActionsPosition() {
+    if (!actionsEl) return;
+    var s = placedStickers.find(function(x){ return x.id === state.selectedStickerId; });
+    if (!s) return;
+    var rect = s.el.getBoundingClientRect();
+    actionsEl.style.position = 'fixed';
+    actionsEl.style.left = (rect.left + rect.width/2 - 60) + 'px';
+    actionsEl.style.top = Math.max(60, rect.top - 48) + 'px';
+  }
+  // Tap outside any sticker = deselect
+  document.addEventListener('pointerdown', function(ev){
+    if (ev.target.classList && ev.target.classList.contains('placed-sticker')) return;
+    if (ev.target.closest('.sticker-actions')) return;
+    if (state.selectedStickerId) {
+      var s = placedStickers.find(function(x){ return x.id === state.selectedStickerId; });
+      if (s && s.el) s.el.classList.remove('selected');
+      state.selectedStickerId = null;
+      if (actionsEl) { actionsEl.remove(); actionsEl = null; }
+    }
+  });
+
+  // --- Palette ---
+  var PALETTE = ['#000000','#ffffff','#ef4444','#ff8b3d','#ffd147','#2ec27e','#14b8d4','#3b82f6','#a855f7','#ec4899'];
+  function paintPalette() {
+    var row = document.getElementById('paletteRow');
+    row.innerHTML = '';
+    PALETTE.forEach(function(c){
+      var b = document.createElement('button');
+      b.className = 'swatch' + (c === state.color ? ' active' : '');
+      b.style.background = c; b.dataset.color = c;
+      b.addEventListener('click', function(){
+        state.color = c;
+        document.querySelectorAll('.swatch').forEach(function(s){ s.classList.toggle('active', s.dataset.color === state.color); });
+      });
+      row.appendChild(b);
+    });
+  }
+  document.querySelectorAll('[data-brush]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.brush = b.dataset.brush;
+      document.querySelectorAll('[data-brush]').forEach(function(x){ x.classList.toggle('active', x.dataset.brush === state.brush); });
+    });
+  });
+  document.querySelectorAll('[data-size]').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.size = b.dataset.size;
+      document.querySelectorAll('[data-size]').forEach(function(x){ x.classList.toggle('active', x.dataset.size === state.size); });
+    });
+  });
+
+  // --- Save ---
+  function showToast(text) {
+    var t = document.getElementById('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+  document.getElementById('saveBtn').addEventListener('click', async function(){
+    if (!hasCaptured) return;
+    // Composite: captured canvas + stickers (rendered to canvas)
+    var out = document.createElement('canvas');
+    out.width = W; out.height = H;
+    var octx = out.getContext('2d');
+    octx.drawImage(canvas, 0, 0);
+    // Render each sticker at its position
+    placedStickers.forEach(function(s){
+      octx.font = s.size + 'px serif';
+      octx.textAlign = 'center';
+      octx.textBaseline = 'middle';
+      octx.fillText(s.emoji, s.x, s.y);
+    });
+    var fullDataUrl = out.toDataURL('image/png');
+    var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(out, 128);
+    try {
+      await HeroAcademy.ArtGallery.save({
+        type: 'sketch',
+        title: "Nigel's photo",
+        thumbDataUrl: thumbDataUrl,
+        fullDataUrl: fullDataUrl,
+      });
+      showToast('✓ Saved to your gallery!');
+      try {
+        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+          window.HeroAcademy.Humphrey.say('quick-praise', {
+            kidName:'Nigel', text:"Look at that creation, Nigel! Saved to your gallery.",
+          });
+        }
+      } catch(e){}
+    } catch(e){ showToast('Save failed'); }
+  });
+
+  // --- Boot ---
+  paintStickerTray();
+  paintPalette();
+  startCamera();
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
+      window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'photo-booth' });
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>

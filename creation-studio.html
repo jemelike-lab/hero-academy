@@ -114,12 +114,9 @@
   /* Activity cards */
   .studio-grid {
     position:relative; z-index:2;
-    display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;
+    display:grid; grid-template-columns:1fr 1fr; gap:14px;
     padding:18px 16px 12px;
-    max-width:780px; margin:0 auto;
-  }
-  @media (max-width:600px) {
-    .studio-grid { grid-template-columns:1fr 1fr; }
+    max-width:680px; margin:0 auto;
   }
   .studio-card {
     position:relative; border-radius:22px;
@@ -164,6 +161,8 @@
   }
   .card-sketch  { --card-from:#ec4899; --card-to:#831843; }
   .card-anim    { --card-from:#a855f7; --card-to:#5b21b6; }
+  .card-photo   { --card-from:#ff8b3d; --card-to:#c2410c; }
+  .card-stamp   { --card-from:#2ec27e; --card-to:#15803d; }
   .card-gallery { --card-from:#14b8d4; --card-to:#0e7490; }
 
   /* Recent creations strip */
@@ -231,22 +230,26 @@
 
 <main class="studio-grid">
   <a href="sketch-lab.html" class="studio-card card-sketch">
-    <span class="studio-card-badge">NEW</span>
     <div class="studio-card-emoji">🎨</div>
     <div class="studio-card-title">Sketch Lab</div>
-    <div class="studio-card-sub">Paint, draw, sparkle. 8 brushes &amp; a kaleidoscope.</div>
+    <div class="studio-card-sub">8 brushes, rainbow, sparkle, kaleidoscope.</div>
   </a>
   <a href="animation-studio.html" class="studio-card card-anim">
-    <span class="studio-card-badge">NEW</span>
     <div class="studio-card-emoji">🎬</div>
     <div class="studio-card-title">Animation Studio</div>
-    <div class="studio-card-sub">Make pictures move. Export as a real GIF.</div>
+    <div class="studio-card-sub">Make pictures move. Export real GIFs.</div>
   </a>
-  <a href="gallery.html" class="studio-card card-gallery">
+  <a href="photo-booth.html" class="studio-card card-photo">
     <span class="studio-card-badge">NEW</span>
-    <div class="studio-card-emoji">🖼️</div>
-    <div class="studio-card-title">My Gallery</div>
-    <div class="studio-card-sub">Every drawing &amp; animation you've made.</div>
+    <div class="studio-card-emoji">📸</div>
+    <div class="studio-card-title">Photo Booth</div>
+    <div class="studio-card-sub">Take a photo. Draw on it. Add silly stickers.</div>
+  </a>
+  <a href="stamp-studio.html" class="studio-card card-stamp">
+    <span class="studio-card-badge">NEW</span>
+    <div class="studio-card-emoji">🎭</div>
+    <div class="studio-card-title">Stamp Studio</div>
+    <div class="studio-card-sub">Pick a scene. Drop in stickers. Build a world.</div>
   </a>
 </main>
 

@@ -605,6 +605,26 @@
         "Time to make things move, {kidName}. Press play when you're ready.",
       ],
     },
+    'welcome-photo-booth': {
+      expression: 'cheering',
+      lines: [
+        "Photo Booth! Take a picture, {kidName}, then doodle on top.",
+        "Welcome to Photo Booth, {kidName}. Tap the camera button when you're ready.",
+        "Smile big, {kidName}! Tap 📷 to capture, then decorate.",
+        "Hi {kidName}! Stickers and brushes wait for you after you snap.",
+        "Time to pose, {kidName}. Make it silly or make it cool.",
+      ],
+    },
+    'welcome-stamp-studio': {
+      expression: 'cheering',
+      lines: [
+        "Stamp Studio! Pick a scene and drop in stickers, {kidName}.",
+        "Welcome, {kidName}! Beach, space, jungle, city, or castle — your choice.",
+        "Time to build a world, {kidName}. Tap stickers to add them.",
+        "Hi {kidName}! Drag stickers around and resize them with + and −.",
+        "Stamp Studio is open. Save when your scene is just right.",
+      ],
+    },
     'welcome-gallery': {
       expression: 'smile',
       lines: [
