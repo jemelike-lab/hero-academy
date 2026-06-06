@@ -2,158 +2,583 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0b2e">
-<title>Cauldron Café · Hero Academy</title>
-<link rel="stylesheet" href="css/humphrey.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#7a4a2c">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cherry+Bomb+One&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Cauldron Café · Hero Academy</title>
 <style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
-    --bg-space:#06081f; --bg-deep:#0a0b2e; --bg-purple:#1a1554;
-    --gold:#ffd147; --gold-deep:#f5b800; --gold-bright:#ffe580;
-    --orange:#ff8b3d; --orange-bright:#ffa86b;
-    --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
-    --surface-glass:rgba(255,255,255,0.08);
-    --border-light:rgba(255,255,255,0.18);
-    --text:#fff;
-    --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
-    --safe-top:env(safe-area-inset-top,0px);
-    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --wood-deep: #5a341c;
+    --wood: #7a4a2c;
+    --wood-mid: #8b5a3c;
+    --wood-light: #a87042;
+    --copper: #b87333;
+    --copper-light: #d49968;
+    --copper-shadow: #7a4720;
+    --copper-deep: #6b3c18;
+    --parchment: #f5e8c8;
+    --parchment-edge: #c9a26a;
+    --ink: #5a341c;
+    --ink-deep: #3a2010;
+    --fire-amber: #f5a23d;
+    --fire-bright: #ffd478;
+    --carrot: #e87830;
+    --tomato: #d63d3d;
+    --potato: #c9a26a;
+    --leaf: #3d8a3d;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
-  * { margin:0; padding:0; box-sizing:border-box; }
   html, body {
-    width:100%; height:100%;
-    background:linear-gradient(135deg,var(--bg-space),var(--bg-deep) 40%,var(--bg-purple));
-    overflow:hidden; font-family:var(--font-display);
-    touch-action:none; -webkit-user-select:none; user-select:none;
+    width: 100%; height: 100%;
+    background: var(--wood);
+    overflow: hidden;
+    font-family: 'Nunito', system-ui, sans-serif;
+    color: var(--ink-deep);
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
   }
-  #game-container {
-    width:100vw; height:100vh;
-    display:flex; align-items:center; justify-content:center;
-    padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
+  /* ===== Scene container ===== */
+  .scene {
+    position: fixed; inset: 0;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    display: grid;
+    grid-template-rows: 60px 1fr;
+    overflow: hidden;
   }
-  canvas { display:block; }
+  /* ===== Header ===== */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px;
+    background: rgba(58, 32, 16, 0.85);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border-bottom: 2px solid var(--copper-deep);
+    z-index: 5;
+  }
   .back-btn {
-    position:fixed; top:calc(var(--safe-top) + 14px); left:18px;
-    background:var(--surface-glass); border:1px solid var(--border-light);
-    color:var(--text); padding:8px 16px; border-radius:999px;
-    font-family:var(--font-display); font-weight:600; font-size:14px;
-    text-decoration:none; backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px); z-index:10;
-    display:inline-flex; align-items:center; gap:6px;
-    transition:transform .12s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--parchment); color: var(--ink-deep);
+    padding: 8px 14px; border-radius: 999px;
+    text-decoration: none; font-family: 'Fredoka', sans-serif;
+    font-weight: 600; font-size: 14px;
+    box-shadow: 0 2px 0 var(--copper-shadow);
   }
-  .back-btn:active { transform:scale(0.96); }
-  .badge {
-    position:fixed; bottom:calc(var(--safe-bottom) + 8px); right:12px;
-    color:rgba(255,209,71,0.5); font-size:11px;
-    font-family:var(--font-display); pointer-events:none;
+  .header-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 700; font-size: 22px;
+    color: var(--parchment); letter-spacing: 0.04em;
   }
-  /* Today's Recipe — AI-generated math problems (Content-of-One Deploy 2) */
+  .header-stats {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Fredoka', sans-serif; font-weight: 600;
+    color: var(--parchment); font-size: 14px;
+  }
+  .header-stat-pill {
+    background: var(--copper-shadow); padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--copper); font-size: 13px;
+  }
+  /* ===== Main stage ===== */
+  .stage {
+    position: relative; overflow: hidden;
+    background: var(--wood);
+  }
+  /* Wood plank wall background */
+  .stage::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(180deg,
+        transparent 0, transparent 96px,
+        rgba(0, 0, 0, 0.18) 96px, rgba(0, 0, 0, 0.18) 100px,
+        transparent 100px, transparent 200px),
+      repeating-linear-gradient(90deg,
+        transparent 0, transparent 120px,
+        rgba(0, 0, 0, 0.10) 120px, rgba(0, 0, 0, 0.10) 122px);
+    pointer-events: none;
+  }
+  /* Wooden table surface across the bottom */
+  .table-surface {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 32%;
+    background:
+      repeating-linear-gradient(90deg,
+        var(--wood-mid) 0, var(--wood-mid) 90px,
+        var(--wood) 90px, var(--wood) 95px);
+    border-top: 4px solid var(--wood-deep);
+    box-shadow: inset 0 6px 12px rgba(0,0,0,0.35);
+    z-index: 1;
+  }
+  /* Hanging lantern top-right */
+  .lantern {
+    position: absolute; top: 0; right: 28px;
+    width: 32px; height: 110px;
+    z-index: 2; pointer-events: none;
+  }
+  .lantern-rope {
+    position: absolute; top: 0; left: 50%; width: 2px; height: 44px;
+    background: var(--ink-deep); transform: translateX(-50%);
+  }
+  .lantern-body {
+    position: absolute; top: 40px; left: 50%; width: 32px; height: 44px;
+    background: var(--fire-amber); border-radius: 50% 50% 40% 40%;
+    transform: translateX(-50%);
+    box-shadow: inset 0 -8px 0 rgba(122, 71, 32, 0.5);
+  }
+  .lantern-flame {
+    position: absolute; top: 50px; left: 50%; width: 12px; height: 22px;
+    background: var(--fire-bright); border-radius: 50% 50% 30% 30%;
+    transform: translateX(-50%);
+    animation: flicker 2.3s ease-in-out infinite;
+  }
+  .lantern-glow {
+    position: absolute; top: 22px; left: 50%; width: 100px; height: 100px;
+    background: radial-gradient(circle, rgba(255,212,120,0.30) 0%, transparent 60%);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+  @keyframes flicker {
+    0%, 100% { opacity: 1; transform: translateX(-50%) scaleY(1); }
+    50% { opacity: 0.88; transform: translateX(-50%) scaleY(1.08); }
+  }
+  /* ===== Cauldron + steam ===== */
+  .cauldron-zone {
+    position: absolute;
+    left: 50%; top: 36%;
+    transform: translate(-50%, -50%);
+    width: 320px; height: 280px;
+    z-index: 3;
+  }
+  .cauldron-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  /* Steam wisps */
+  .steam {
+    position: absolute; top: -80px; left: 50%;
+    transform: translateX(-50%);
+    width: 180px; height: 100px;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .steam-wisp {
+    position: absolute; bottom: 0;
+    width: 8px; height: 90px;
+    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 70%, rgba(255,255,255,0.7) 100%);
+    border-radius: 999px;
+    transform-origin: bottom center;
+    animation: rise 4s ease-out infinite;
+  }
+  .steam-wisp:nth-child(1) { left: 25%; animation-delay: 0s; }
+  .steam-wisp:nth-child(2) { left: 50%; animation-delay: 1.3s; }
+  .steam-wisp:nth-child(3) { left: 75%; animation-delay: 2.6s; }
+  @keyframes rise {
+    0%   { transform: translate(-50%, 0) scaleY(0.4); opacity: 0; }
+    20%  { opacity: 0.7; }
+    100% { transform: translate(-50%, -60px) scaleY(1.4); opacity: 0; }
+  }
+  /* Fire glow under cauldron */
+  .fire-glow {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, 95px);
+    width: 280px; height: 50px;
+    background: radial-gradient(ellipse at center, var(--fire-bright) 0%, var(--fire-amber) 30%, transparent 65%);
+    z-index: 2;
+    animation: glow 3.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes glow {
+    0%, 100% { opacity: 0.85; transform: translate(-50%, 95px) scaleX(1); }
+    50% { opacity: 1; transform: translate(-50%, 95px) scaleX(1.06); }
+  }
+  /* ===== Recipe parchment (right) ===== */
+  .parchment {
+    position: absolute;
+    right: 14px; top: 76px;
+    width: 240px;
+    background: var(--parchment);
+    border: 2px solid var(--parchment-edge);
+    border-radius: 4px;
+    padding: 18px 18px 16px;
+    z-index: 5;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.35), inset 0 0 24px rgba(201, 162, 106, 0.25);
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--ink-deep);
+  }
+  .parchment::before, .parchment::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 10px;
+    background: var(--parchment-edge);
+    border-radius: 4px 4px 0 0;
+  }
+  .parchment::before { top: -10px; }
+  .parchment::after  { bottom: -10px; border-radius: 0 0 4px 4px; }
+  .parchment-eyebrow {
+    text-align: center; font-style: italic; font-size: 14px;
+    color: var(--copper-shadow); margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+  .parchment-title {
+    text-align: center; font-weight: 700; font-size: 18px;
+    color: var(--ink-deep);
+    border-bottom: 1px solid var(--parchment-edge);
+    padding-bottom: 8px; margin-bottom: 10px;
+  }
+  .parchment-prompt {
+    font-family: 'Caveat', cursive;
+    font-size: 22px; line-height: 1.2; font-weight: 700;
+    color: var(--ink); text-align: center;
+    margin-bottom: 12px; min-height: 56px;
+  }
+  .parchment-equation {
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700; font-size: 30px;
+    text-align: center; color: var(--copper-shadow);
+    margin-bottom: 10px;
+    letter-spacing: 0.04em;
+  }
+  .parchment-ingredients {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 12px;
+    font-family: 'Caveat', cursive;
+    font-size: 18px; color: var(--ink);
+  }
+  .parchment-ingredient {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 8px;
+    background: rgba(232, 212, 160, 0.5);
+    border-radius: 4px;
+    border-left: 3px solid var(--parchment-edge);
+    font-weight: 700;
+  }
+  .parchment-ingredient.done {
+    color: #8c7050; text-decoration: line-through;
+    border-left-color: var(--leaf);
+  }
+  .parchment-ingredient-need { font-weight: 700; }
+  .parchment-check {
+    width: 100%;
+    background: var(--copper); color: var(--parchment);
+    border: 2px solid var(--copper-deep);
+    border-radius: 999px;
+    padding: 10px;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 var(--copper-deep);
+    transition: transform 0.12s ease;
+  }
+  .parchment-check:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-deep); }
+  .parchment-check:disabled { opacity: 0.45; cursor: default; }
+  .parchment-feedback {
+    text-align: center; min-height: 22px; margin-top: 8px;
+    font-family: 'Caveat', cursive; font-size: 20px; font-weight: 700;
+  }
+  .parchment-feedback.correct { color: #2d6d2d; }
+  .parchment-feedback.wrong { color: #c0392b; }
+  /* ===== Veggie shelf (left) ===== */
+  .veggie-shelf {
+    position: absolute; left: 14px; bottom: 14px;
+    z-index: 5;
+    background: var(--wood-light);
+    border: 3px solid var(--wood-deep);
+    border-radius: 8px;
+    padding: 10px;
+    display: flex; gap: 10px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+  }
+  .veggie-card {
+    width: 76px; height: 92px;
+    background: var(--parchment);
+    border: 2px solid var(--parchment-edge);
+    border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 6px;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    position: relative;
+  }
+  .veggie-card:active { transform: scale(0.92); }
+  .veggie-card.disabled { opacity: 0.35; cursor: default; }
+  .veggie-card-svg { width: 48px; height: 48px; display: block; }
+  .veggie-card-label {
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 13px;
+    color: var(--ink-deep);
+  }
+  .veggie-card-count {
+    position: absolute; top: -8px; right: -8px;
+    background: var(--leaf); color: #fff;
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 14px;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    opacity: 0; transform: scale(0.6);
+    transition: all 0.2s ease;
+  }
+  .veggie-card-count.shown { opacity: 1; transform: scale(1); }
+  /* Flying veggie animation */
+  .flying-veggie {
+    position: absolute;
+    width: 56px; height: 56px;
+    z-index: 10;
+    pointer-events: none;
+    transition: transform 0.55s cubic-bezier(0.45, -0.15, 0.45, 1), opacity 0.55s ease;
+  }
+  /* ===== Chef Ralphie corner ===== */
+  .chef-ralphie {
+    position: absolute;
+    left: 50%; bottom: 4px;
+    transform: translateX(-180px);
+    width: 90px; height: 110px;
+    z-index: 4;
+    pointer-events: none;
+  }
+  /* ===== Today's Recipe (special — opens 5 word problems) ===== */
   .today-recipe-btn {
-    position:fixed; top:calc(var(--safe-top) + 14px); right:18px;
-    background:linear-gradient(135deg,#ff8b3d,#ffd147);
-    border:none; color:#1a1a1a;
-    padding:10px 18px; border-radius:999px;
-    font-family:var(--font-display); font-weight:700; font-size:14px;
-    box-shadow:0 6px 18px rgba(255,139,61,0.45);
-    cursor:pointer; z-index:10;
-    display:inline-flex; align-items:center; gap:6px;
-    transition:transform .12s ease;
+    position: absolute; top: 76px; right: 270px;
+    background: linear-gradient(180deg, var(--copper-light), var(--copper));
+    color: var(--ink-deep); border: 2px solid var(--copper-deep);
+    padding: 8px 14px; border-radius: 8px;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 13px;
+    cursor: pointer; z-index: 6;
+    box-shadow: 0 3px 0 var(--copper-deep);
+    display: inline-flex; align-items: center; gap: 6px;
   }
-  .today-recipe-btn:active { transform:scale(0.96); }
-  .today-recipe-btn[hidden] { display:none; }
+  .today-recipe-btn[hidden] { display: none; }
+  .today-recipe-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-deep); }
+  /* ===== Today's Recipe overlay (kept from v120, restyled) ===== */
   .today-recipe-overlay {
-    position:fixed; inset:0; z-index:9000;
-    background:linear-gradient(160deg,#0a0b2e 0%,#1a1554 60%,#7c3aed 100%);
-    display:flex; flex-direction:column;
-    padding:24px 18px 32px;
-    overflow-y:auto;
-    font-family:var(--font-display);
-    color:#fff;
+    position: fixed; inset: 0; z-index: 9000;
+    background: linear-gradient(160deg, var(--wood-deep) 0%, var(--wood) 60%, var(--copper-shadow) 100%);
+    display: flex; flex-direction: column;
+    padding: 20px 18px 32px;
+    overflow-y: auto;
+    color: var(--parchment);
+    font-family: 'Nunito', sans-serif;
   }
-  .today-recipe-overlay[hidden] { display:none; }
+  .today-recipe-overlay[hidden] { display: none; }
   .today-recipe-close {
-    align-self:flex-end;
-    width:44px; height:44px; border-radius:999px;
-    background:rgba(255,255,255,0.16); color:#fff;
-    border:none; font-size:24px; font-weight:700; cursor:pointer;
+    align-self: flex-end;
+    width: 44px; height: 44px; border-radius: 999px;
+    background: var(--parchment); color: var(--ink-deep); border: none;
+    font-size: 22px; font-weight: 700; cursor: pointer;
   }
   .today-recipe-h {
-    text-align:center; margin:8px 0 4px;
-    font-size:13px; letter-spacing:0.14em; opacity:0.85;
+    text-align: center; font-family: 'Cormorant Garamond', serif;
+    font-style: italic; font-size: 14px;
+    letter-spacing: 0.18em; opacity: 0.9; margin: 8px 0 4px;
   }
   .today-recipe-counter {
-    text-align:center; font-size:32px; font-weight:800; color:#ffd147;
-    margin:0 0 22px;
+    text-align: center; font-family: 'Fredoka', sans-serif;
+    font-size: 36px; font-weight: 700; color: var(--fire-bright);
+    margin: 0 0 18px;
   }
   .today-recipe-card {
-    background:rgba(255,255,255,0.08);
-    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    border:1px solid rgba(255,255,255,0.16);
-    border-radius:22px; padding:22px 20px;
-    box-shadow:0 16px 32px rgba(0,0,0,0.35);
+    background: var(--parchment);
+    color: var(--ink-deep);
+    border: 3px solid var(--parchment-edge);
+    border-radius: 8px;
+    padding: 22px 20px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.4);
+    font-family: 'Cormorant Garamond', serif;
   }
   .today-recipe-prompt {
-    font-family:'Nunito',sans-serif; font-size:20px; line-height:1.4;
-    margin:0 0 18px;
+    font-family: 'Caveat', cursive;
+    font-size: 22px; line-height: 1.4; font-weight: 700;
+    margin: 0 0 18px; color: var(--ink-deep);
   }
   .today-recipe-input {
-    width:100%; box-sizing:border-box;
-    padding:14px 18px; border-radius:14px;
-    background:#fff; color:#1a1a1a;
-    font-family:var(--font-display); font-weight:700; font-size:28px;
-    text-align:center; border:none; outline:none;
+    width: 100%; box-sizing: border-box;
+    padding: 14px 18px;
+    background: #fff; color: var(--ink-deep);
+    border: 2px solid var(--parchment-edge); border-radius: 8px;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 28px;
+    text-align: center; outline: none;
   }
+  .today-recipe-input:focus { border-color: var(--copper); }
   .today-recipe-check {
-    width:100%; margin-top:12px;
-    padding:14px; border-radius:14px;
-    background:#ffd147; color:#1a1a1a; border:none;
-    font-family:var(--font-display); font-weight:700; font-size:18px;
-    cursor:pointer;
-    transition:transform .12s ease;
+    width: 100%; margin-top: 14px;
+    padding: 14px;
+    background: var(--copper); color: var(--parchment);
+    border: 2px solid var(--copper-deep); border-radius: 8px;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 var(--copper-deep);
   }
-  .today-recipe-check:active { transform:scale(0.97); }
+  .today-recipe-check:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-deep); }
   .today-recipe-feedback {
-    margin-top:14px; min-height:24px; text-align:center;
-    font-family:'Nunito',sans-serif; font-size:18px; font-weight:700;
+    margin-top: 14px; min-height: 24px; text-align: center;
+    font-family: 'Caveat', cursive; font-size: 22px; font-weight: 700;
   }
-  .today-recipe-feedback.correct { color:#2ec27e; }
-  .today-recipe-feedback.wrong { color:#ff8b3d; }
+  .today-recipe-feedback.correct { color: #2d6d2d; }
+  .today-recipe-feedback.wrong { color: #c0392b; }
   .today-recipe-next {
-    margin-top:14px; width:100%;
-    padding:12px; border-radius:14px;
-    background:rgba(255,255,255,0.16); color:#fff; border:none;
-    font-family:var(--font-display); font-weight:700; font-size:16px;
-    cursor:pointer;
+    margin-top: 12px; width: 100%;
+    padding: 12px;
+    background: var(--parchment); color: var(--ink-deep);
+    border: 2px solid var(--parchment-edge); border-radius: 8px;
+    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 16px;
+    cursor: pointer;
   }
-  .today-recipe-next[hidden] { display:none; }
+  .today-recipe-next[hidden] { display: none; }
   .today-recipe-summary {
-    text-align:center; padding-top:32px;
+    text-align: center; padding-top: 32px;
   }
   .today-recipe-summary-score {
-    font-size:64px; font-weight:800; color:#ffd147; margin:0;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 64px; font-weight: 800; color: var(--fire-bright); margin: 0;
   }
   .today-recipe-summary-msg {
-    font-size:18px; opacity:0.92; margin:8px 0 24px;
+    font-family: 'Caveat', cursive;
+    font-size: 24px; font-weight: 700;
+    margin: 8px 0 24px;
+  }
+  /* ===== Tablet / smaller screen sizing ===== */
+  @media (max-width: 900px) {
+    .cauldron-zone { width: 280px; height: 240px; left: 36%; }
+    .parchment { width: 220px; top: 72px; right: 12px; }
+    .today-recipe-btn { right: 244px; }
+  }
+  @media (max-width: 720px) {
+    .cauldron-zone { width: 220px; height: 200px; left: 32%; top: 32%; }
+    .parchment { width: 192px; padding: 14px; }
+    .parchment-prompt { font-size: 18px; min-height: 44px; }
+    .parchment-equation { font-size: 24px; }
+    .today-recipe-btn { right: 212px; font-size: 12px; padding: 6px 10px; }
+    .veggie-shelf { padding: 8px; gap: 8px; }
+    .veggie-card { width: 64px; height: 80px; }
+    .veggie-card-svg { width: 40px; height: 40px; }
   }
 </style>
-<script src="js/characters.js"></script>
 </head>
 <body>
-<a href="index.html" class="back-btn">← Home</a>
-<button type="button" class="today-recipe-btn" id="todayRecipeBtn" hidden>🍽️ Today's Recipe</button>
+
+<div class="scene">
+  <header class="header">
+    <a href="index.html" class="back-btn" aria-label="Back to map">
+      ← Home
+    </a>
+    <h1 class="header-title">Cauldron Café</h1>
+    <div class="header-stats">
+      <span class="header-stat-pill" id="recipeProgress">Recipe 1 of 5</span>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <!-- Hanging lantern -->
+    <div class="lantern">
+      <div class="lantern-rope"></div>
+      <div class="lantern-glow"></div>
+      <div class="lantern-body"></div>
+      <div class="lantern-flame"></div>
+    </div>
+
+    <!-- Wooden table surface across bottom -->
+    <div class="table-surface" aria-hidden="true"></div>
+
+    <!-- Fire glow under cauldron -->
+    <div class="fire-glow" aria-hidden="true"></div>
+
+    <!-- Steam wisps -->
+    <div class="steam" aria-hidden="true">
+      <div class="steam-wisp"></div>
+      <div class="steam-wisp"></div>
+      <div class="steam-wisp"></div>
+    </div>
+
+    <!-- Cauldron itself (SVG) -->
+    <div class="cauldron-zone" id="cauldronZone">
+      <svg class="cauldron-svg" viewBox="0 0 320 280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <!-- Cauldron body -->
+        <path d="M 50 100 Q 50 240, 100 260 L 220 260 Q 270 240, 270 100 Z" fill="#b87333"/>
+        <!-- Darker shadow side (left) -->
+        <path d="M 50 100 Q 50 240, 100 260 L 140 260 Q 100 240, 90 100 Z" fill="#8a5728"/>
+        <!-- Highlight on right side -->
+        <path d="M 235 115 Q 240 200, 220 250" fill="none" stroke="#e0a467" stroke-width="6" stroke-linecap="round"/>
+        <!-- Riveted band -->
+        <rect x="60" y="148" width="200" height="14" fill="#6b3c18"/>
+        <circle cx="78" cy="155" r="3" fill="#d4a574"/>
+        <circle cx="110" cy="155" r="3" fill="#d4a574"/>
+        <circle cx="142" cy="155" r="3" fill="#d4a574"/>
+        <circle cx="174" cy="155" r="3" fill="#d4a574"/>
+        <circle cx="206" cy="155" r="3" fill="#d4a574"/>
+        <circle cx="238" cy="155" r="3" fill="#d4a574"/>
+        <!-- Handles -->
+        <path d="M 45 115 Q 15 115, 15 145 Q 15 170, 45 170" fill="none" stroke="#7a4720" stroke-width="9" stroke-linecap="round"/>
+        <path d="M 275 115 Q 305 115, 305 145 Q 305 170, 275 170" fill="none" stroke="#7a4720" stroke-width="9" stroke-linecap="round"/>
+        <!-- Cauldron rim -->
+        <ellipse cx="160" cy="100" rx="110" ry="22" fill="#7a4720"/>
+        <ellipse cx="160" cy="96"  rx="110" ry="20" fill="#d49968"/>
+        <!-- Inside of pot -->
+        <ellipse cx="160" cy="98" rx="98" ry="14" fill="#4a2e15"/>
+        <!-- Soup surface -->
+        <ellipse cx="160" cy="96" rx="86" ry="9" fill="#c87a3a" id="soupSurface"/>
+        <!-- Bubbles -->
+        <circle cx="135" cy="94" r="5" fill="#e8a36b">
+          <animate attributeName="cy" values="94;90;94" dur="2.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;1;0.4" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="175" cy="97" r="3" fill="#e8a36b">
+          <animate attributeName="cy" values="97;93;97" dur="1.8s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="195" cy="94" r="4" fill="#e8a36b">
+          <animate attributeName="cy" values="94;90;94" dur="2.8s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.8s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+    </div>
+
+    <!-- Chef Ralphie (SVG turtle in chef hat) -->
+    <div class="chef-ralphie" aria-hidden="true">
+      <svg viewBox="0 0 90 110" xmlns="http://www.w3.org/2000/svg">
+        <!-- Chef hat -->
+        <path d="M 20 45 Q 18 12, 32 10 Q 38 0, 48 10 Q 56 4, 64 12 Q 70 35, 68 45 Z" fill="#ffffff"/>
+        <rect x="20" y="44" width="48" height="8" fill="#f0f0f0"/>
+        <!-- Head -->
+        <ellipse cx="44" cy="68" rx="24" ry="18" fill="#5fb074"/>
+        <ellipse cx="44" cy="72" rx="22" ry="14" fill="#7ac98c"/>
+        <!-- Eyes -->
+        <circle cx="35" cy="68" r="4" fill="#fff"/>
+        <circle cx="53" cy="68" r="4" fill="#fff"/>
+        <circle cx="36" cy="69" r="2" fill="#1a1a1a" id="ralphieEyeL"/>
+        <circle cx="54" cy="69" r="2" fill="#1a1a1a" id="ralphieEyeR"/>
+        <!-- Smile -->
+        <path d="M 36 78 Q 44 84, 52 78" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" id="ralphieMouth"/>
+        <!-- Apron neck strap -->
+        <rect x="38" y="84" width="12" height="6" fill="#f5e8c8"/>
+      </svg>
+    </div>
+
+    <!-- Recipe parchment (right side) -->
+    <aside class="parchment" id="parchment">
+      <p class="parchment-eyebrow">Today's order</p>
+      <h2 class="parchment-title" id="recipeName">Loading…</h2>
+      <p class="parchment-prompt" id="recipePrompt">Preparing your kitchen…</p>
+      <p class="parchment-equation" id="recipeEquation" hidden></p>
+      <div class="parchment-ingredients" id="recipeIngredients"></div>
+      <button type="button" class="parchment-check" id="checkBtn" disabled>Serve it up</button>
+      <p class="parchment-feedback" id="feedback"></p>
+    </aside>
+
+    <!-- Today's Recipe (word problems from cron content) -->
+    <button type="button" class="today-recipe-btn" id="todayRecipeBtn" hidden>
+      ⭐ Today's Special
+    </button>
+
+    <!-- Veggie shelf at bottom -->
+    <div class="veggie-shelf" id="veggieShelf">
+      <!-- Cards populated by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Today's Recipe overlay (5 AI word problems) -->
 <div class="today-recipe-overlay" id="todayRecipeOverlay" hidden>
   <button type="button" class="today-recipe-close" id="todayRecipeClose" aria-label="Close">×</button>
-  <p class="today-recipe-h">🍽️ TODAY'S SPECIAL RECIPE</p>
+  <p class="today-recipe-h">⭐ Today's Special</p>
   <p class="today-recipe-counter"><span id="todayRecipeIdx">1</span>/<span id="todayRecipeTotal">5</span></p>
-  <div class="today-recipe-card">
+  <div class="today-recipe-card" id="todayRecipeCardEl">
     <p class="today-recipe-prompt" id="todayRecipePrompt">Loading…</p>
     <input type="number" inputmode="numeric" class="today-recipe-input" id="todayRecipeInput" placeholder="?">
     <button type="button" class="today-recipe-check" id="todayRecipeCheck">Check answer</button>
@@ -163,1034 +588,483 @@
   <div class="today-recipe-summary" id="todayRecipeSummary" hidden>
     <p class="today-recipe-summary-score"><span id="todayRecipeScore">0</span>/5</p>
     <p class="today-recipe-summary-msg" id="todayRecipeSummaryMsg"></p>
-    <button type="button" class="today-recipe-next" id="todayRecipeDone" style="display:block;">Back to cooking</button>
+    <button type="button" class="today-recipe-next" id="todayRecipeDone" style="display:block;">Back to the kitchen</button>
   </div>
 </div>
-<div id="game-container"></div>
-<div class="badge">Cauldron Café · v0.2</div>
 
-<script>
-/* =============================================================
-   RALPHIE'S CAULDRON CAFÉ — Hero Academy Number Lab
-   Counting + addition through cooking
-   ============================================================= */
-
-const W = 1024, H = 768;
-
-// Match site design system
-const COLOR = {
-  bgDeep:    0x0a0b2e,
-  bgPurple:  0x1a1554,
-  bgNavy:    0x1e2876,
-  gold:      0xffd147,
-  goldDeep:  0xf5b800,
-  goldBright:0xffe580,
-  orange:    0xff8b3d,
-  orangeBright:0xffa86b,
-  magenta:   0xec4899,
-  violet:    0xa855f7,
-  emerald:   0x2ec27e,
-  red:       0xef4444,
-  text:      0xffffff,
-  cream:     0xfff8e1,
-  iron:      0x1a1a1a
-};
-
-const VEGGIES = [
-  { id: 'carrot',   emoji: '🥕', label: 'Carrots',   color: 0xff8b3d },
-  { id: 'potato',   emoji: '🥔', label: 'Potatoes',  color: 0xd4a574 },
-  { id: 'mushroom', emoji: '🍄', label: 'Mushrooms', color: 0xec4899 },
-  { id: 'pumpkin',  emoji: '🎃', label: 'Pumpkins',  color: 0xffa86b }
-];
-
-const LEVELS = [
-  { order: { carrot: 3 },                          customer: '🧙‍♀️', name: 'Wanda the Witch' },
-  { order: { potato: 5 },                          customer: '🧙‍♂️', name: 'Merlin the Wise' },
-  { order: { mushroom: 4 },                        customer: '👻', name: 'Boo the Ghost' },
-  { order: { carrot: 3, potato: 2 },               customer: '🤴', name: 'Prince Patrick' },
-  { order: { mushroom: 4, pumpkin: 1 },            customer: '🐉', name: 'Drago the Dragon' },
-  { order: { carrot: 2, potato: 2, mushroom: 2 },  customer: '🧝', name: 'Ellie the Elf' },
-  { order: { pumpkin: 3, carrot: 4 },              customer: '🧚', name: 'Pip the Fairy' },
-  { order: { mushroom: 5, potato: 3, carrot: 2 },  customer: '🧛', name: 'Count Snackula' }
-];
-
-// Ralphie expression mapping (asset filenames in assets/ralphie/)
-const RALPHIE_STATES = [
-  'default', 'pointing', 'thinking', 'clapping',
-  'cheering', 'surprised', 'trophy', 'sad', 'flexing'
-];
-
-let state = {
-  levelIndex: 0,
-  cauldron: { carrot: 0, potato: 0, mushroom: 0, pumpkin: 0 },
-  stars: 0,
-  score: 0,
-  muted: false,
-  busy: false,
-  hasRalphieAssets: false
-};
-
-// === Voice ===
-// TODO: swap for ElevenLabs TTS via Miss Humphrey agent (agent_5901kssbzjm1e0yvd0kdwxa3r49m)
-function speak(text) {
-  if (state.muted) return;
-  // Prefer Ms. Humphrey's voice (ElevenLabs Emory) when the module is loaded —
-  // keeps Nigel hearing the same teacher across every zone instead of a robotic
-  // system voice. Falls back to speechSynthesis if Humphrey isn't available.
-  if (window.HeroAcademy && window.HeroAcademy.Humphrey && typeof window.HeroAcademy.Humphrey.say === 'function') {
-    try { window.HeroAcademy.Humphrey.say('try-again-reading', { kidName: 'Nigel', text: text }); return; } catch (e) {}
-  }
-  if (!window.speechSynthesis) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.95; u.pitch = 1.1; u.volume = 0.9;
-  speechSynthesis.speak(u);
-}
-
-class CauldronScene extends Phaser.Scene {
-  constructor() { super('Cauldron'); }
-
-  preload() {
-    // Suppress 404 noise when running standalone (assets only exist in deployed PWA)
-    this.load.on('loaderror', () => {});
-    RALPHIE_STATES.forEach(s => {
-      this.load.image(`ralphie_${s}`, `assets/ralphie/ralphie_${s}.webp`);
-    });
-  }
-
-  create() {
-    state.hasRalphieAssets = this.textures.exists('ralphie_default');
-
-    this.drawBackground();
-    this.drawTitle();
-    this.drawCustomerArea();
-    this.drawCauldron();
-    this.drawRalphie();
-    this.drawVeggieShelf();
-    this.drawHUD();
-    this.drawServeButton();
-    this.drawMuteButton();
-
-    this.tweens.add({
-      targets: this.ralphie, y: this.ralphie.y - 12,
-      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
-    });
-
-    this.time.delayedCall(600, () => this.startLevel(0));
-  }
-
-  // ---- Ralphie helpers (image with emoji fallback) ----
-  makeRalphie(x, y) {
-    if (state.hasRalphieAssets) {
-      const img = this.add.image(x, y, 'ralphie_default');
-      // Scale to fit ~110px height regardless of source dimensions
-      const targetH = 130;
-      img.setScale(targetH / img.height);
-      return img;
-    }
-    return this.add.text(x, y, '🐢', { fontSize: '110px' }).setOrigin(0.5);
-  }
-  setRalphieState(stateName) {
-    if (!state.hasRalphieAssets) return;
-    const key = `ralphie_${stateName}`;
-    if (this.textures.exists(key)) this.ralphie.setTexture(key);
-  }
-
-  // ---- Visual setup ----
-  drawBackground() {
-    const g = this.add.graphics();
-    g.fillGradientStyle(COLOR.bgDeep, COLOR.bgDeep, COLOR.bgPurple, COLOR.bgNavy, 1);
-    g.fillRect(0, 0, W, H);
-
-    // moon
-    this.add.circle(900, 95, 40, 0xfff4c2, 0.9);
-    this.add.circle(900, 95, 50, 0xfff4c2, 0.15);
-
-    // stars
-    for (let i = 0; i < 60; i++) {
-      const s = this.add.text(
-        Phaser.Math.Between(0, W),
-        Phaser.Math.Between(0, 380),
-        '✦',
-        { fontSize: `${Phaser.Math.Between(8, 18)}px`, color: '#ffd147' }
-      );
-      s.setAlpha(Phaser.Math.FloatBetween(0.2, 0.7));
-      this.tweens.add({
-        targets: s, alpha: 0.1,
-        duration: Phaser.Math.Between(1500, 3500),
-        yoyo: true, repeat: -1
-      });
-    }
-
-    // floor (stone planks)
-    const floor = this.add.graphics();
-    floor.fillStyle(0x2a1a4e, 1);
-    floor.fillRect(0, 620, W, 148);
-    for (let x = 0; x < W; x += 80) {
-      floor.lineStyle(2, 0x1a0b2e, 0.5);
-      floor.lineBetween(x, 620, x, 768);
-    }
-  }
-
-  drawTitle() {
-    const t = this.add.text(W/2, 38, "Ralphie's Cauldron Café", {
-      fontFamily: 'Cherry Bomb One',
-      fontSize: '40px',
-      color: '#ffd147',
-      stroke: '#0a0b2e',
-      strokeThickness: 5
-    }).setOrigin(0.5);
-    t.setShadow(0, 4, '#ff8b3d', 8, true, true);
-  }
-
-  drawCustomerArea() {
-    // customer platform
-    const platform = this.add.graphics();
-    platform.fillStyle(0x000000, 0.3);
-    platform.fillEllipse(170, 290, 180, 30);
-
-    this.customer = this.add.text(170, 200, '🧙‍♀️', {
-      fontSize: '130px'
-    }).setOrigin(0.5);
-
-    this.customerName = this.add.text(170, 295, '', {
-      fontFamily: 'Fredoka',
-      fontSize: '20px',
-      fontStyle: '600',
-      color: '#ffd147'
-    }).setOrigin(0.5);
-
-    this.bubbleGfx = this.add.graphics();
-    this.orderText = this.add.text(560, 180, '', {
-      fontFamily: 'Fredoka',
-      fontSize: '30px',
-      fontStyle: '600',
-      color: '#0a0b2e',
-      align: 'center',
-      wordWrap: { width: 460 }
-    }).setOrigin(0.5);
-  }
-
-  drawSpeechBubble() {
-    const b = this.bubbleGfx;
-    b.clear();
-    b.fillStyle(0xfff8e1, 1);
-    b.lineStyle(4, 0xffd147, 1);
-    b.fillRoundedRect(310, 100, 500, 160, 22);
-    b.strokeRoundedRect(310, 100, 500, 160, 22);
-    b.fillTriangle(310, 175, 270, 200, 312, 210);
-    b.lineStyle(4, 0xffd147, 1);
-    b.strokeTriangle(310, 175, 270, 200, 312, 210);
-    b.fillStyle(0xfff8e1, 1);
-    b.fillRect(310, 178, 6, 30);
-  }
-
-  drawCauldron() {
-    const cx = W/2, cy = 480;
-
-    const glow = this.add.circle(cx, cy + 50, 130, COLOR.orange, 0.4);
-    this.tweens.add({
-      targets: glow, alpha: 0.2, scale: 1.1,
-      duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
-    });
-
-    const c = this.add.graphics();
-    c.fillStyle(COLOR.iron, 1);
-    c.fillEllipse(cx, cy + 60, 280, 80);
-    c.fillRect(cx - 140, cy - 20, 280, 80);
-    c.fillStyle(0x2a2a2a, 1);
-    c.fillEllipse(cx, cy - 20, 280, 50);
-    c.fillStyle(0x0a0a0a, 1);
-    c.fillEllipse(cx, cy - 25, 240, 35);
-    c.fillStyle(COLOR.iron, 1);
-    c.fillRect(cx - 100, cy + 80, 18, 30);
-    c.fillRect(cx + 82, cy + 80, 18, 30);
-    c.fillStyle(0x444444, 1);
-    [-90, -30, 30, 90].forEach(dx => c.fillCircle(cx + dx, cy + 5, 4));
-
-    this.soupColor = this.add.circle(cx, cy - 20, 110, COLOR.orange, 0.8);
-    this.soupColor.setScale(1.1, 0.3);
-
-    this.bubbles = [];
-    for (let i = 0; i < 8; i++) {
-      const b = this.add.circle(
-        cx + Phaser.Math.Between(-100, 100),
-        cy - 25,
-        Phaser.Math.Between(6, 14),
-        COLOR.gold, 0.6
-      );
-      this.bubbles.push(b);
-      this.animateBubble(b, cx, cy);
-    }
-
-    this.cauldronContents = this.add.text(cx, cy + 130, '', {
-      fontFamily: 'Fredoka',
-      fontSize: '26px',
-      fontStyle: '600',
-      color: '#ffffff',
-      align: 'center'
-    }).setOrigin(0.5);
-  }
-
-  animateBubble(b, cx, cy) {
-    b.x = cx + Phaser.Math.Between(-100, 100);
-    b.y = cy - 25;
-    b.alpha = 0;
-    b.setScale(0);
-    this.tweens.add({
-      targets: b,
-      y: cy - 80,
-      alpha: { from: 0.8, to: 0 },
-      scale: { from: 0.3, to: 1.2 },
-      duration: Phaser.Math.Between(1200, 2500),
-      delay: Phaser.Math.Between(0, 1500),
-      onComplete: () => this.animateBubble(b, cx, cy)
-    });
-  }
-
-  drawRalphie() {
-    this.ralphie = this.makeRalphie(900, 340);
-
-    // chef hat — sits above Ralphie's head
-    this.chefHat = this.add.text(900, 245, '👨‍🍳', {
-      fontSize: '40px'
-    }).setOrigin(0.5);
-
-    this.add.text(900, 415, 'Ralphie', {
-      fontFamily: 'Fredoka',
-      fontSize: '20px',
-      fontStyle: '600',
-      color: '#4dd99c'
-    }).setOrigin(0.5);
-
-    this.ralphieSpeech = this.add.text(900, 440, '', {
-      fontFamily: 'Fredoka',
-      fontSize: '14px',
-      color: '#ffd147',
-      align: 'center',
-      wordWrap: { width: 180 }
-    }).setOrigin(0.5);
-  }
-
-  drawVeggieShelf() {
-    const shelfY = 660;
-    const startX = 120;
-    const spacing = 200;
-
-    const shelf = this.add.graphics();
-    shelf.fillStyle(0x6b4226, 1);
-    shelf.fillRoundedRect(60, 620, 920, 10, 4);
-
-    this.veggieButtons = {};
-
-    VEGGIES.forEach((v, i) => {
-      const x = startX + i * spacing;
-
-      const bg = this.add.graphics();
-      bg.fillStyle(COLOR.cream, 1);
-      bg.lineStyle(4, v.color, 1);
-      bg.fillRoundedRect(x - 80, shelfY - 50, 160, 110, 16);
-      bg.strokeRoundedRect(x - 80, shelfY - 50, 160, 110, 16);
-
-      const emoji = this.add.text(x, shelfY - 10, v.emoji, {
-        fontSize: '60px'
-      }).setOrigin(0.5);
-
-      this.add.text(x, shelfY + 40, v.label, {
-        fontFamily: 'Fredoka',
-        fontSize: '16px',
-        fontStyle: '600',
-        color: '#0a0b2e'
-      }).setOrigin(0.5);
-
-      const badge = this.add.circle(x + 55, shelfY - 35, 18, COLOR.orange, 1);
-      badge.setStrokeStyle(3, COLOR.cream);
-      const badgeText = this.add.text(x + 55, shelfY - 36, '0', {
-        fontFamily: 'Fredoka',
-        fontSize: '18px',
-        fontStyle: '700',
-        color: '#fff'
-      }).setOrigin(0.5);
-      badge.setVisible(false);
-      badgeText.setVisible(false);
-
-      const minusBg = this.add.circle(x - 55, shelfY - 35, 16, 0x888888, 1);
-      minusBg.setStrokeStyle(3, COLOR.cream);
-      const minusText = this.add.text(x - 55, shelfY - 38, '−', {
-        fontFamily: 'Fredoka',
-        fontSize: '24px',
-        fontStyle: '700',
-        color: '#fff'
-      }).setOrigin(0.5);
-      minusBg.setVisible(false);
-      minusText.setVisible(false);
-      // Render the visible minus above the add-zone so it isn't occluded.
-      minusBg.setDepth(10);
-      minusText.setDepth(10);
-      // Invisible 56px-diameter hit circle layered above the visible 32px minus. Phaser hit-tests
-      // by depth, so this captures taps before the add-zone — Nigel's finger can land slightly off
-      // the visible button and still trigger removeVeggie instead of accidentally adding a veggie.
-      const minusHit = this.add.circle(x - 55, shelfY - 35, 28, 0xffffff, 0);
-      minusHit.setDepth(11);
-      minusHit.setInteractive({ useHandCursor: true });
-      // Start disabled — refreshVeggieBadges toggles this with visibility so the add-zone gets clicks when count == 0.
-      minusHit.input.enabled = false;
-      minusHit.on('pointerdown', () => this.removeVeggie(v.id));
-
-      const hit = this.add.zone(x, shelfY, 160, 110);
-      hit.setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', () => this.addVeggie(v.id, x, shelfY - 10));
-      hit.on('pointerover', () => { emoji.setScale(1.1); });
-      hit.on('pointerout',  () => { emoji.setScale(1); });
-
-      this.veggieButtons[v.id] = { emoji, badge, badgeText, minusBg, minusText, minusHit, x, y: shelfY - 10 };
-    });
-  }
-
-  drawServeButton() {
-    const x = W/2, y = 720;
-    const bg = this.add.graphics();
-    bg.fillStyle(COLOR.orange, 1);
-    bg.lineStyle(4, COLOR.gold, 1);
-    bg.fillRoundedRect(x - 110, y - 28, 220, 56, 28);
-    bg.strokeRoundedRect(x - 110, y - 28, 220, 56, 28);
-
-    const text = this.add.text(x, y, 'SERVE! 🍲', {
-      fontFamily: 'Cherry Bomb One',
-      fontSize: '28px',
-      color: '#fff8e1',
-      stroke: '#0a0b2e',
-      strokeThickness: 3
-    }).setOrigin(0.5);
-
-    const hit = this.add.zone(x, y, 220, 56);
-    hit.setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', () => this.serve());
-    hit.on('pointerover', () => {
-      this.tweens.add({ targets: [bg, text], scale: 1.06, duration: 120 });
-    });
-    hit.on('pointerout', () => {
-      this.tweens.add({ targets: [bg, text], scale: 1, duration: 120 });
-    });
-
-    this.serveButton = { bg, text };
-
-    this.tweens.add({
-      targets: bg, alpha: 0.85,
-      duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
-    });
-  }
-
-  drawMuteButton() {
-    const btn = this.add.text(W - 40, 40, '🔊', { fontSize: '32px' }).setOrigin(0.5);
-    btn.setInteractive({ useHandCursor: true });
-    btn.on('pointerdown', () => {
-      state.muted = !state.muted;
-      btn.setText(state.muted ? '🔇' : '🔊');
-      if (state.muted) speechSynthesis.cancel();
-    });
-  }
-
-  drawHUD() {
-    const pillBg = this.add.graphics();
-    pillBg.fillStyle(COLOR.cream, 0.95);
-    pillBg.lineStyle(3, COLOR.gold, 1);
-    pillBg.fillRoundedRect(20, 22, 150, 36, 18);
-    pillBg.strokeRoundedRect(20, 22, 150, 36, 18);
-    this.levelLabel = this.add.text(95, 40, '', {
-      fontFamily: 'Fredoka',
-      fontSize: '18px',
-      fontStyle: '700',
-      color: '#0a0b2e'
-    }).setOrigin(0.5);
-
-    this.starsLabel = this.add.text(185, 40, '⭐ 0', {
-      fontFamily: 'Fredoka',
-      fontSize: '22px',
-      fontStyle: '700',
-      color: '#ffd147',
-      stroke: '#0a0b2e',
-      strokeThickness: 3
-    }).setOrigin(0, 0.5);
-  }
-
-  // ---- Game logic ----
-  startLevel(idx) {
-    if (idx >= LEVELS.length) return this.winGame();
-
-    state.levelIndex = idx;
-    state.cauldron = { carrot: 0, potato: 0, mushroom: 0, pumpkin: 0 };
-    state.busy = false;
-
-    const lvl = LEVELS[idx];
-
-    this.levelLabel.setText(`Order ${idx + 1} of ${LEVELS.length}`);
-
-    this.customer.setText(lvl.customer);
-    this.customer.setScale(0); this.customer.setAlpha(0);
-    this.customerName.setText(lvl.name);
-    this.customerName.setAlpha(0);
-    this.tweens.add({
-      targets: this.customer, scale: 1, alpha: 1,
-      duration: 500, ease: 'Back.easeOut'
-    });
-    this.tweens.add({
-      targets: this.customerName, alpha: 1, duration: 500, delay: 200
-    });
-
-    if (this.customerBob) this.customerBob.stop();
-    this.customerBob = this.tweens.add({
-      targets: this.customer,
-      y: this.customer.y - 8,
-      duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 600
-    });
-
-    this.drawSpeechBubble();
-    const orderStr = this.formatOrder(lvl.order);
-    this.orderText.setText(orderStr.display);
-    this.orderText.setAlpha(0);
-    this.tweens.add({
-      targets: this.orderText, alpha: 1, duration: 400, delay: 300
-    });
-
-    // Ralphie reacts — pointing at the order
-    this.setRalphieState('pointing');
-    const tips = ["Let's cook!", "I'll help count!", "You got this!", "Yum yum yum!", "Order up!"];
-    this.ralphieSpeech.setText(Phaser.Utils.Array.GetRandom(tips));
-
-    this.updateCauldronDisplay();
-    this.refreshVeggieBadges();
-
-    // v90: Sequenced order narration — each veggie button pulses as Humphrey
-    // names it, so Nigel SEES the item she's SAYING. Falls back to the plain
-    // single-line speak() if HumphreyChoices isn't loaded.
-    this.time.delayedCall(600, () => this.speakOrderSequenced(lvl, orderStr));
-
-    // Switch to thinking after order is spoken
-    this.time.delayedCall(2400, () => this.setRalphieState('thinking'));
-  }
-
-  // v90: read each order item aloud while pulsing the matching veggie button.
-  // Falls back to the plain speak() if HumphreyChoices isn't on the page.
-  speakOrderSequenced(lvl, orderStr) {
-    var HC = window.HeroAcademy && window.HeroAcademy.HumphreyChoices;
-    if (!HC || typeof HC.speakSequence !== 'function') {
-      speak(`${lvl.name} says: ${orderStr.spoken}`);
-      return;
-    }
-
-    var order = lvl.order || {};
-    var keys = Object.keys(order).filter(k => order[k] > 0);
-    var scene = this;
-    var segments = [];
-
-    segments.push({
-      event: 'cauldron-order-intro',
-      text: `${lvl.name} says, I want`,
-      expression: 'encouraging',
-      priority: 'high',
-    });
-
-    keys.forEach(function (id, idx) {
-      var v = VEGGIES.find(function (x) { return x.id === id; });
-      if (!v) return;
-      var count = order[id];
-      var label = count === 1 ? v.label.slice(0, -1).toLowerCase() : v.label.toLowerCase();
-      var isLast  = idx === keys.length - 1;
-      var hasMore = keys.length > 1;
-      var connector = (hasMore && isLast) ? 'and ' : '';
-      var trailing  = isLast ? '.' : ',';
-      var btn = scene.veggieButtons[id];
-
-      segments.push({
-        event: 'cauldron-order-item',
-        text: `${connector}${count} ${label}${trailing}`,
-        expression: 'encouraging',
-        onStart: function () {
-          if (!btn) return;
-          scene.tweens.killTweensOf(btn.emoji);
-          btn.emoji.setScale(1);
-          scene.tweens.add({
-            targets: btn.emoji,
-            scale: { from: 1, to: 1.35 },
-            duration: 280, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-          });
-          if (btn._haGlow) { btn._haGlow.destroy(); btn._haGlow = null; }
-          btn._haGlow = scene.add.circle(btn.x, btn.y, 70, 0xffd147, 0.35);
-          btn._haGlow.setStrokeStyle(4, 0xffd147, 0.8);
-          btn._haGlow.setDepth(-1);
-          scene.tweens.add({
-            targets: btn._haGlow,
-            alpha: { from: 0.55, to: 0.15 },
-            scale: { from: 0.9, to: 1.1 },
-            duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-          });
-        },
-        onEnd: function () {
-          if (!btn) return;
-          scene.tweens.killTweensOf(btn.emoji);
-          btn.emoji.setScale(1);
-          if (btn._haGlow) {
-            scene.tweens.killTweensOf(btn._haGlow);
-            btn._haGlow.destroy();
-            btn._haGlow = null;
-          }
-        },
-      });
-    });
-
-    HC.speakSequence(segments);
-  }
-
-  formatOrder(order) {
-    const keys = Object.keys(order).filter(k => order[k] > 0);
-    const parts = keys.map(k => {
-      const v = VEGGIES.find(x => x.id === k);
-      return `${order[k]} ${v.emoji}`;
-    });
-    const wordParts = keys.map(k => {
-      const v = VEGGIES.find(x => x.id === k);
-      const word = order[k] === 1 ? v.label.slice(0, -1) : v.label.toLowerCase();
-      return `${order[k]} ${word}`;
-    });
-    let display, spoken;
-    if (parts.length === 1) {
-      display = `I want\n${parts[0]}!`;
-      spoken = `I want ${wordParts[0]}.`;
-    } else if (parts.length === 2) {
-      display = `I want\n${parts[0]} and ${parts[1]}!`;
-      spoken = `I want ${wordParts[0]} and ${wordParts[1]}.`;
-    } else {
-      display = `I want\n${parts.slice(0, -1).join(', ')} and ${parts.slice(-1)}!`;
-      spoken = `I want ${wordParts.slice(0, -1).join(', ')} and ${wordParts.slice(-1)}.`;
-    }
-    return { display, spoken };
-  }
-
-  addVeggie(id, fromX, fromY) {
-    try { if (window.HeroAcademy && window.HeroAcademy.HumphreyChoices && window.HeroAcademy.HumphreyChoices.cancel) window.HeroAcademy.HumphreyChoices.cancel(); } catch (e) {}
-    if (state.busy) return;
-    state.cauldron[id]++;
-
-    const v = VEGGIES.find(x => x.id === id);
-    const flier = this.add.text(fromX, fromY, v.emoji, { fontSize: '60px' }).setOrigin(0.5);
-    this.tweens.add({
-      targets: flier,
-      x: W/2, y: 480, scale: 0.4,
-      duration: 450, ease: 'Quad.easeIn',
-      onComplete: () => { flier.destroy(); this.cauldronSplash(); }
-    });
-
-    this.updateCauldronDisplay();
-    this.refreshVeggieBadges();
-  }
-
-  removeVeggie(id) {
-    try { if (window.HeroAcademy && window.HeroAcademy.HumphreyChoices && window.HeroAcademy.HumphreyChoices.cancel) window.HeroAcademy.HumphreyChoices.cancel(); } catch (e) {}
-    if (state.busy) return;
-    if (state.cauldron[id] <= 0) return;
-    state.cauldron[id]--;
-    this.updateCauldronDisplay();
-    this.refreshVeggieBadges();
-  }
-
-  cauldronSplash() {
-    const ripple = this.add.circle(W/2, 460, 30, COLOR.gold, 0.6);
-    this.tweens.add({
-      targets: ripple, scale: 3, alpha: 0,
-      duration: 500, onComplete: () => ripple.destroy()
-    });
-  }
-
-  refreshVeggieBadges() {
-    Object.keys(this.veggieButtons).forEach(id => {
-      const btn = this.veggieButtons[id];
-      const count = state.cauldron[id];
-      btn.badge.setVisible(count > 0);
-      btn.badgeText.setVisible(count > 0);
-      btn.badgeText.setText(String(count));
-      btn.minusBg.setVisible(count > 0);
-      btn.minusText.setVisible(count > 0);
-      if (btn.minusHit && btn.minusHit.input) btn.minusHit.input.enabled = (count > 0);
-    });
-  }
-
-  updateCauldronDisplay() {
-    const parts = Object.keys(state.cauldron)
-      .filter(k => state.cauldron[k] > 0)
-      .map(k => {
-        const v = VEGGIES.find(x => x.id === k);
-        return `${v.emoji}×${state.cauldron[k]}`;
-      });
-    this.cauldronContents.setText(parts.length ? parts.join('  ') : 'Empty cauldron');
-  }
-
-  serve() {
-    if (state.busy) return;
-    const lvl = LEVELS[state.levelIndex];
-    const expected = lvl.order;
-    const got = state.cauldron;
-
-    let correct = true;
-    let mismatch = null;
-    const allKeys = new Set([...Object.keys(expected), ...Object.keys(got)]);
-    allKeys.forEach(k => {
-      const want = expected[k] || 0;
-      const have = got[k] || 0;
-      if (want !== have) {
-        correct = false;
-        if (!mismatch) mismatch = { id: k, want, have };
-      }
-    });
-
-    // --- telemetry: record this serve attempt --------------------------------
-    if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
-      const _exp = Object.keys(expected).map(function(k){return k+':'+expected[k];}).join(',');
-      const _got = Object.keys(got).filter(function(k){return got[k]>0;}).map(function(k){return k+':'+got[k];}).join(',') || 'empty';
-      window.HeroAcademy.Telemetry.recordAttempt(
-        correct,
-        (lvl.name || 'Order') + ' wants ' + _exp,
-        _exp,
-        _got
-      );
-    }
-
-    if (correct) this.winLevel();
-    else this.failLevel(mismatch);
-  }
-
-  winLevel() {
-    state.busy = true;
-    if (typeof state.haStreak !== 'number') state.haStreak = 0;
-    state.haStreak += 1;
-    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      var H = window.HeroAcademy.Humphrey;
-      if (state.haStreak === 10) H.say('streak-10', { kidName: 'Nigel', streak: 10 });
-      else if (state.haStreak === 5) H.say('streak-5', { kidName: 'Nigel', streak: 5 });
-      else if (state.haStreak === 3) H.say('streak-3', { kidName: 'Nigel', streak: 3 });
-      else H.say('correct-answer', { kidName: 'Nigel' });
-    }
-    state.stars++;
-    state.score += 100;
-    this.starsLabel.setText(`⭐ ${state.stars}`);
-
-    speak('Yum yum yum! Thank you!');
-    this.ralphieSpeech.setText('Perfect! Yay!');
-
-    // Ralphie celebrates
-    this.setRalphieState('clapping');
-    this.tweens.add({
-      targets: this.ralphie,
-      angle: { from: -8, to: 8 },
-      duration: 200, yoyo: true, repeat: 3,
-      onComplete: () => this.ralphie.setAngle(0)
-    });
-
-    const munches = ['😋', '😋', '🤤', '🥰'];
-    let i = 0;
-    this.time.addEvent({
-      delay: 250, repeat: 3,
-      callback: () => this.customer.setText(munches[i++ % munches.length])
-    });
-
-    // gold coin burst
-    for (let n = 0; n < 18; n++) {
-      const coin = this.add.text(W/2, 480, '🪙', { fontSize: '32px' }).setOrigin(0.5);
-      const ang = Phaser.Math.FloatBetween(-Math.PI, 0);
-      const dist = Phaser.Math.Between(150, 320);
-      this.tweens.add({
-        targets: coin,
-        x: W/2 + Math.cos(ang) * dist,
-        y: 480 + Math.sin(ang) * dist + 200,
-        scale: 0.5, alpha: 0,
-        rotation: Phaser.Math.FloatBetween(-3, 3),
-        duration: 1200, ease: 'Quad.easeIn',
-        onComplete: () => coin.destroy()
-      });
-    }
-
-    this.tweens.add({
-      targets: this.starsLabel, scale: 1.5,
-      duration: 200, yoyo: true, ease: 'Back.easeOut'
-    });
-
-    this.time.delayedCall(1800, () => {
-      this.tweens.add({
-        targets: [this.customer, this.customerName, this.orderText],
-        x: '-=200', alpha: 0,
-        duration: 400,
-        onComplete: () => {
-          this.customer.x = 170;
-          this.customerName.x = 170;
-          this.orderText.x = 560;
-          const sq = window.HeroAcademy && window.HeroAcademy.Characters;
-              const advance = () => this.startLevel(state.levelIndex + 1);
-              if (sq) sq.maybeSurprise('numberlab').then(advance); else advance();
-        }
-      });
-    });
-  }
-
-  failLevel(mismatch) {
-    state.busy = true;
-    state.haStreak = 0;
-    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      window.HeroAcademy.Humphrey.say('wrong-answer', { kidName: 'Nigel' });
-    }
-    const v = VEGGIES.find(x => x.id === mismatch.id);
-    let msg;
-    if (mismatch.have < mismatch.want) {
-      const need = mismatch.want - mismatch.have;
-      msg = `Almost! I need ${need} more ${v.label.toLowerCase()}.`;
-    } else if (mismatch.have > mismatch.want) {
-      const extra = mismatch.have - mismatch.want;
-      msg = `Whoops! That's ${extra} too many ${v.label.toLowerCase()}.`;
-    } else {
-      msg = `Hmm, check the order again!`;
-    }
-    speak(msg);
-    this.ralphieSpeech.setText('Try again!');
-    this.setRalphieState('surprised');
-
-    this.tweens.add({
-      targets: this.soupColor,
-      x: '+=10',
-      duration: 60, yoyo: true, repeat: 4,
-      onComplete: () => {
-        state.busy = false;
-        this.setRalphieState('thinking');
-      }
-    });
-
-    const flash = this.add.graphics();
-    flash.fillStyle(COLOR.red, 0.3);
-    flash.fillRoundedRect(310, 100, 500, 160, 22);
-    this.tweens.add({
-      targets: flash, alpha: 0,
-      duration: 600,
-      onComplete: () => flash.destroy()
-    });
-  }
-
-  winGame() {
-    state.busy = true;
-    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      window.HeroAcademy.Humphrey.say('mastery-achieved', { kidName: 'Nigel', topic: 'cooking at the Cauldron Café' });
-    }
-    speak(`Amazing work! You earned ${state.stars} stars!`);
-    this.setRalphieState('trophy');
-    setTimeout(() => {
-      const sq2 = window.HeroAcademy && window.HeroAcademy.Characters;
-      if (sq2) sq2.celebrateWin();
-    }, 1800);
-
-    const overlay = this.add.graphics();
-    overlay.fillStyle(COLOR.bgDeep, 0.9);
-    overlay.fillRect(0, 0, W, H);
-
-    this.add.text(W/2, 200, '🎉  CHEF MASTER!  🎉', {
-      fontFamily: 'Cherry Bomb One',
-      fontSize: '56px',
-      color: '#ffd147',
-      stroke: '#0a0b2e',
-      strokeThickness: 6
-    }).setOrigin(0.5);
-
-    this.add.text(W/2, 290, 'You served everyone!', {
-      fontFamily: 'Fredoka',
-      fontSize: '32px',
-      color: '#fff8e1'
-    }).setOrigin(0.5);
-
-    this.add.text(W/2, 360, `⭐ ${state.stars} STARS ⭐`, {
-      fontFamily: 'Cherry Bomb One',
-      fontSize: '44px',
-      color: '#ffd147'
-    }).setOrigin(0.5);
-
-    // Big Ralphie with trophy
-    if (state.hasRalphieAssets && this.textures.exists('ralphie_trophy')) {
-      const big = this.add.image(W/2, 480, 'ralphie_trophy');
-      big.setScale(280 / big.height);
-      this.tweens.add({
-        targets: big, scale: { from: big.scale, to: big.scale * 1.08 },
-        duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
-      });
-    } else {
-      const bigRalphie = this.add.text(W/2, 470, '🐢', { fontSize: '180px' }).setOrigin(0.5);
-      this.tweens.add({
-        targets: bigRalphie, angle: 360, duration: 1200, repeat: -1
-      });
-    }
-
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(COLOR.orange, 1);
-    btnBg.lineStyle(4, COLOR.gold, 1);
-    btnBg.fillRoundedRect(W/2 - 140, 640, 280, 60, 30);
-    btnBg.strokeRoundedRect(W/2 - 140, 640, 280, 60, 30);
-    this.add.text(W/2, 670, 'COOK AGAIN! 🍲', {
-      fontFamily: 'Cherry Bomb One',
-      fontSize: '26px',
-      color: '#fff8e1'
-    }).setOrigin(0.5);
-    const btnHit = this.add.zone(W/2, 670, 280, 60).setInteractive({ useHandCursor: true });
-    btnHit.on('pointerdown', () => {
-      state.stars = 0; state.score = 0;
-      this.starsLabel.setText('⭐ 0');
-      this.scene.restart();
-    });
-
-    for (let i = 0; i < 40; i++) {
-      const emojis = ['🎊','🎉','⭐','🌟','✨'];
-      const c = this.add.text(
-        Phaser.Math.Between(0, W),
-        -50,
-        Phaser.Utils.Array.GetRandom(emojis),
-        { fontSize: `${Phaser.Math.Between(20, 36)}px` }
-      );
-      this.tweens.add({
-        targets: c,
-        y: H + 50,
-        rotation: Phaser.Math.FloatBetween(-6, 6),
-        duration: Phaser.Math.Between(3000, 6000),
-        delay: Phaser.Math.Between(0, 2000),
-        repeat: -1
-      });
-    }
-  }
-}
-
-const config = {
-  type: Phaser.AUTO,
-  width: W, height: H,
-  parent: 'game-container',
-  backgroundColor: '#0a0b2e',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: CauldronScene
-};
-
-new Phaser.Game(config);
-</script>
-
+<!-- Veggie SVG templates (kept hidden, referenced by JS) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="veg-carrot" viewBox="0 0 60 60">
+      <path d="M 22 14 L 38 14 L 32 54 Z" fill="#e87830"/>
+      <path d="M 24 18 L 36 18 L 33 50 Z" fill="#ff9947" opacity="0.5"/>
+      <path d="M 23 16 L 18 4 L 26 8 L 28 0 L 32 8 L 36 4 L 32 16 Z" fill="#3d8a3d"/>
+      <line x1="26" y1="8" x2="28" y2="0" stroke="#2d6d2d" stroke-width="1"/>
+    </symbol>
+    <symbol id="veg-tomato" viewBox="0 0 60 60">
+      <circle cx="30" cy="34" r="22" fill="#d63d3d"/>
+      <circle cx="24" cy="28" r="7" fill="#e85a5a" opacity="0.7"/>
+      <path d="M 23 18 L 30 8 L 37 18 L 42 14 L 38 24 L 30 21 L 22 24 L 18 14 Z" fill="#3d8a3d"/>
+    </symbol>
+    <symbol id="veg-potato" viewBox="0 0 60 60">
+      <ellipse cx="30" cy="32" rx="24" ry="16" fill="#c9a26a"/>
+      <ellipse cx="22" cy="26" rx="7" ry="4" fill="#a8835c" opacity="0.6"/>
+      <circle cx="38" cy="36" r="2" fill="#7a5d3a"/>
+      <circle cx="20" cy="38" r="2" fill="#7a5d3a"/>
+      <circle cx="32" cy="22" r="1.5" fill="#7a5d3a"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- External modules -->
+<script src="js/characters.js"></script>
 <script src="js/telemetry.js"></script>
 <script src="js/humphrey.js"></script>
-<script src="js/daily-content.js"></script>
 <script src="js/humphrey-choices.js"></script>
+<script src="js/daily-content.js"></script>
+
 <script>
-  if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-    window.HeroAcademy.Humphrey.init({
-      position: 'bottom-left',
-      audioEnabled: true,
-      debug: false,
-      welcomeEvent: 'welcome-cauldron',
-      kidName: 'Nigel',
+/* ============================================================================
+   CAULDRON CAFÉ v121 — Warm kitchen rebuild
+   Math: cooking recipes (count ingredients) + Today's Special (word problems)
+   Humphrey: state-driven reactions on every event
+   ============================================================================ */
+
+(function () {
+  'use strict';
+
+  // ----- Ingredient catalog -----
+  const VEGGIES = [
+    { id: 'carrot', label: 'Carrots', symbol: 'veg-carrot' },
+    { id: 'tomato', label: 'Tomatoes', symbol: 'veg-tomato' },
+    { id: 'potato', label: 'Potatoes', symbol: 'veg-potato' },
+  ];
+
+  // ----- Recipe templates (cooking math, generated locally) -----
+  // 2nd-grade addition/subtraction within 20, scoped to "cook a dish" framing
+  function generateRecipes() {
+    const dishes = [
+      'Carrot stew', 'Tomato soup', 'Hearty potato stew',
+      'Garden vegetable soup', 'Chef\'s special', 'Cassava-leaf base'
+    ];
+    const recipes = [];
+    for (let i = 0; i < 5; i++) {
+      // Pick 2 distinct veggies and counts
+      const v1 = VEGGIES[Math.floor(Math.random() * VEGGIES.length)];
+      let v2 = VEGGIES[Math.floor(Math.random() * VEGGIES.length)];
+      while (v2.id === v1.id) v2 = VEGGIES[Math.floor(Math.random() * VEGGIES.length)];
+      const c1 = 2 + Math.floor(Math.random() * 5); // 2-6
+      const c2 = 2 + Math.floor(Math.random() * 5); // 2-6
+      recipes.push({
+        name: dishes[i % dishes.length],
+        ingredients: [
+          { veggie: v1, count: c1 },
+          { veggie: v2, count: c2 },
+        ],
+        prompt: `Add ${c1} ${v1.label.toLowerCase()} and ${c2} ${v2.label.toLowerCase()}. How many ingredients altogether?`,
+        equation: `${c1} + ${c2} = ?`,
+        answer: c1 + c2,
+      });
+    }
+    return recipes;
+  }
+
+  // ----- State -----
+  const state = {
+    recipes: generateRecipes(),
+    currentRecipeIdx: 0,
+    addedCounts: {}, // veggie id -> count
+    awaitingCheck: false,
+    completed: 0,
+  };
+
+  // ----- DOM refs -----
+  const $ = (id) => document.getElementById(id);
+  const recipeName = $('recipeName');
+  const recipePrompt = $('recipePrompt');
+  const recipeEquation = $('recipeEquation');
+  const recipeIngredientsEl = $('recipeIngredients');
+  const checkBtn = $('checkBtn');
+  const feedbackEl = $('feedback');
+  const veggieShelf = $('veggieShelf');
+  const cauldronZone = $('cauldronZone');
+  const recipeProgressEl = $('recipeProgress');
+  const stage = $('stage');
+
+  // ----- Veggie shelf rendering -----
+  function renderShelf() {
+    veggieShelf.innerHTML = '';
+    VEGGIES.forEach((v) => {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'veggie-card';
+      card.dataset.veggieId = v.id;
+      card.setAttribute('aria-label', 'Add a ' + v.label.slice(0, -1).toLowerCase());
+      card.innerHTML = `
+        <svg class="veggie-card-svg" viewBox="0 0 60 60"><use href="#${v.symbol}"/></svg>
+        <span class="veggie-card-label">${v.label}</span>
+        <span class="veggie-card-count" data-count-for="${v.id}">0</span>
+      `;
+      card.addEventListener('click', () => onAddVeggie(v));
+      veggieShelf.appendChild(card);
     });
-    // Welcome fires automatically on first user gesture (gated daily).
-  }
-</script>
-<script>
-/* Today's Recipe wiring — Content-of-One Deploy 2 */
-(async function () {
-  const DC = window.HeroAcademy && window.HeroAcademy.DailyContent;
-  if (!DC) return;
-  const result = await DC.get('math_problems');
-  if (!result || !result.payload || !Array.isArray(result.payload.items) || !result.payload.items.length) return;
-
-  const items = result.payload.items;
-  const btn = document.getElementById('todayRecipeBtn');
-  const overlay = document.getElementById('todayRecipeOverlay');
-  const closeBtn = document.getElementById('todayRecipeClose');
-  const promptEl = document.getElementById('todayRecipePrompt');
-  const inputEl = document.getElementById('todayRecipeInput');
-  const checkBtn = document.getElementById('todayRecipeCheck');
-  const feedbackEl = document.getElementById('todayRecipeFeedback');
-  const nextBtn = document.getElementById('todayRecipeNext');
-  const idxEl = document.getElementById('todayRecipeIdx');
-  const totalEl = document.getElementById('todayRecipeTotal');
-  const summary = document.getElementById('todayRecipeSummary');
-  const scoreEl = document.getElementById('todayRecipeScore');
-  const summaryMsg = document.getElementById('todayRecipeSummaryMsg');
-  const doneBtn = document.getElementById('todayRecipeDone');
-  const card = overlay.querySelector('.today-recipe-card');
-
-  totalEl.textContent = items.length;
-  btn.hidden = false;
-
-  let idx = 0;
-  let score = 0;
-
-  function showProblem() {
-    const p = items[idx];
-    idxEl.textContent = idx + 1;
-    promptEl.textContent = p.prompt;
-    inputEl.value = '';
-    inputEl.focus();
-    feedbackEl.textContent = '';
-    feedbackEl.className = 'today-recipe-feedback';
-    nextBtn.hidden = true;
-    checkBtn.disabled = false;
-    card.style.display = '';
-    summary.hidden = true;
   }
 
-  function check() {
-    const p = items[idx];
-    const ans = String(inputEl.value).trim();
-    const correct = String(p.answer).trim();
-    if (!ans) return;
-    const isCorrect = ans === correct || Number(ans) === Number(correct);
-    if (isCorrect) {
-      feedbackEl.textContent = '✓ Yes! ' + correct + ' is right!';
-      feedbackEl.className = 'today-recipe-feedback correct';
-      score++;
-      try {
-        const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-        if (hp && hp.say) hp.say({ text: "Nice work, Nigel.", expression: 'cheering' });
-      } catch (_) {}
-    } else {
-      feedbackEl.textContent = 'Not quite — the answer was ' + correct;
-      feedbackEl.className = 'today-recipe-feedback wrong';
-      try {
-        const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-        if (hp && hp.say) hp.say({ text: "Close — let's try the next one.", expression: 'encouraging' });
-      } catch (_) {}
+  // ----- Add a veggie: flying animation + count update + Humphrey reaction -----
+  function onAddVeggie(veg) {
+    if (state.awaitingCheck) return;
+    const card = veggieShelf.querySelector(`[data-veggie-id="${veg.id}"]`);
+    if (!card) return;
+    const cardRect = card.getBoundingClientRect();
+    const cauldronRect = cauldronZone.getBoundingClientRect();
+
+    // Build the flying veggie
+    const flier = document.createElement('div');
+    flier.className = 'flying-veggie';
+    flier.innerHTML = `<svg viewBox="0 0 60 60" width="56" height="56"><use href="#${veg.symbol}"/></svg>`;
+    flier.style.left = (cardRect.left + cardRect.width/2 - 28) + 'px';
+    flier.style.top  = (cardRect.top  + cardRect.height/2 - 28) + 'px';
+    document.body.appendChild(flier);
+
+    // Trigger transform on next frame
+    const targetX = cauldronRect.left + cauldronRect.width/2 - cardRect.left - cardRect.width/2;
+    const targetY = cauldronRect.top  + cauldronRect.height*0.32 - cardRect.top  - cardRect.height/2;
+    requestAnimationFrame(() => {
+      flier.style.transform = `translate(${targetX}px, ${targetY}px) scale(0.55)`;
+      flier.style.opacity = '0.3';
+    });
+    setTimeout(() => flier.remove(), 600);
+
+    // Update count
+    state.addedCounts[veg.id] = (state.addedCounts[veg.id] || 0) + 1;
+    const badge = veggieShelf.querySelector(`[data-count-for="${veg.id}"]`);
+    if (badge) {
+      badge.textContent = state.addedCounts[veg.id];
+      badge.classList.add('shown');
     }
-    checkBtn.disabled = true;
-    if (idx + 1 < items.length) {
-      nextBtn.hidden = false;
-    } else {
-      setTimeout(showSummary, 700);
-    }
+    refreshIngredients();
+    sayCountReaction(veg);
+    enableCheckIfReady();
   }
 
-  function showSummary() {
-    card.style.display = 'none';
-    summary.hidden = false;
-    scoreEl.textContent = score;
-    let msg;
-    if (score === items.length) msg = "Perfect! You're a recipe master, Nigel!";
-    else if (score >= items.length - 1) msg = 'So close to perfect! Great work!';
-    else if (score >= items.length / 2) msg = 'Nice job — keep practicing!';
-    else msg = 'Math takes practice. You did great trying every one.';
-    summaryMsg.textContent = msg;
-  }
-
-  btn.addEventListener('click', function () {
-    idx = 0; score = 0;
-    overlay.hidden = false;
-    showProblem();
-    DC.markUsed('math_problems');
+  // ----- Humphrey reactions -----
+  function safeSay(text, expression) {
     try {
       const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-      if (hp && hp.say) hp.say({ text: "I made a special recipe just for you today, Nigel. Five word problems — ready?", expression: 'encouraging' });
-    } catch (_) {}
-  });
-  closeBtn.addEventListener('click', function () { overlay.hidden = true; });
-  doneBtn.addEventListener('click', function () { overlay.hidden = true; });
-  checkBtn.addEventListener('click', check);
-  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); });
-  nextBtn.addEventListener('click', function () { idx++; showProblem(); });
+      if (hp && hp.say) hp.say({ text: text, expression: expression || 'encouraging' });
+    } catch (e) { /* humphrey not ready */ }
+  }
+
+  function sayCountReaction(veg) {
+    const recipe = state.recipes[state.currentRecipeIdx];
+    const ing = recipe.ingredients.find(i => i.veggie.id === veg.id);
+    const count = state.addedCounts[veg.id] || 0;
+    const need = ing ? ing.count : 0;
+    if (ing && count <= need) {
+      const labelSingular = veg.label.slice(0, -1).toLowerCase();
+      if (count === need) {
+        safeSay(`Perfect — that's ${need} ${veg.label.toLowerCase()}.`, 'encouraging');
+      } else {
+        safeSay(`${count} ${labelSingular}${count > 1 ? 's' : ''}.`, 'encouraging');
+      }
+    } else if (ing && count > need) {
+      safeSay(`That's one too many ${veg.label.toLowerCase()}. We need ${need}.`, 'concerned');
+    } else {
+      // Veggie not in recipe
+      safeSay(`Hmm — the recipe doesn't ask for ${veg.label.toLowerCase()} today.`, 'concerned');
+    }
+  }
+
+  // ----- Recipe rendering -----
+  function loadCurrentRecipe() {
+    const r = state.recipes[state.currentRecipeIdx];
+    state.addedCounts = {};
+    state.awaitingCheck = false;
+    recipeName.textContent = r.name;
+    recipePrompt.textContent = r.prompt;
+    recipeEquation.textContent = r.equation;
+    recipeEquation.hidden = false;
+    feedbackEl.textContent = '';
+    feedbackEl.className = 'parchment-feedback';
+    recipeProgressEl.textContent = `Recipe ${state.currentRecipeIdx + 1} of ${state.recipes.length}`;
+    refreshIngredients();
+    refreshShelfBadges();
+    enableCheckIfReady();
+    setTimeout(() => {
+      safeSay(`${r.name}. ${r.prompt}`, 'encouraging');
+    }, 600);
+  }
+
+  function refreshIngredients() {
+    const r = state.recipes[state.currentRecipeIdx];
+    recipeIngredientsEl.innerHTML = '';
+    r.ingredients.forEach((ing) => {
+      const have = state.addedCounts[ing.veggie.id] || 0;
+      const done = have >= ing.count;
+      const row = document.createElement('div');
+      row.className = 'parchment-ingredient' + (done ? ' done' : '');
+      row.innerHTML = `
+        <span>${ing.veggie.label}</span>
+        <span class="parchment-ingredient-need">${have} / ${ing.count}</span>
+      `;
+      recipeIngredientsEl.appendChild(row);
+    });
+  }
+
+  function refreshShelfBadges() {
+    VEGGIES.forEach((v) => {
+      const badge = veggieShelf.querySelector(`[data-count-for="${v.id}"]`);
+      if (badge) {
+        const n = state.addedCounts[v.id] || 0;
+        badge.textContent = n;
+        badge.classList.toggle('shown', n > 0);
+      }
+    });
+  }
+
+  function enableCheckIfReady() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const allMet = r.ingredients.every(ing => (state.addedCounts[ing.veggie.id] || 0) >= ing.count);
+    checkBtn.disabled = !allMet;
+  }
+
+  function onCheck() {
+    if (checkBtn.disabled) return;
+    const r = state.recipes[state.currentRecipeIdx];
+    const total = Object.values(state.addedCounts).reduce((a, b) => a + b, 0);
+    state.awaitingCheck = true;
+    checkBtn.disabled = true;
+    if (total === r.answer) {
+      feedbackEl.textContent = `Yes! ${r.equation.replace('?', r.answer)}`;
+      feedbackEl.className = 'parchment-feedback correct';
+      safeSay(`Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name.toLowerCase()} is ready!`, 'cheering');
+      state.completed++;
+      try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: true }); } catch (_) {}
+      setTimeout(() => {
+        if (state.currentRecipeIdx + 1 < state.recipes.length) {
+          state.currentRecipeIdx++;
+          loadCurrentRecipe();
+        } else {
+          showCompleteScreen();
+        }
+      }, 2200);
+    } else {
+      feedbackEl.textContent = `Hmm — that's ${total}, not ${r.answer}. Let's check the recipe.`;
+      feedbackEl.className = 'parchment-feedback wrong';
+      safeSay(`Hmm — we have ${total} in the pot. The recipe wants ${r.answer}. Let me read it again.`, 'concerned');
+      try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: false }); } catch (_) {}
+      setTimeout(() => {
+        state.awaitingCheck = false;
+        enableCheckIfReady();
+      }, 1500);
+    }
+  }
+
+  function showCompleteScreen() {
+    recipeName.textContent = 'Service complete!';
+    recipePrompt.textContent = `You cooked all ${state.completed} dishes. Chef Ralphie says: well done.`;
+    recipeEquation.hidden = true;
+    recipeIngredientsEl.innerHTML = '';
+    checkBtn.textContent = 'Cook again';
+    checkBtn.disabled = false;
+    checkBtn.onclick = function () {
+      state.recipes = generateRecipes();
+      state.currentRecipeIdx = 0;
+      state.completed = 0;
+      checkBtn.textContent = 'Serve it up';
+      checkBtn.onclick = onCheck;
+      loadCurrentRecipe();
+    };
+    safeSay("That's the whole menu, Nigel. Beautiful work in my kitchen today.", 'cheering');
+  }
+
+  // ----- TODAY'S SPECIAL (5 AI-generated word problems, kept from v120 functionality) -----
+  function wireTodaysSpecial() {
+    const DC = window.HeroAcademy && window.HeroAcademy.DailyContent;
+    if (!DC) return;
+    DC.get('math_problems').then((result) => {
+      if (!result || !result.payload || !Array.isArray(result.payload.items) || !result.payload.items.length) return;
+      const items = result.payload.items;
+      const btn = $('todayRecipeBtn');
+      const overlay = $('todayRecipeOverlay');
+      const closeBtn = $('todayRecipeClose');
+      const promptEl = $('todayRecipePrompt');
+      const inputEl = $('todayRecipeInput');
+      const checkB = $('todayRecipeCheck');
+      const fbEl = $('todayRecipeFeedback');
+      const nextBtn = $('todayRecipeNext');
+      const idxEl = $('todayRecipeIdx');
+      const totalEl = $('todayRecipeTotal');
+      const summary = $('todayRecipeSummary');
+      const scoreEl = $('todayRecipeScore');
+      const summaryMsg = $('todayRecipeSummaryMsg');
+      const doneBtn = $('todayRecipeDone');
+      const cardEl = $('todayRecipeCardEl');
+
+      totalEl.textContent = items.length;
+      btn.hidden = false;
+
+      let idx = 0, score = 0;
+      function showProblem() {
+        const p = items[idx];
+        idxEl.textContent = idx + 1;
+        promptEl.textContent = p.prompt;
+        inputEl.value = '';
+        inputEl.focus();
+        fbEl.textContent = ''; fbEl.className = 'today-recipe-feedback';
+        nextBtn.hidden = true;
+        checkB.disabled = false;
+        cardEl.style.display = '';
+        summary.hidden = true;
+      }
+      function check() {
+        const p = items[idx];
+        const ans = String(inputEl.value).trim();
+        if (!ans) return;
+        const correct = String(p.answer).trim();
+        const isCorrect = ans === correct || Number(ans) === Number(correct);
+        if (isCorrect) {
+          fbEl.textContent = `Yes — ${correct} is right.`;
+          fbEl.className = 'today-recipe-feedback correct';
+          score++;
+          safeSay('Nice work, Nigel.', 'cheering');
+        } else {
+          fbEl.textContent = `Not quite — the answer was ${correct}.`;
+          fbEl.className = 'today-recipe-feedback wrong';
+          safeSay("Close — let's try the next one.", 'encouraging');
+        }
+        checkB.disabled = true;
+        if (idx + 1 < items.length) nextBtn.hidden = false;
+        else setTimeout(showSummary, 700);
+      }
+      function showSummary() {
+        cardEl.style.display = 'none';
+        summary.hidden = false;
+        scoreEl.textContent = score;
+        let msg;
+        if (score === items.length) msg = "Perfect! You're a recipe master, Nigel!";
+        else if (score >= items.length - 1) msg = 'So close to perfect! Great work.';
+        else if (score >= items.length / 2) msg = 'Nice job — keep practicing.';
+        else msg = 'Math takes practice. You tried every one, that matters.';
+        summaryMsg.textContent = msg;
+      }
+      btn.addEventListener('click', function () {
+        idx = 0; score = 0;
+        overlay.hidden = false;
+        showProblem();
+        DC.markUsed('math_problems');
+        safeSay("I made a special order just for you today, Nigel. Five word problems — ready?", 'encouraging');
+      });
+      closeBtn.addEventListener('click', () => { overlay.hidden = true; });
+      doneBtn.addEventListener('click', () => { overlay.hidden = true; });
+      checkB.addEventListener('click', check);
+      inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') check(); });
+      nextBtn.addEventListener('click', () => { idx++; showProblem(); });
+    });
+  }
+
+  // ----- HUMPHREY AMBIENT OBSERVER (vision) -----
+  // Periodically rasterizes the stage to a hidden canvas and posts to
+  // /api/humphrey-observe so she can drop in atmospheric praise. Lower
+  // frequency than Creation Studio (kitchen scene changes more slowly).
+  let observerTimer = null;
+  function startAmbientObserver() {
+    const COOLDOWN_MS = 28000; // 28s minimum between vision calls
+    const AUTOPILOT_MS = 32000; // first run after 32s
+    function snapshotAsBlob() {
+      return new Promise((resolve) => {
+        // Hidden canvas
+        const c = document.createElement('canvas');
+        const W = 400, H = 280;
+        c.width = W; c.height = H;
+        const ctx = c.getContext('2d');
+        // Render a SIMPLE summary scene — wood color + cauldron silhouette + counts
+        ctx.fillStyle = '#7a4a2c'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#8b5a3c'; ctx.fillRect(0, H * 0.65, W, H * 0.35);
+        // Cauldron silhouette
+        ctx.fillStyle = '#b87333';
+        ctx.beginPath();
+        ctx.ellipse(W/2, H*0.55, 100, 70, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#7a4720';
+        ctx.fillRect(W/2-100, H*0.40, 200, 10);
+        // Caption: current recipe state
+        const r = state.recipes[state.currentRecipeIdx];
+        ctx.fillStyle = '#f5e8c8';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(r.name, W/2, 24);
+        ctx.font = '14px sans-serif';
+        const counts = r.ingredients.map(ing => `${state.addedCounts[ing.veggie.id]||0}/${ing.count} ${ing.veggie.label.toLowerCase()}`);
+        ctx.fillText(counts.join(' · '), W/2, 48);
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(r.equation, W/2, 248);
+        c.toBlob(resolve, 'image/jpeg', 0.7);
+      });
+    }
+    async function tick() {
+      try {
+        const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        if (!hp || (hp.isSpeaking && hp.isSpeaking())) return;
+        if (document.hidden) return;
+        const blob = await snapshotAsBlob();
+        if (!blob) return;
+        // Encode as base64 data URL
+        const dataUrl = await new Promise((res) => {
+          const reader = new FileReader();
+          reader.onloadend = () => res(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        const r = state.recipes[state.currentRecipeIdx];
+        const summaryStr = `Recipe: ${r.name}. Equation: ${r.equation}. In the pot: ` +
+          r.ingredients.map(ing => `${state.addedCounts[ing.veggie.id]||0} of ${ing.count} ${ing.veggie.label.toLowerCase()}`).join(', ') + '.';
+        const resp = await fetch('/api/humphrey-observe', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            activity: 'cauldron-cafe',
+            imageDataUrl: dataUrl,
+            actionSummary: summaryStr,
+          }),
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data && data.text) {
+          safeSay(data.text, data.expression || 'encouraging');
+        }
+      } catch (_) { /* silent — ambient feature, never blocks */ }
+    }
+    observerTimer = setInterval(tick, AUTOPILOT_MS);
+  }
+
+  // ----- Boot -----
+  function boot() {
+    renderShelf();
+    loadCurrentRecipe();
+    checkBtn.addEventListener('click', onCheck);
+    wireTodaysSpecial();
+    // Init Humphrey
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        welcomeEvent: 'welcome-cauldron',
+        kidName: 'Nigel',
+      });
+    }
+    // Start ambient observer 32s after load
+    setTimeout(startAmbientObserver, 32000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 })();
 </script>
+
+<script src="js/sw-register.js"></script>
 </body>
 </html>
