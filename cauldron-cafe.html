@@ -2,730 +2,997 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
-<meta name="theme-color" content="#7a4a2c">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Cauldron Café · Hero Academy</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
-    --wood-deep: #5a341c;
     --wood: #7a4a2c;
-    --wood-mid: #8b5a3c;
-    --wood-light: #a87042;
+    --wood-dark: #5a3520;
+    --wood-light: #8b5a3c;
     --copper: #b87333;
     --copper-light: #d49968;
     --copper-shadow: #7a4720;
     --copper-deep: #6b3c18;
     --parchment: #f5e8c8;
     --parchment-edge: #c9a26a;
-    --ink: #5a341c;
-    --ink-deep: #3a2010;
+    --ink-deep: #3d2818;
     --fire-amber: #f5a23d;
-    --fire-bright: #ffd478;
+    --fire-red: #d85a30;
+    --pulse-amber: rgba(245, 162, 61, 0.7);
+    --frame-slot: #3a2008;
+    --frame-bg: #2a1404;
     --carrot: #e87830;
-    --tomato: #d63d3d;
-    --potato: #c9a26a;
-    --leaf: #3d8a3d;
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --tomato: #d83030;
+    --potato: #c89968;
   }
-  html, body {
-    width: 100%; height: 100%;
-    background: var(--wood);
-    overflow: hidden;
-    font-family: 'Nunito', system-ui, sans-serif;
-    color: var(--ink-deep);
-    touch-action: none;
-    -webkit-user-select: none; user-select: none;
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; overscroll-behavior: none; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--wood-dark);
+    color: var(--parchment);
+    min-height: 100vh;
+    user-select: none;
   }
-  /* ===== Scene container ===== */
-  .scene {
-    position: fixed; inset: 0;
-    padding-top: var(--safe-top);
-    padding-bottom: var(--safe-bottom);
-    display: grid;
-    grid-template-rows: 60px 1fr;
-    overflow: hidden;
-  }
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Caveat:wght@700&display=swap');
+
   /* ===== Header ===== */
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 16px;
-    background: rgba(58, 32, 16, 0.85);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  .topbar {
+    height: 60px;
+    background: var(--wood-dark);
     border-bottom: 2px solid var(--copper-deep);
-    z-index: 5;
+    display: flex; align-items: center; padding: 0 16px; gap: 12px;
   }
-  .back-btn {
-    display: inline-flex; align-items: center; gap: 6px;
+  .topbar .back {
     background: var(--parchment); color: var(--ink-deep);
-    padding: 8px 14px; border-radius: 999px;
-    text-decoration: none; font-family: 'Fredoka', sans-serif;
-    font-weight: 600; font-size: 14px;
+    border: none; border-radius: 8px; padding: 8px 14px;
+    font-weight: 600; font-size: 14px; cursor: pointer;
     box-shadow: 0 2px 0 var(--copper-shadow);
   }
-  .header-title {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 700; font-size: 22px;
+  .topbar h1 {
+    margin: 0; font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 600;
     color: var(--parchment); letter-spacing: 0.04em;
   }
-  .header-stats {
-    display: flex; align-items: center; gap: 8px;
-    font-family: 'Fredoka', sans-serif; font-weight: 600;
-    color: var(--parchment); font-size: 14px;
-  }
-  .header-stat-pill {
+  .topbar .spacer { flex: 1; }
+  .topbar .today-recipe-btn {
     background: var(--copper-shadow); padding: 6px 12px; border-radius: 999px;
     border: 1px solid var(--copper); font-size: 13px;
+    color: var(--parchment); cursor: pointer; font-weight: 500;
   }
-  /* ===== Main stage ===== */
-  .stage {
-    position: relative; overflow: hidden;
+
+  /* ===== Embedded Humphrey tab ===== */
+  .humphrey-tab {
+    position: fixed; top: 76px; right: 16px;
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 3px solid var(--parchment); background: var(--copper);
+    padding: 0; cursor: pointer; z-index: 50;
+    overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+    transition: transform 0.15s ease;
+  }
+  .humphrey-tab img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .humphrey-tab:active { transform: scale(0.93); }
+  .humphrey-tab.pulsing {
+    animation: humphrey-pulse 1.4s ease-in-out infinite;
+    border-color: var(--fire-amber);
+  }
+  @keyframes humphrey-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--pulse-amber), 0 4px 12px rgba(0,0,0,0.45); }
+    50%      { box-shadow: 0 0 0 14px rgba(245, 162, 61, 0), 0 4px 12px rgba(0,0,0,0.45); }
+  }
+  .humphrey-tab-hint {
+    position: fixed; top: 144px; right: 16px;
+    width: 64px; text-align: center;
+    font-family: 'Caveat', cursive; font-weight: 700; font-size: 14px;
+    color: var(--fire-amber); z-index: 50;
+    opacity: 0; transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .humphrey-tab-hint.visible { opacity: 1; }
+
+  /* ===== Recipe header strip ===== */
+  .recipe-strip {
     background: var(--wood);
+    padding: 10px 16px 12px;
+    border-bottom: 1px solid var(--wood-dark);
   }
-  /* Wood plank wall background */
-  .stage::before {
-    content: ''; position: absolute; inset: 0;
+  .recipe-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; color: var(--parchment); margin: 0;
+  }
+  .recipe-sub {
+    font-size: 13px; color: var(--copper-light);
+    margin: 2px 0 0; font-weight: 500;
+  }
+  .recipe-progress {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+  .progress-pip {
+    flex: 1; height: 4px; background: var(--copper-deep); border-radius: 2px;
+  }
+  .progress-pip.done { background: var(--fire-amber); }
+  .progress-pip.active { background: var(--parchment); }
+
+  /* ===== Main scene ===== */
+  .scene {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 16px;
+    align-items: stretch;
+    min-height: 320px;
     background:
-      repeating-linear-gradient(180deg,
-        transparent 0, transparent 96px,
-        rgba(0, 0, 0, 0.18) 96px, rgba(0, 0, 0, 0.18) 100px,
-        transparent 100px, transparent 200px),
-      repeating-linear-gradient(90deg,
-        transparent 0, transparent 120px,
-        rgba(0, 0, 0, 0.10) 120px, rgba(0, 0, 0, 0.10) 122px);
+      linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.18) 100%),
+      var(--wood);
+  }
+  @media (max-width: 640px) {
+    .scene { grid-template-columns: 1fr; }
+  }
+
+  /* Basket */
+  .basket-area {
+    background: var(--wood-light);
+    border-radius: 12px;
+    padding: 14px 12px;
+    position: relative;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-end;
+    border: 2px solid var(--copper-deep);
+    min-height: 220px;
+    overflow: hidden;
+  }
+  .basket-label {
+    position: absolute; top: 8px; left: 12px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--parchment); text-transform: uppercase;
+    background: var(--copper-shadow); padding: 3px 8px; border-radius: 4px;
+  }
+  .basket-base {
+    width: 95%; height: 22px;
+    background: linear-gradient(180deg, var(--copper-light) 0%, var(--copper) 70%, var(--copper-shadow) 100%);
+    border-radius: 4px 4px 12px 12px;
+    position: relative;
+  }
+  .basket-base::before {
+    content: ''; position: absolute; top: -3px; left: 0; right: 0; height: 4px;
+    background: var(--copper-deep); border-radius: 2px;
+  }
+  .basket-veggies {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    justify-content: center; align-items: flex-end;
+    min-height: 130px;
+    width: 100%; max-width: 200px;
+    margin-bottom: 4px;
+    position: relative;
+  }
+  .basket-veggie {
+    transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.45, 0, 0.55, 1);
+    position: relative;
+  }
+  .basket-veggie.flying { opacity: 0; pointer-events: none; }
+  .basket-veggie .count-label {
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; font-weight: 700; color: var(--parchment);
+    background: var(--copper-shadow); border-radius: 50%;
+    width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s ease;
     pointer-events: none;
   }
-  /* Wooden table surface across the bottom */
-  .table-surface {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    height: 32%;
-    background:
-      repeating-linear-gradient(90deg,
-        var(--wood-mid) 0, var(--wood-mid) 90px,
-        var(--wood) 90px, var(--wood) 95px);
-    border-top: 4px solid var(--wood-deep);
-    box-shadow: inset 0 6px 12px rgba(0,0,0,0.35);
-    z-index: 1;
+  .basket-veggie.numbered .count-label { opacity: 1; }
+  .basket-empty {
+    color: var(--copper-light); font-style: italic; font-size: 13px;
+    text-align: center; padding: 20px 0;
   }
-  /* Hanging lantern top-right */
-  .lantern {
-    position: absolute; top: 0; right: 28px;
-    width: 32px; height: 110px;
-    z-index: 2; pointer-events: none;
+
+  /* Cauldron */
+  .cauldron-area {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    overflow: hidden;
   }
-  .lantern-rope {
-    position: absolute; top: 0; left: 50%; width: 2px; height: 44px;
-    background: var(--ink-deep); transform: translateX(-50%);
+  .cauldron-shell {
+    width: 92%; max-width: 280px; position: relative;
+    background: linear-gradient(180deg, var(--copper-light) 0%, var(--copper) 30%, var(--copper-shadow) 80%, var(--copper-deep) 100%);
+    border-radius: 50% 50% 16px 16px / 18% 18% 16px 16px;
+    padding: 14px 14px 18px;
+    box-shadow:
+      inset 0 -8px 12px rgba(0,0,0,0.35),
+      inset 0 8px 12px rgba(255,255,255,0.18),
+      0 8px 16px rgba(0,0,0,0.4);
+    border: 2px solid var(--copper-deep);
   }
-  .lantern-body {
-    position: absolute; top: 40px; left: 50%; width: 32px; height: 44px;
-    background: var(--fire-amber); border-radius: 50% 50% 40% 40%;
-    transform: translateX(-50%);
-    box-shadow: inset 0 -8px 0 rgba(122, 71, 32, 0.5);
+  .cauldron-rim {
+    position: absolute; left: -8px; right: -8px; top: -6px; height: 12px;
+    background: linear-gradient(180deg, var(--copper-light), var(--copper-shadow));
+    border-radius: 999px; border: 2px solid var(--copper-deep);
   }
-  .lantern-flame {
-    position: absolute; top: 50px; left: 50%; width: 12px; height: 22px;
-    background: var(--fire-bright); border-radius: 50% 50% 30% 30%;
-    transform: translateX(-50%);
-    animation: flicker 2.3s ease-in-out infinite;
+  .ten-frame-stack {
+    display: flex; flex-direction: column; gap: 6px;
+    align-items: center; padding-top: 10px; min-height: 110px;
   }
-  .lantern-glow {
-    position: absolute; top: 22px; left: 50%; width: 100px; height: 100px;
-    background: radial-gradient(circle, rgba(255,212,120,0.30) 0%, transparent 60%);
-    transform: translateX(-50%);
+  .ten-frame-row {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .ten-frame-row-label {
+    font-family: 'Caveat', cursive; font-weight: 700; font-size: 11px;
+    color: var(--parchment); text-transform: uppercase; letter-spacing: 0.05em;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+  }
+  .ten-frame {
+    display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1fr);
+    gap: 3px; padding: 4px; background: var(--frame-bg);
+    border-radius: 4px; border: 1px solid var(--copper-deep);
+  }
+  .ten-frame-cell {
+    width: 22px; height: 22px;
+    background: var(--frame-slot);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.3s ease, transform 0.3s ease;
+  }
+  .ten-frame-cell.filled {
+    background: var(--copper);
+    transform: scale(1.08);
+  }
+  .ten-frame-cell .veg-svg {
+    width: 18px; height: 18px;
+  }
+  .pot-count-readout {
+    margin-top: 8px;
+    font-family: 'Caveat', cursive; font-weight: 700; font-size: 18px;
+    color: var(--parchment); text-align: center;
+  }
+
+  /* Steam */
+  .steam-area {
+    position: absolute; top: -30px; left: 0; right: 0; height: 40px;
     pointer-events: none;
-  }
-  @keyframes flicker {
-    0%, 100% { opacity: 1; transform: translateX(-50%) scaleY(1); }
-    50% { opacity: 0.88; transform: translateX(-50%) scaleY(1.08); }
-  }
-  /* ===== Cauldron + steam ===== */
-  .cauldron-zone {
-    position: absolute;
-    left: 50%; top: 36%;
-    transform: translate(-50%, -50%);
-    width: 320px; height: 280px;
-    z-index: 3;
-  }
-  .cauldron-svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  /* Steam wisps */
-  .steam {
-    position: absolute; top: -80px; left: 50%;
-    transform: translateX(-50%);
-    width: 180px; height: 100px;
-    pointer-events: none;
-    z-index: 4;
   }
   .steam-wisp {
     position: absolute; bottom: 0;
-    width: 8px; height: 90px;
-    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 70%, rgba(255,255,255,0.7) 100%);
-    border-radius: 999px;
-    transform-origin: bottom center;
-    animation: rise 4s ease-out infinite;
+    width: 12px; height: 30px;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.5) 0%, transparent 70%);
+    border-radius: 50%; opacity: 0;
+    animation: steam-rise 3.5s ease-out infinite;
   }
   .steam-wisp:nth-child(1) { left: 25%; animation-delay: 0s; }
   .steam-wisp:nth-child(2) { left: 50%; animation-delay: 1.3s; }
   .steam-wisp:nth-child(3) { left: 75%; animation-delay: 2.6s; }
-  @keyframes rise {
-    0%   { transform: translate(-50%, 0) scaleY(0.4); opacity: 0; }
+  @keyframes steam-rise {
+    0%   { transform: translateY(0) scale(0.5); opacity: 0; }
     20%  { opacity: 0.7; }
-    100% { transform: translate(-50%, -60px) scaleY(1.4); opacity: 0; }
+    100% { transform: translateY(-40px) scale(1.6); opacity: 0; }
   }
-  /* Fire glow under cauldron */
-  .fire-glow {
-    position: absolute; left: 50%; top: 50%;
-    transform: translate(-50%, 95px);
-    width: 280px; height: 50px;
-    background: radial-gradient(ellipse at center, var(--fire-bright) 0%, var(--fire-amber) 30%, transparent 65%);
-    z-index: 2;
-    animation: glow 3.4s ease-in-out infinite;
-    pointer-events: none;
-  }
-  @keyframes glow {
-    0%, 100% { opacity: 0.85; transform: translate(-50%, 95px) scaleX(1); }
-    50% { opacity: 1; transform: translate(-50%, 95px) scaleX(1.06); }
-  }
-  /* ===== Recipe parchment (right) ===== */
-  .parchment {
-    position: absolute;
-    right: 14px; top: 76px;
-    width: 240px;
+
+  /* ===== Question card ===== */
+  .question-card {
     background: var(--parchment);
+    color: var(--ink-deep);
+    margin: 0 16px 16px;
+    border-radius: 14px;
+    padding: 14px 16px;
     border: 2px solid var(--parchment-edge);
-    border-radius: 4px;
-    padding: 18px 18px 16px;
-    z-index: 5;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.35), inset 0 0 24px rgba(201, 162, 106, 0.25);
-    font-family: 'Cormorant Garamond', serif;
-    color: var(--ink-deep);
+    box-shadow: 0 4px 0 var(--copper-shadow), 0 6px 12px rgba(0,0,0,0.3);
+    display: flex; flex-direction: column; gap: 10px;
   }
-  .parchment::before, .parchment::after {
-    content: ''; position: absolute; left: 0; right: 0; height: 10px;
-    background: var(--parchment-edge);
-    border-radius: 4px 4px 0 0;
+  .question-row { display: flex; gap: 10px; align-items: flex-start; }
+  .question-text {
+    flex: 1;
+    font-family: 'Caveat', cursive; font-weight: 700;
+    font-size: 20px; line-height: 1.25;
+    color: var(--ink-deep); margin: 0;
   }
-  .parchment::before { top: -10px; }
-  .parchment::after  { bottom: -10px; border-radius: 0 0 4px 4px; }
-  .parchment-eyebrow {
-    text-align: center; font-style: italic; font-size: 14px;
-    color: var(--copper-shadow); margin-bottom: 4px;
-    letter-spacing: 0.04em;
-  }
-  .parchment-title {
-    text-align: center; font-weight: 700; font-size: 18px;
-    color: var(--ink-deep);
-    border-bottom: 1px solid var(--parchment-edge);
-    padding-bottom: 8px; margin-bottom: 10px;
-  }
-  .parchment-prompt {
-    font-family: 'Caveat', cursive;
-    font-size: 22px; line-height: 1.2; font-weight: 700;
-    color: var(--ink); text-align: center;
-    margin-bottom: 12px; min-height: 56px;
-  }
-  .parchment-equation {
-    font-family: 'Fredoka', sans-serif;
-    font-weight: 700; font-size: 30px;
-    text-align: center; color: var(--copper-shadow);
-    margin-bottom: 10px;
-    letter-spacing: 0.04em;
-  }
-  .parchment-ingredients {
-    display: flex; flex-direction: column; gap: 6px;
-    margin-bottom: 12px;
-    font-family: 'Caveat', cursive;
-    font-size: 18px; color: var(--ink);
-  }
-  .parchment-ingredient {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 4px 8px;
-    background: rgba(232, 212, 160, 0.5);
-    border-radius: 4px;
-    border-left: 3px solid var(--parchment-edge);
-    font-weight: 700;
-  }
-  .parchment-ingredient.done {
-    color: #8c7050; text-decoration: line-through;
-    border-left-color: var(--leaf);
-  }
-  .parchment-ingredient-need { font-weight: 700; }
-  .parchment-check {
-    width: 100%;
+  .answer-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .answer-btn {
     background: var(--copper); color: var(--parchment);
     border: 2px solid var(--copper-deep);
-    border-radius: 999px;
-    padding: 10px;
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 16px;
-    cursor: pointer;
-    box-shadow: 0 3px 0 var(--copper-deep);
-    transition: transform 0.12s ease;
+    border-radius: 12px; padding: 14px 22px;
+    font-size: 22px; font-weight: 700;
+    min-width: 70px; cursor: pointer;
+    box-shadow: 0 3px 0 var(--copper-shadow);
+    transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.1s ease;
   }
-  .parchment-check:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-deep); }
-  .parchment-check:disabled { opacity: 0.45; cursor: default; }
-  .parchment-feedback {
-    text-align: center; min-height: 22px; margin-top: 8px;
-    font-family: 'Caveat', cursive; font-size: 20px; font-weight: 700;
+  .answer-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-shadow); }
+  .answer-btn:disabled { opacity: 0.55; cursor: default; }
+  .answer-btn.correct {
+    background: #4a9b3f; border-color: #2e6b27; box-shadow: 0 3px 0 #1f4a18;
   }
-  .parchment-feedback.correct { color: #2d6d2d; }
-  .parchment-feedback.wrong { color: #c0392b; }
-  /* ===== Veggie shelf (left) ===== */
-  .veggie-shelf {
-    position: absolute; left: 14px; bottom: 14px;
-    z-index: 5;
-    background: var(--wood-light);
-    border: 3px solid var(--wood-deep);
-    border-radius: 8px;
-    padding: 10px;
-    display: flex; gap: 10px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+  .answer-btn.wrong {
+    background: #c0392b; border-color: #8b2418; box-shadow: 0 3px 0 #5e1810;
   }
-  .veggie-card {
-    width: 76px; height: 92px;
-    background: var(--parchment);
-    border: 2px solid var(--parchment-edge);
-    border-radius: 6px;
-    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-    padding: 6px;
-    cursor: pointer;
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
-    position: relative;
+  .answer-btn.hint {
+    outline: 4px solid var(--fire-amber);
+    outline-offset: 2px;
   }
-  .veggie-card:active { transform: scale(0.92); }
-  .veggie-card.disabled { opacity: 0.35; cursor: default; }
-  .veggie-card.focus {
-    animation: focus-pulse 1.8s ease-in-out infinite;
-    box-shadow: 0 0 0 3px var(--fire-amber), 0 6px 18px rgba(245, 162, 61, 0.55);
-    border-color: var(--fire-amber);
-  }
-  /* Rejected tap (wrong veggie or already at max) — brief red shake, no add */
-  .veggie-card.reject {
-    animation: reject-shake 0.4s ease-in-out;
-    box-shadow: 0 0 0 3px #c0392b;
-    border-color: #c0392b;
-  }
-  @keyframes reject-shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-6px); }
-    40% { transform: translateX(6px); }
-    60% { transform: translateX(-4px); }
-    80% { transform: translateX(4px); }
-  }
-  @keyframes focus-pulse {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50%      { transform: translateY(-4px) scale(1.04); }
-  }
-  /* Step hint chip below parchment */
-  .step-hint {
-    position: absolute; right: 14px; top: calc(76px + 360px);
-    width: 240px;
-    background: var(--copper-shadow);
-    color: var(--parchment);
-    border: 2px solid var(--copper);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-family: 'Caveat', cursive; font-weight: 700; font-size: 18px;
-    text-align: center;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
-    z-index: 5;
-    transition: opacity 0.3s ease;
-  }
-  .step-hint[hidden] { display: none; }
-  @media (max-width: 720px) {
-    .step-hint { width: 192px; top: calc(72px + 280px); font-size: 16px; padding: 8px 12px; }
-  }
-  .veggie-card-svg { width: 48px; height: 48px; display: block; }
-  .veggie-card-label {
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 13px;
+  .feedback { font-size: 14px; min-height: 18px; text-align: center; font-weight: 600; }
+  .feedback.correct { color: #2e6b27; }
+  .feedback.wrong { color: #c0392b; }
+  .feedback.hint { color: var(--copper-shadow); }
+
+  /* Big number input for final submit */
+  .submit-area { display: none; flex-direction: column; gap: 10px; align-items: center; padding-top: 4px; }
+  .submit-area.visible { display: flex; }
+  .submit-input {
+    width: 120px; height: 60px; font-size: 36px; font-weight: 700;
+    text-align: center; border: 2px solid var(--copper-deep);
+    border-radius: 12px; background: var(--parchment);
     color: var(--ink-deep);
   }
-  .veggie-card-count {
-    position: absolute; top: -8px; right: -8px;
-    background: var(--leaf); color: #fff;
-    width: 26px; height: 26px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 14px;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    opacity: 0; transform: scale(0.6);
-    transition: all 0.2s ease;
+  .submit-btn {
+    background: var(--fire-amber); color: var(--ink-deep);
+    border: 2px solid var(--copper-deep); border-radius: 12px;
+    padding: 12px 22px; font-size: 18px; font-weight: 700;
+    cursor: pointer; box-shadow: 0 3px 0 var(--copper-shadow);
   }
-  .veggie-card-count.shown { opacity: 1; transform: scale(1); }
-  /* Flying veggie animation */
-  .flying-veggie {
-    position: absolute;
-    width: 56px; height: 56px;
-    z-index: 10;
-    pointer-events: none;
-    transition: transform 0.55s cubic-bezier(0.45, -0.15, 0.45, 1), opacity 0.55s ease;
+  .submit-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-shadow); }
+
+  /* ===== Strategy reveal at end of recipe ===== */
+  .strategy-reveal {
+    background: rgba(0,0,0,0.4); border-radius: 12px;
+    padding: 14px; margin-top: 6px;
+    display: none; flex-direction: column; gap: 10px;
   }
-  /* ===== Chef Ralphie corner ===== */
-  .chef-ralphie {
-    position: absolute;
-    left: 50%; bottom: 4px;
-    transform: translateX(-180px);
-    width: 90px; height: 110px;
-    z-index: 4;
-    pointer-events: none;
+  .strategy-reveal.visible { display: flex; }
+  .strategy-eq {
+    font-family: 'Caveat', cursive; font-weight: 700; font-size: 28px;
+    color: var(--fire-amber); text-align: center;
   }
-  /* ===== Today's Recipe (special — opens 5 word problems) ===== */
-  .today-recipe-btn {
-    position: absolute; top: 76px; right: 270px;
-    background: linear-gradient(180deg, var(--copper-light), var(--copper));
-    color: var(--ink-deep); border: 2px solid var(--copper-deep);
-    padding: 8px 14px; border-radius: 8px;
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 13px;
-    cursor: pointer; z-index: 6;
-    box-shadow: 0 3px 0 var(--copper-deep);
-    display: inline-flex; align-items: center; gap: 6px;
-  }
-  .today-recipe-btn[hidden] { display: none; }
-  .today-recipe-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-deep); }
-  /* ===== Today's Recipe overlay (kept from v120, restyled) ===== */
+
+  /* ===== Today's Special overlay (preserved from v124) ===== */
   .today-recipe-overlay {
-    position: fixed; inset: 0; z-index: 9000;
-    background: linear-gradient(160deg, var(--wood-deep) 0%, var(--wood) 60%, var(--copper-shadow) 100%);
-    display: flex; flex-direction: column;
-    padding: 20px 18px 32px;
-    overflow-y: auto;
-    color: var(--parchment);
-    font-family: 'Nunito', sans-serif;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 100; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 16px;
   }
   .today-recipe-overlay[hidden] { display: none; }
   .today-recipe-close {
-    align-self: flex-end;
-    width: 44px; height: 44px; border-radius: 999px;
-    background: var(--parchment); color: var(--ink-deep); border: none;
-    font-size: 22px; font-weight: 700; cursor: pointer;
-  }
-  .today-recipe-h {
-    text-align: center; font-family: 'Cormorant Garamond', serif;
-    font-style: italic; font-size: 14px;
-    letter-spacing: 0.18em; opacity: 0.9; margin: 8px 0 4px;
-  }
-  .today-recipe-counter {
-    text-align: center; font-family: 'Fredoka', sans-serif;
-    font-size: 36px; font-weight: 700; color: var(--fire-bright);
-    margin: 0 0 18px;
-  }
-  .today-recipe-card {
-    background: var(--parchment);
-    color: var(--ink-deep);
-    border: 3px solid var(--parchment-edge);
-    border-radius: 8px;
-    padding: 22px 20px;
-    box-shadow: 0 14px 30px rgba(0,0,0,0.4);
-    font-family: 'Cormorant Garamond', serif;
-  }
-  .today-recipe-prompt {
-    font-family: 'Caveat', cursive;
-    font-size: 22px; line-height: 1.4; font-weight: 700;
-    margin: 0 0 18px; color: var(--ink-deep);
-  }
-  .today-recipe-input {
-    width: 100%; box-sizing: border-box;
-    padding: 14px 18px;
-    background: #fff; color: var(--ink-deep);
-    border: 2px solid var(--parchment-edge); border-radius: 8px;
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 28px;
-    text-align: center; outline: none;
-  }
-  .today-recipe-input:focus { border-color: var(--copper); }
-  .today-recipe-check {
-    width: 100%; margin-top: 14px;
-    padding: 14px;
-    background: var(--copper); color: var(--parchment);
-    border: 2px solid var(--copper-deep); border-radius: 8px;
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 18px;
-    cursor: pointer;
-    box-shadow: 0 3px 0 var(--copper-deep);
-  }
-  .today-recipe-check:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-deep); }
-  .today-recipe-feedback {
-    margin-top: 14px; min-height: 24px; text-align: center;
-    font-family: 'Caveat', cursive; font-size: 22px; font-weight: 700;
-  }
-  .today-recipe-feedback.correct { color: #2d6d2d; }
-  .today-recipe-feedback.wrong { color: #c0392b; }
-  .today-recipe-next {
-    margin-top: 12px; width: 100%;
-    padding: 12px;
+    position: absolute; top: 12px; right: 12px;
+    width: 40px; height: 40px; border-radius: 50%;
     background: var(--parchment); color: var(--ink-deep);
-    border: 2px solid var(--parchment-edge); border-radius: 8px;
-    font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 16px;
-    cursor: pointer;
+    border: none; font-size: 24px; font-weight: 700; cursor: pointer;
   }
-  .today-recipe-next[hidden] { display: none; }
-  .today-recipe-summary {
-    text-align: center; padding-top: 32px;
+  .today-recipe-title { color: var(--parchment); font-family: 'Cormorant Garamond', serif; font-size: 24px; margin: 0 0 6px; }
+  .today-recipe-counter { color: var(--copper-light); font-size: 14px; margin: 0 0 14px; }
+  .today-recipe-card {
+    background: var(--parchment); color: var(--ink-deep);
+    padding: 20px; border-radius: 14px;
+    max-width: 420px; width: 100%; text-align: center;
   }
-  .today-recipe-summary-score {
-    font-family: 'Fredoka', sans-serif;
-    font-size: 64px; font-weight: 800; color: var(--fire-bright); margin: 0;
+  .today-recipe-prompt { font-size: 18px; font-weight: 600; margin: 0 0 16px; }
+  .today-recipe-input {
+    width: 100px; height: 50px; font-size: 28px; text-align: center;
+    border: 2px solid var(--copper); border-radius: 8px; margin: 0 0 12px;
   }
-  .today-recipe-summary-msg {
-    font-family: 'Caveat', cursive;
-    font-size: 24px; font-weight: 700;
-    margin: 8px 0 24px;
+  .today-recipe-check, .today-recipe-next {
+    background: var(--copper); color: var(--parchment); border: none;
+    border-radius: 10px; padding: 12px 24px; font-size: 16px; font-weight: 600;
+    cursor: pointer; margin: 6px 4px;
   }
-  /* ===== Tablet / smaller screen sizing ===== */
-  @media (max-width: 900px) {
-    .cauldron-zone { width: 280px; height: 240px; left: 36%; }
-    .parchment { width: 220px; top: 72px; right: 12px; }
-    .today-recipe-btn { right: 244px; }
-  }
-  @media (max-width: 720px) {
-    .cauldron-zone { width: 220px; height: 200px; left: 32%; top: 32%; }
-    .parchment { width: 192px; padding: 14px; }
-    .parchment-prompt { font-size: 18px; min-height: 44px; }
-    .parchment-equation { font-size: 24px; }
-    .today-recipe-btn { right: 212px; font-size: 12px; padding: 6px 10px; }
-    .veggie-shelf { padding: 8px; gap: 8px; }
-    .veggie-card { width: 64px; height: 80px; }
-    .veggie-card-svg { width: 40px; height: 40px; }
-  }
+  .today-recipe-feedback { font-size: 16px; margin: 12px 0; min-height: 22px; font-weight: 600; }
+  .today-recipe-feedback.correct { color: #2e6b27; }
+  .today-recipe-feedback.wrong { color: #c0392b; }
 </style>
 </head>
 <body>
 
-<div class="scene">
-  <header class="header">
-    <a href="index.html" class="back-btn" aria-label="Back to map">
-      ← Home
-    </a>
-    <h1 class="header-title">Cauldron Café</h1>
-    <div class="header-stats">
-      <span class="header-stat-pill" id="recipeProgress">Recipe 1 of 5</span>
-    </div>
-  </header>
-
-  <div class="stage" id="stage">
-    <!-- Hanging lantern -->
-    <div class="lantern">
-      <div class="lantern-rope"></div>
-      <div class="lantern-glow"></div>
-      <div class="lantern-body"></div>
-      <div class="lantern-flame"></div>
-    </div>
-
-    <!-- Wooden table surface across bottom -->
-    <div class="table-surface" aria-hidden="true"></div>
-
-    <!-- Fire glow under cauldron -->
-    <div class="fire-glow" aria-hidden="true"></div>
-
-    <!-- Steam wisps -->
-    <div class="steam" aria-hidden="true">
-      <div class="steam-wisp"></div>
-      <div class="steam-wisp"></div>
-      <div class="steam-wisp"></div>
-    </div>
-
-    <!-- Cauldron itself (SVG) -->
-    <div class="cauldron-zone" id="cauldronZone">
-      <svg class="cauldron-svg" viewBox="0 0 320 280" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <!-- Cauldron body -->
-        <path d="M 50 100 Q 50 240, 100 260 L 220 260 Q 270 240, 270 100 Z" fill="#b87333"/>
-        <!-- Darker shadow side (left) -->
-        <path d="M 50 100 Q 50 240, 100 260 L 140 260 Q 100 240, 90 100 Z" fill="#8a5728"/>
-        <!-- Highlight on right side -->
-        <path d="M 235 115 Q 240 200, 220 250" fill="none" stroke="#e0a467" stroke-width="6" stroke-linecap="round"/>
-        <!-- Riveted band -->
-        <rect x="60" y="148" width="200" height="14" fill="#6b3c18"/>
-        <circle cx="78" cy="155" r="3" fill="#d4a574"/>
-        <circle cx="110" cy="155" r="3" fill="#d4a574"/>
-        <circle cx="142" cy="155" r="3" fill="#d4a574"/>
-        <circle cx="174" cy="155" r="3" fill="#d4a574"/>
-        <circle cx="206" cy="155" r="3" fill="#d4a574"/>
-        <circle cx="238" cy="155" r="3" fill="#d4a574"/>
-        <!-- Handles -->
-        <path d="M 45 115 Q 15 115, 15 145 Q 15 170, 45 170" fill="none" stroke="#7a4720" stroke-width="9" stroke-linecap="round"/>
-        <path d="M 275 115 Q 305 115, 305 145 Q 305 170, 275 170" fill="none" stroke="#7a4720" stroke-width="9" stroke-linecap="round"/>
-        <!-- Cauldron rim -->
-        <ellipse cx="160" cy="100" rx="110" ry="22" fill="#7a4720"/>
-        <ellipse cx="160" cy="96"  rx="110" ry="20" fill="#d49968"/>
-        <!-- Inside of pot -->
-        <ellipse cx="160" cy="98" rx="98" ry="14" fill="#4a2e15"/>
-        <!-- Soup surface -->
-        <ellipse cx="160" cy="96" rx="86" ry="9" fill="#c87a3a" id="soupSurface"/>
-        <!-- Bubbles -->
-        <circle cx="135" cy="94" r="5" fill="#e8a36b">
-          <animate attributeName="cy" values="94;90;94" dur="2.4s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.4;1;0.4" dur="2.4s" repeatCount="indefinite"/>
-        </circle>
-        <circle cx="175" cy="97" r="3" fill="#e8a36b">
-          <animate attributeName="cy" values="97;93;97" dur="1.8s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.6;1;0.6" dur="1.8s" repeatCount="indefinite"/>
-        </circle>
-        <circle cx="195" cy="94" r="4" fill="#e8a36b">
-          <animate attributeName="cy" values="94;90;94" dur="2.8s" repeatCount="indefinite"/>
-          <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.8s" repeatCount="indefinite"/>
-        </circle>
-      </svg>
-    </div>
-
-    <!-- Chef Ralphie (SVG turtle in chef hat) -->
-    <div class="chef-ralphie" aria-hidden="true">
-      <svg viewBox="0 0 90 110" xmlns="http://www.w3.org/2000/svg">
-        <!-- Chef hat -->
-        <path d="M 20 45 Q 18 12, 32 10 Q 38 0, 48 10 Q 56 4, 64 12 Q 70 35, 68 45 Z" fill="#ffffff"/>
-        <rect x="20" y="44" width="48" height="8" fill="#f0f0f0"/>
-        <!-- Head -->
-        <ellipse cx="44" cy="68" rx="24" ry="18" fill="#5fb074"/>
-        <ellipse cx="44" cy="72" rx="22" ry="14" fill="#7ac98c"/>
-        <!-- Eyes -->
-        <circle cx="35" cy="68" r="4" fill="#fff"/>
-        <circle cx="53" cy="68" r="4" fill="#fff"/>
-        <circle cx="36" cy="69" r="2" fill="#1a1a1a" id="ralphieEyeL"/>
-        <circle cx="54" cy="69" r="2" fill="#1a1a1a" id="ralphieEyeR"/>
-        <!-- Smile -->
-        <path d="M 36 78 Q 44 84, 52 78" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" id="ralphieMouth"/>
-        <!-- Apron neck strap -->
-        <rect x="38" y="84" width="12" height="6" fill="#f5e8c8"/>
-      </svg>
-    </div>
-
-    <!-- Recipe parchment (right side) -->
-    <aside class="parchment" id="parchment">
-      <p class="parchment-eyebrow">Today's order</p>
-      <h2 class="parchment-title" id="recipeName">Loading…</h2>
-      <p class="parchment-prompt" id="recipePrompt">Preparing your kitchen…</p>
-      <p class="parchment-equation" id="recipeEquation" hidden></p>
-      <div class="parchment-ingredients" id="recipeIngredients"></div>
-      <button type="button" class="parchment-check" id="checkBtn" disabled>Serve it up</button>
-      <p class="parchment-feedback" id="feedback"></p>
-    </aside>
-
-    <!-- Step hint chip — Humphrey-driven next-action prompt -->
-    <div class="step-hint" id="stepHint" hidden>Loading recipe…</div>
-
-    <!-- Today's Recipe (word problems from cron content) -->
-    <button type="button" class="today-recipe-btn" id="todayRecipeBtn" hidden>
-      ⭐ Today's Special
-    </button>
-
-    <!-- Veggie shelf at bottom -->
-    <div class="veggie-shelf" id="veggieShelf">
-      <!-- Cards populated by JS -->
-    </div>
-  </div>
-</div>
-
-<!-- Today's Recipe overlay (5 AI word problems) -->
-<div class="today-recipe-overlay" id="todayRecipeOverlay" hidden>
-  <button type="button" class="today-recipe-close" id="todayRecipeClose" aria-label="Close">×</button>
-  <p class="today-recipe-h">⭐ Today's Special</p>
-  <p class="today-recipe-counter"><span id="todayRecipeIdx">1</span>/<span id="todayRecipeTotal">5</span></p>
-  <div class="today-recipe-card" id="todayRecipeCardEl">
-    <p class="today-recipe-prompt" id="todayRecipePrompt">Loading…</p>
-    <input type="number" inputmode="numeric" class="today-recipe-input" id="todayRecipeInput" placeholder="?">
-    <button type="button" class="today-recipe-check" id="todayRecipeCheck">Check answer</button>
-    <p class="today-recipe-feedback" id="todayRecipeFeedback"></p>
-    <button type="button" class="today-recipe-next" id="todayRecipeNext" hidden>Next problem →</button>
-  </div>
-  <div class="today-recipe-summary" id="todayRecipeSummary" hidden>
-    <p class="today-recipe-summary-score"><span id="todayRecipeScore">0</span>/5</p>
-    <p class="today-recipe-summary-msg" id="todayRecipeSummaryMsg"></p>
-    <button type="button" class="today-recipe-next" id="todayRecipeDone" style="display:block;">Back to the kitchen</button>
-  </div>
-</div>
-
-<!-- Veggie SVG templates (kept hidden, referenced by JS) -->
+<!-- Shared veggie SVG defs -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="veg-carrot" viewBox="0 0 60 60">
       <path d="M 22 14 L 38 14 L 32 54 Z" fill="#e87830"/>
       <path d="M 24 18 L 36 18 L 33 50 Z" fill="#ff9947" opacity="0.5"/>
       <path d="M 23 16 L 18 4 L 26 8 L 28 0 L 32 8 L 36 4 L 32 16 Z" fill="#3d8a3d"/>
-      <line x1="26" y1="8" x2="28" y2="0" stroke="#2d6d2d" stroke-width="1"/>
     </symbol>
     <symbol id="veg-tomato" viewBox="0 0 60 60">
-      <circle cx="30" cy="34" r="22" fill="#d63d3d"/>
-      <circle cx="24" cy="28" r="7" fill="#e85a5a" opacity="0.7"/>
-      <path d="M 23 18 L 30 8 L 37 18 L 42 14 L 38 24 L 30 21 L 22 24 L 18 14 Z" fill="#3d8a3d"/>
+      <circle cx="30" cy="34" r="20" fill="#d83030"/>
+      <circle cx="24" cy="28" r="6" fill="#ff5555" opacity="0.55"/>
+      <path d="M 22 14 L 30 8 L 38 14 L 35 18 L 30 14 L 25 18 Z" fill="#3d8a3d"/>
     </symbol>
     <symbol id="veg-potato" viewBox="0 0 60 60">
-      <ellipse cx="30" cy="32" rx="24" ry="16" fill="#c9a26a"/>
-      <ellipse cx="22" cy="26" rx="7" ry="4" fill="#a8835c" opacity="0.6"/>
-      <circle cx="38" cy="36" r="2" fill="#7a5d3a"/>
-      <circle cx="20" cy="38" r="2" fill="#7a5d3a"/>
-      <circle cx="32" cy="22" r="1.5" fill="#7a5d3a"/>
+      <ellipse cx="30" cy="32" rx="22" ry="18" fill="#c89968"/>
+      <ellipse cx="24" cy="26" rx="6" ry="4" fill="#e0b78c" opacity="0.6"/>
+      <circle cx="36" cy="34" r="1.5" fill="#6b4423"/>
+      <circle cx="28" cy="38" r="1.5" fill="#6b4423"/>
+      <circle cx="22" cy="32" r="1" fill="#6b4423"/>
     </symbol>
   </defs>
 </svg>
 
-<!-- External modules -->
-<script src="js/characters.js"></script>
-<script src="js/telemetry.js"></script>
-<script src="js/humphrey.js"></script>
-<script src="js/humphrey-choices.js"></script>
-<script src="js/daily-content.js"></script>
+<header class="topbar">
+  <button class="back" onclick="location.href='/'">← Home</button>
+  <h1>Cauldron Café</h1>
+  <div class="spacer"></div>
+  <button type="button" class="today-recipe-btn" id="todayRecipeBtn" hidden>Today's Special</button>
+</header>
+
+<!-- Embedded Humphrey tab -->
+<button type="button" id="humphreyTab" class="humphrey-tab" aria-label="Ms. Humphrey — tap to hear question">
+  <img src="/assets/humphrey/humphrey_encouraging_512.webp"
+       onerror="this.src='/assets/humphrey/humphrey_base_512.webp'"
+       alt="Ms. Humphrey">
+</button>
+<div class="humphrey-tab-hint" id="humphreyHint">Tap me!</div>
+
+<section class="recipe-strip">
+  <h2 class="recipe-name" id="recipeName">Preparing your recipe…</h2>
+  <p class="recipe-sub" id="recipeSub">Loading fresh challenge from Chef Ralphie</p>
+  <div class="recipe-progress" id="recipeProgress"></div>
+</section>
+
+<section class="scene">
+  <div class="basket-area">
+    <div class="basket-label" id="basketLabel">Basket</div>
+    <div class="basket-veggies" id="basketVeggies">
+      <div class="basket-empty">Waiting for ingredients…</div>
+    </div>
+    <div class="basket-base"></div>
+  </div>
+
+  <div class="cauldron-area">
+    <div class="steam-area">
+      <div class="steam-wisp"></div>
+      <div class="steam-wisp"></div>
+      <div class="steam-wisp"></div>
+    </div>
+    <div class="cauldron-shell">
+      <div class="cauldron-rim"></div>
+      <div class="ten-frame-stack" id="tenFrameStack"></div>
+    </div>
+    <div class="pot-count-readout" id="potReadout">0 in the pot</div>
+  </div>
+</section>
+
+<section class="question-card">
+  <div class="question-row">
+    <p class="question-text" id="questionText">Loading…</p>
+  </div>
+  <div class="answer-buttons" id="answerButtons"></div>
+  <div class="feedback" id="feedback"></div>
+  <div class="submit-area" id="submitArea">
+    <input type="number" inputmode="numeric" class="submit-input" id="submitInput" placeholder="?">
+    <button type="button" class="submit-btn" id="submitBtn">Serve it up!</button>
+  </div>
+  <div class="strategy-reveal" id="strategyReveal">
+    <div class="strategy-eq" id="strategyEq"></div>
+  </div>
+</section>
+
+<!-- Today's Special overlay (5 AI word problems from daily cron) -->
+<div class="today-recipe-overlay" id="todayRecipeOverlay" hidden>
+  <button type="button" class="today-recipe-close" id="todayRecipeClose" aria-label="Close">×</button>
+  <h2 class="today-recipe-title">Today's Special</h2>
+  <p class="today-recipe-counter"><span id="todayRecipeIdx">1</span>/<span id="todayRecipeTotal">5</span></p>
+  <div class="today-recipe-card">
+    <p class="today-recipe-prompt" id="todayRecipePrompt">Loading…</p>
+    <input type="number" inputmode="numeric" class="today-recipe-input" id="todayRecipeInput" placeholder="?">
+    <br>
+    <button type="button" class="today-recipe-check" id="todayRecipeCheck">Check answer</button>
+    <p class="today-recipe-feedback" id="todayRecipeFeedback"></p>
+    <button type="button" class="today-recipe-next" id="todayRecipeNext" hidden>Next problem →</button>
+  </div>
+</div>
 
 <script>
-/* ============================================================================
-   CAULDRON CAFÉ v121 — Warm kitchen rebuild
-   Math: cooking recipes (count ingredients) + Today's Special (word problems)
-   Humphrey: state-driven reactions on every event
-   ============================================================================ */
+// =====================================================================
+// CAULDRON CAFÉ v125 — Cooking Math
+//
+// Learning loop per ingredient:
+//   1. Bunch arrives in basket → "How many in this bunch?" (counting)
+//   2. Correct → carrots fly to ten-frame inside cauldron
+//   3. If more needed → bridge question:
+//      - small remainder: "How many more do we need?"
+//      - large remainder + at 5: "Let's add 5 more to make 10. How many?"
+//   4. Next bunch arrives → repeat
+//   5. Ingredient done → cross-ingredient bridge ("X + Y = ?")
+//   6. Next ingredient → repeat from step 1
+// After all ingredients → strategy reveal + final submit
+// =====================================================================
 
-(function () {
-  'use strict';
+(function() {
+  const VEGGIES = {
+    carrot:  { id: 'carrot',  label: 'Carrots',  singular: 'carrot',  symbol: 'veg-carrot' },
+    tomato:  { id: 'tomato',  label: 'Tomatoes', singular: 'tomato',  symbol: 'veg-tomato' },
+    potato:  { id: 'potato',  label: 'Potatoes', singular: 'potato',  symbol: 'veg-potato' },
+  };
 
-  // ----- Ingredient catalog -----
-  const VEGGIES = [
-    { id: 'carrot', label: 'Carrots', singular: 'carrot', symbol: 'veg-carrot' },
-    { id: 'tomato', label: 'Tomatoes', singular: 'tomato', symbol: 'veg-tomato' },
-    { id: 'potato', label: 'Potatoes', singular: 'potato', symbol: 'veg-potato' },
-  ];
+  // ----- State -----
+  const state = {
+    recipes: [],
+    currentRecipeIdx: 0,
+    currentVeggieIdx: 0,  // which ingredient we're on within the recipe
+    currentBunchIdx: 0,    // which bunch within the current ingredient
+    ingredientCounts: {}, // running count per veggie id for current recipe
+    bunches: [],          // derived bunch sizes for current ingredient: e.g. [5,4]
+    phase: 'boot',        // 'boot' | 'count' | 'bridge' | 'cross' | 'submit' | 'complete' | 'recipe-done'
+    currentMessage: '',   // the most recent Humphrey utterance (for tab-replay)
+    currentAudio: null,
+  };
 
-  // ----- Local fallback recipe generator (used only if the server is unreachable) -----
-  // Stretched to grade-2 upper range: sums up to 30, 2-3 ingredient mixes.
-  function generateRecipes() {
-    const dishes = [
-      'Sunset stew', 'Jollof-style rice', 'Garden hash',
-      'Cassava-leaf base', 'Chef Ralphie special', 'Tomato curry',
-      'Three-veg soup', 'Country chowder'
-    ];
-    const rand = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
-    const pickN = (arr, n) => {
-      const pool = arr.slice();
-      const out = [];
-      for (let i = 0; i < n && pool.length; i++) {
-        out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-      }
-      return out;
-    };
-    const recipes = [];
-    for (let i = 0; i < 5; i++) {
-      // Vary ingredient count 2-3
-      const ingCount = i < 3 ? 2 : 3;
-      const veggies = pickN(VEGGIES, ingCount);
-      const counts = veggies.map(() => rand(5, 14));
-      const ingredients = veggies.map((v, idx) => ({ veggie: v, count: counts[idx] }));
-      const total = counts.reduce((a, b) => a + b, 0);
-      const equation = counts.join(' + ') + ' = ?';
-      const ingNames = ingredients.map(ing => `${ing.count} ${ing.veggie.label.toLowerCase()}`);
-      recipes.push({
-        name: dishes[i % dishes.length],
-        ingredients: ingredients,
-        prompt: `Tonight's ${dishes[i % dishes.length].toLowerCase()} needs ${ingNames.slice(0, -1).join(', ')}${ingNames.length > 1 ? ' and ' : ''}${ingNames[ingNames.length-1]}. How many ingredients altogether?`,
-        equation: equation,
-        answer: total,
-      });
+  const $ = (id) => document.getElementById(id);
+
+  // ----- TTS routing -----
+  async function tts(text) {
+    if (state.currentAudio) {
+      try { state.currentAudio.pause(); } catch (_) {}
+      state.currentAudio = null;
     }
-    return recipes;
+    try {
+      const resp = await fetch('/api/humphrey/tts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!resp.ok) throw new Error('TTS ' + resp.status);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      state.currentAudio = audio;
+      audio.addEventListener('ended', () => {
+        URL.revokeObjectURL(url);
+        if (state.currentAudio === audio) state.currentAudio = null;
+        stopPulse();
+      });
+      await audio.play().catch(() => {});
+      return audio;
+    } catch (e) {
+      // Fall back to silent — pulse will time out anyway
+      setTimeout(stopPulse, 2500);
+      return null;
+    }
   }
 
-  // ----- Fresh-content fetch: replaces fallback with AI-generated recipes per visit -----
-  // Local recipes from the server arrive in a different shape ({veggie: "carrot", count: 8})
-  // and need to be hydrated to the same shape the scene uses ({veggie: VEGGIES_BY_ID["carrot"], count: 8}).
-  const VEGGIES_BY_ID = VEGGIES.reduce((acc, v) => { acc[v.id] = v; return acc; }, {});
+  // ----- Embedded Humphrey tab -----
+  function startPulse() {
+    $('humphreyTab').classList.add('pulsing');
+    $('humphreyHint').classList.add('visible');
+  }
+  function stopPulse() {
+    $('humphreyTab').classList.remove('pulsing');
+    $('humphreyHint').classList.remove('visible');
+  }
+
+  // setHumphreyMessage — drives both text display + voice + pulse
+  function setHumphreyMessage(text, opts = {}) {
+    state.currentMessage = text;
+    $('questionText').textContent = text;
+    $('feedback').textContent = '';
+    $('feedback').className = 'feedback';
+    startPulse();
+    if (opts.skipTTS) {
+      setTimeout(stopPulse, 1800);
+    } else {
+      tts(text);
+    }
+  }
+
+  $('humphreyTab').addEventListener('click', () => {
+    if (state.currentMessage) {
+      tts(state.currentMessage);
+    }
+  });
+
+  // ----- Bunch derivation -----
+  // Educational strategy:
+  //   ≤5: single bunch (he counts a small group)
+  //   6-10: split into 2 bunches biased toward 5 (make-ten thinking: e.g. 9 = 5+4)
+  //   11-15: 5+5+remainder (teaches 10 + N place value)
+  //   16-18: 5+5+5+remainder (extra make-ten step)
+  function deriveBunches(total) {
+    if (total <= 5) return [total];
+    if (total === 6) return [3, 3];
+    if (total === 7) return [4, 3];
+    if (total === 8) return [4, 4];
+    if (total === 9) return [5, 4];
+    if (total === 10) return [5, 5];
+    if (total >= 11 && total <= 15) return [5, 5, total - 10];
+    if (total >= 16 && total <= 20) return [5, 5, 5, total - 15];
+    // Fallback for unexpected sizes
+    const out = [];
+    let remaining = total;
+    while (remaining > 5) { out.push(5); remaining -= 5; }
+    out.push(remaining);
+    return out;
+  }
+
+  // ----- Distractor generation for answer buttons -----
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function makeOptions(correct) {
+    let opts;
+    if (correct <= 3) {
+      opts = [correct, correct + 1, correct + 2];
+      if (correct >= 2) opts = [correct, correct - 1, correct + 1];
+    } else if (correct <= 10) {
+      opts = [correct, correct - 1, correct + 1];
+    } else {
+      // For bigger answers, ±2 distractors so it's not too easy to guess
+      opts = [correct, correct - 2, correct + 2];
+    }
+    return shuffle(opts);
+  }
+
+  // ----- Veggie SVG fragment -----
+  function veggieSVG(veg, size = 32) {
+    return `<svg class="veg-svg" width="${size}" height="${size}" viewBox="0 0 60 60"><use href="#${veg.symbol}"/></svg>`;
+  }
+
+  // ----- Render the recipe header -----
+  function renderRecipeHeader() {
+    const r = state.recipes[state.currentRecipeIdx];
+    if (!r) return;
+    $('recipeName').textContent = r.name;
+    $('recipeSub').textContent = `Today's challenge: ${r.equation}`;
+    // Progress pips — one per ingredient
+    const pipsHtml = r.ingredients.map((ing, i) => {
+      let cls = 'progress-pip';
+      if (i < state.currentVeggieIdx) cls += ' done';
+      else if (i === state.currentVeggieIdx) cls += ' active';
+      return `<div class="${cls}"></div>`;
+    }).join('');
+    $('recipeProgress').innerHTML = pipsHtml;
+  }
+
+  // ----- Render the basket -----
+  function renderBasketBunch(veg, size) {
+    const basket = $('basketVeggies');
+    basket.innerHTML = '';
+    $('basketLabel').textContent = 'New bunch!';
+    for (let i = 0; i < size; i++) {
+      const wrap = document.createElement('div');
+      wrap.className = 'basket-veggie';
+      wrap.innerHTML = veggieSVG(veg, 36);
+      const lbl = document.createElement('div');
+      lbl.className = 'count-label';
+      lbl.textContent = i + 1;
+      wrap.appendChild(lbl);
+      basket.appendChild(wrap);
+    }
+  }
+  function emptyBasket(text = 'Waiting…') {
+    const basket = $('basketVeggies');
+    basket.innerHTML = `<div class="basket-empty">${text}</div>`;
+    $('basketLabel').textContent = 'Basket';
+  }
+
+  // ----- Render ten-frames inside cauldron -----
+  // One ten-frame per ingredient. For counts >10, the SAME ingredient gets
+  // additional ten-frame rows below (teaches place value: 16 = full ten + 6).
+  function buildTenFramesForIngredient(veg, count) {
+    const numFrames = Math.ceil(count / 10);
+    let html = `<div class="ten-frame-row" data-veggie="${veg.id}">`;
+    html += `<div class="ten-frame-row-label">${veg.label} 0 / ${count}</div>`;
+    for (let f = 0; f < numFrames; f++) {
+      html += `<div class="ten-frame" data-frame-idx="${f}">`;
+      const cellsInThisFrame = Math.min(10, count - f * 10);
+      for (let c = 0; c < 10; c++) {
+        const isActive = c < cellsInThisFrame;
+        html += `<div class="ten-frame-cell" data-cell-idx="${f * 10 + c}" ${isActive ? '' : 'style="visibility:hidden"'}></div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+  function renderTenFrames() {
+    const r = state.recipes[state.currentRecipeIdx];
+    if (!r) return;
+    const stack = $('tenFrameStack');
+    stack.innerHTML = '';
+    r.ingredients.forEach((ing) => {
+      stack.insertAdjacentHTML('beforeend', buildTenFramesForIngredient(ing.veggie, ing.count));
+    });
+    refreshPotReadout();
+  }
+  function fillTenFrameSlots(veg, fromCount, toCount) {
+    const row = document.querySelector(`.ten-frame-row[data-veggie="${veg.id}"]`);
+    if (!row) return;
+    const cells = row.querySelectorAll('.ten-frame-cell');
+    for (let i = fromCount; i < toCount; i++) {
+      const cell = cells[i];
+      if (!cell) continue;
+      setTimeout(() => {
+        cell.classList.add('filled');
+        cell.innerHTML = veggieSVG(veg, 18);
+        setTimeout(() => { cell.style.transform = 'scale(1)'; }, 200);
+      }, (i - fromCount) * 100);
+    }
+    // Update the row label
+    const need = state.recipes[state.currentRecipeIdx].ingredients.find(i => i.veggie.id === veg.id).count;
+    setTimeout(() => {
+      const lbl = row.querySelector('.ten-frame-row-label');
+      if (lbl) lbl.textContent = `${veg.label} ${toCount} / ${need}`;
+    }, (toCount - fromCount) * 100);
+  }
+  function refreshPotReadout() {
+    const total = Object.values(state.ingredientCounts).reduce((a, b) => a + b, 0);
+    $('potReadout').textContent = `${total} in the pot`;
+  }
+
+  // ----- Question / answer UI -----
+  function renderQuestion(text, options, correctValue, onCorrect, onWrongHint) {
+    setHumphreyMessage(text);
+    const btns = $('answerButtons');
+    btns.innerHTML = '';
+    $('feedback').textContent = '';
+    $('feedback').className = 'feedback';
+    $('submitArea').classList.remove('visible');
+    $('strategyReveal').classList.remove('visible');
+    options.forEach((opt) => {
+      const b = document.createElement('button');
+      b.className = 'answer-btn';
+      b.textContent = opt;
+      b.dataset.value = opt;
+      b.addEventListener('click', () => handleAnswerTap(b, opt, correctValue, onCorrect, onWrongHint));
+      btns.appendChild(b);
+    });
+  }
+  function handleAnswerTap(btn, picked, correct, onCorrect, onWrongHint) {
+    const allBtns = $('answerButtons').querySelectorAll('button');
+    allBtns.forEach(b => b.disabled = true);
+    if (picked === correct) {
+      btn.classList.add('correct');
+      $('feedback').textContent = `Yes — ${correct}!`;
+      $('feedback').className = 'feedback correct';
+      tts(`Yes! That's ${correct}.`);
+      setTimeout(onCorrect, 900);
+    } else {
+      btn.classList.add('wrong');
+      $('feedback').textContent = "Let's check that again.";
+      $('feedback').className = 'feedback wrong';
+      // Show count-along hint if available
+      if (onWrongHint) {
+        onWrongHint();
+      }
+      // Highlight correct answer; let him tap it
+      setTimeout(() => {
+        allBtns.forEach(b => {
+          if (parseInt(b.dataset.value) === correct) {
+            b.classList.add('hint');
+            b.disabled = false;
+            b.classList.remove('wrong');
+          }
+        });
+        $('feedback').textContent = 'Try the highlighted one.';
+        $('feedback').className = 'feedback hint';
+      }, 1800);
+    }
+  }
+
+  // ----- Visual count-along hint (for wrong-count answers) -----
+  function visualCountAlong() {
+    const veggies = $('basketVeggies').querySelectorAll('.basket-veggie');
+    veggies.forEach((v, i) => {
+      setTimeout(() => {
+        v.classList.add('numbered');
+        v.style.transform = 'translateY(-6px)';
+        setTimeout(() => { v.style.transform = ''; }, 400);
+      }, i * 300);
+    });
+    // Clear numbers after a bit
+    setTimeout(() => {
+      veggies.forEach(v => { v.classList.remove('numbered'); });
+    }, veggies.length * 300 + 800);
+  }
+
+  // ----- The main play-loop state machine -----
+  function startRecipe() {
+    const r = state.recipes[state.currentRecipeIdx];
+    if (!r) { startComplete(); return; }
+    state.currentVeggieIdx = 0;
+    state.currentBunchIdx = 0;
+    state.ingredientCounts = {};
+    r.ingredients.forEach(ing => { state.ingredientCounts[ing.veggie.id] = 0; });
+    renderRecipeHeader();
+    renderTenFrames();
+    // Brief recipe intro
+    const intro = `Tonight's recipe: ${r.name}. ${r.prompt}`;
+    setHumphreyMessage(intro);
+    $('answerButtons').innerHTML = '';
+    setTimeout(() => startIngredient(), 2800);
+  }
+
+  function startIngredient() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const ing = r.ingredients[state.currentVeggieIdx];
+    state.bunches = deriveBunches(ing.count);
+    state.currentBunchIdx = 0;
+    startBunchCount();
+  }
+
+  function startBunchCount() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const ing = r.ingredients[state.currentVeggieIdx];
+    const bunchSize = state.bunches[state.currentBunchIdx];
+    renderBasketBunch(ing.veggie, bunchSize);
+    state.phase = 'count';
+    const haveSoFar = state.ingredientCounts[ing.veggie.id] || 0;
+    const intro = haveSoFar === 0
+      ? `Here come the first ${ing.veggie.label.toLowerCase()}! How many in this bunch?`
+      : `Here's another bunch. How many ${ing.veggie.label.toLowerCase()} are in it?`;
+    renderQuestion(intro, makeOptions(bunchSize), bunchSize,
+      () => onBunchCounted(bunchSize),
+      visualCountAlong
+    );
+  }
+
+  function onBunchCounted(bunchSize) {
+    const r = state.recipes[state.currentRecipeIdx];
+    const ing = r.ingredients[state.currentVeggieIdx];
+    const veg = ing.veggie;
+    const before = state.ingredientCounts[veg.id] || 0;
+    const after = before + bunchSize;
+
+    // Fade out basket veggies
+    const basketVeggies = $('basketVeggies').querySelectorAll('.basket-veggie');
+    basketVeggies.forEach((v, i) => {
+      setTimeout(() => {
+        v.classList.add('flying');
+        v.style.transform = 'translate(60px, -40px) scale(0.6)';
+      }, i * 60);
+    });
+
+    // Fill ten-frame slots in sync
+    fillTenFrameSlots(veg, before, after);
+
+    // Update state after animation
+    setTimeout(() => {
+      state.ingredientCounts[veg.id] = after;
+      refreshPotReadout();
+      emptyBasket('');
+      state.currentBunchIdx++;
+
+      // Done with this ingredient?
+      if (after >= ing.count) {
+        afterIngredientDone();
+      } else {
+        startBridge();
+      }
+    }, basketVeggies.length * 60 + 700);
+  }
+
+  function startBridge() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const ing = r.ingredients[state.currentVeggieIdx];
+    const veg = ing.veggie;
+    const have = state.ingredientCounts[veg.id];
+    const need = ing.count;
+    const remainder = need - have;
+    const nextBunchSize = state.bunches[state.currentBunchIdx];
+
+    state.phase = 'bridge';
+    emptyBasket('Empty (answer first)');
+
+    // If remainder fits in one more bunch and is small, ask missing-addend.
+    // If make-ten step (have=5, next bunch=5, going to 10), ask "what makes 10?"
+    let prompt, correct;
+    if (have === 5 && nextBunchSize === 5 && need >= 10) {
+      prompt = `We have ${have} ${veg.label.toLowerCase()} so far. Let's add 5 more — how many will that make?`;
+      correct = 10;
+    } else if (have === 10 && remainder <= 5) {
+      prompt = `We have 10 ${veg.label.toLowerCase()} in the pot. The recipe needs ${need}. How many more do we need?`;
+      correct = remainder;
+    } else if (have < 10 && remainder <= 5) {
+      prompt = `We have ${have} ${veg.label.toLowerCase()}. The recipe needs ${need}. How many more?`;
+      correct = remainder;
+    } else {
+      prompt = `We have ${have} ${veg.label.toLowerCase()}. The recipe needs ${need}. How many more do we need to get to ${have + nextBunchSize}?`;
+      correct = nextBunchSize;
+    }
+
+    renderQuestion(prompt, makeOptions(correct), correct,
+      () => {
+        // Bridge answered — bring in the next bunch
+        setTimeout(() => startBunchCount(), 400);
+      },
+      null  // no count-along hint for missing-addend; just highlight correct
+    );
+  }
+
+  function afterIngredientDone() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const ing = r.ingredients[state.currentVeggieIdx];
+    state.currentVeggieIdx++;
+    renderRecipeHeader();
+
+    if (state.currentVeggieIdx >= r.ingredients.length) {
+      // All ingredients in — strategy reveal + submit
+      startStrategyReveal();
+      return;
+    }
+
+    // Cross-ingredient bridge: "we have X carrots. now we need Y tomatoes.
+    // when we add them, how many veggies total?"
+    const nextIng = r.ingredients[state.currentVeggieIdx];
+    const have = state.ingredientCounts[ing.veggie.id];
+    const need = nextIng.count;
+    const total = have + need;
+
+    state.phase = 'cross';
+    emptyBasket('Next ingredient coming…');
+
+    const prompt = `Great — ${have} ${ing.veggie.label.toLowerCase()} are in the pot. Now we need ${need} ${nextIng.veggie.label.toLowerCase()}. After we add them, how many veggies total?`;
+    renderQuestion(prompt, makeOptions(total), total,
+      () => {
+        // Then start the next ingredient
+        setTimeout(() => startIngredient(), 400);
+      },
+      null
+    );
+  }
+
+  function startStrategyReveal() {
+    const r = state.recipes[state.currentRecipeIdx];
+    state.phase = 'submit';
+    emptyBasket('Recipe ready!');
+    const eqParts = r.ingredients.map(i => i.count);
+    const eqStr = eqParts.join(' + ') + ' = ?';
+    setHumphreyMessage(`All the ingredients are in! Let's count it all up: ${eqParts.join(' plus ')}. What's your answer?`);
+    $('answerButtons').innerHTML = '';
+    $('strategyReveal').classList.add('visible');
+    $('strategyEq').textContent = eqStr;
+    $('submitArea').classList.add('visible');
+    $('submitInput').value = '';
+    $('submitInput').focus();
+  }
+
+  $('submitBtn').addEventListener('click', onSubmit);
+  $('submitInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') onSubmit();
+  });
+  function onSubmit() {
+    const r = state.recipes[state.currentRecipeIdx];
+    const guess = parseInt($('submitInput').value);
+    if (isNaN(guess)) return;
+    if (guess === r.answer) {
+      $('feedback').textContent = `Yes — ${r.ingredients.map(i => i.count).join(' + ')} = ${r.answer}!`;
+      $('feedback').className = 'feedback correct';
+      setHumphreyMessage(`Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name} is ready to serve!`);
+      $('submitArea').classList.remove('visible');
+      $('strategyReveal').classList.remove('visible');
+      // Advance to next recipe
+      setTimeout(() => {
+        state.currentRecipeIdx++;
+        if (state.currentRecipeIdx >= state.recipes.length) {
+          startComplete();
+        } else {
+          startRecipe();
+        }
+      }, 2800);
+    } else {
+      $('feedback').textContent = `Hmm — that's ${guess}, not quite right. Let's count together: ${r.ingredients.map(i => i.count).join(' + ')}. Try again.`;
+      $('feedback').className = 'feedback wrong';
+      setHumphreyMessage(`Let's count together. ${r.ingredients.map(i => i.count).join(' plus ')}.`);
+    }
+  }
+
+  function startComplete() {
+    state.phase = 'complete';
+    $('recipeName').textContent = "That's the whole menu!";
+    $('recipeSub').textContent = 'Beautiful work in my kitchen today.';
+    $('recipeProgress').innerHTML = '';
+    setHumphreyMessage(`Beautiful work, Nigel. You served ${state.recipes.length} dishes today.`);
+    $('answerButtons').innerHTML = '<button class="answer-btn" onclick="location.reload()">Cook again</button>';
+    $('submitArea').classList.remove('visible');
+    $('strategyReveal').classList.remove('visible');
+    emptyBasket('Service complete');
+  }
+
+  // ===================================================================
+  // Recipe fetching (from /api/cauldron-recipes — Haiku-generated, fresh per visit)
+  // ===================================================================
+  const VEGGIES_BY_ID = VEGGIES;
   function hydrateServerRecipe(r) {
     const ingredients = (r.ingredients || []).map(ing => {
       const v = VEGGIES_BY_ID[ing.veggie];
@@ -735,15 +1002,13 @@
     if (!ingredients.length) return null;
     return {
       name: r.name,
-      ingredients: ingredients,
+      ingredients,
       prompt: r.prompt,
       equation: r.equation,
       answer: r.answer,
       skill: r.skill,
-      fresh: true,
     };
   }
-  // localStorage tracks last 12 recipe titles seen, sent to server to bias against repeats
   function readSeenTitles() {
     try {
       const raw = localStorage.getItem('cauldron_seen_titles');
@@ -753,501 +1018,141 @@
   function writeSeenTitles(titles) {
     try { localStorage.setItem('cauldron_seen_titles', JSON.stringify(titles.slice(0, 12))); } catch (_) {}
   }
-  function fetchFreshRecipes() {
+  // Fallback (local) recipes if endpoint is unreachable
+  function fallbackRecipes() {
+    const veggies = Object.values(VEGGIES);
+    return [
+      {
+        name: 'Sunset Stew',
+        ingredients: [
+          { veggie: veggies[0], count: 5 },
+          { veggie: veggies[1], count: 4 },
+        ],
+        prompt: 'A bright stew for tonight.',
+        equation: '5 + 4 = ?', answer: 9,
+      },
+      {
+        name: 'Country Hash',
+        ingredients: [
+          { veggie: veggies[2], count: 7 },
+          { veggie: veggies[0], count: 5 },
+        ],
+        prompt: "Chef's classic country hash.",
+        equation: '7 + 5 = ?', answer: 12,
+      },
+    ];
+  }
+  async function fetchFreshRecipes() {
     const seen = readSeenTitles();
-    return fetch('/api/cauldron-recipes', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ avoidTitles: seen }),
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(j => {
-        if (!j || !Array.isArray(j.recipes)) return null;
-        const hydrated = j.recipes.map(hydrateServerRecipe).filter(Boolean);
-        if (hydrated.length < 3) return null;
-        // Record seen titles
-        const newTitles = hydrated.map(r => r.name).filter(Boolean);
-        writeSeenTitles([...newTitles, ...seen]);
-        return hydrated;
-      })
-      .catch(() => null);
-  }
-
-  // ----- State -----
-  const state = {
-    recipes: generateRecipes(),
-    currentRecipeIdx: 0,
-    addedCounts: {}, // veggie id -> count
-    awaitingCheck: false,
-    completed: 0,
-  };
-
-  // ----- DOM refs -----
-  const $ = (id) => document.getElementById(id);
-  const recipeName = $('recipeName');
-  const recipePrompt = $('recipePrompt');
-  const recipeEquation = $('recipeEquation');
-  const recipeIngredientsEl = $('recipeIngredients');
-  const checkBtn = $('checkBtn');
-  const feedbackEl = $('feedback');
-  const veggieShelf = $('veggieShelf');
-  const cauldronZone = $('cauldronZone');
-  const recipeProgressEl = $('recipeProgress');
-  const stage = $('stage');
-
-  // ----- Veggie shelf rendering -----
-  function renderShelf() {
-    veggieShelf.innerHTML = '';
-    VEGGIES.forEach((v) => {
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.className = 'veggie-card';
-      card.dataset.veggieId = v.id;
-      card.setAttribute('aria-label', 'Add a ' + v.label.slice(0, -1).toLowerCase());
-      card.innerHTML = `
-        <svg class="veggie-card-svg" viewBox="0 0 60 60"><use href="#${v.symbol}"/></svg>
-        <span class="veggie-card-label">${v.label}</span>
-        <span class="veggie-card-count" data-count-for="${v.id}">0</span>
-      `;
-      card.addEventListener('click', () => onAddVeggie(v));
-      veggieShelf.appendChild(card);
-    });
-  }
-
-  // ----- Add a veggie: validate FIRST, then animate + increment if valid -----
-  function onAddVeggie(veg) {
-    if (state.awaitingCheck) return;
-    const card = veggieShelf.querySelector(`[data-veggie-id="${veg.id}"]`);
-    if (!card) return;
-
-    // VALIDATE before we animate or increment.
-    const recipe = state.recipes[state.currentRecipeIdx];
-    const ing = recipe ? recipe.ingredients.find(i => i.veggie.id === veg.id) : null;
-    const currentCount = state.addedCounts[veg.id] || 0;
-
-    // Case 1: This veggie isn't in the recipe at all → reject, no add.
-    if (!ing) {
-      shakeReject(card);
-      safeSay('cauldron-wrong-veggie',
-        `Not ${veg.label.toLowerCase()} today — let's stick to the recipe.`,
-        'concerned');
-      return;
-    }
-    // Case 2: Already have enough → reject, no add.
-    if (currentCount >= ing.count) {
-      shakeReject(card);
-      safeSay('cauldron-already-enough',
-        `We already have all ${ing.count} ${veg.label.toLowerCase()}. Try a different ingredient.`,
-        'concerned');
-      return;
-    }
-
-    // Valid tap — proceed with animation + increment.
-    const cardRect = card.getBoundingClientRect();
-    const cauldronRect = cauldronZone.getBoundingClientRect();
-
-    const flier = document.createElement('div');
-    flier.className = 'flying-veggie';
-    flier.innerHTML = `<svg viewBox="0 0 60 60" width="56" height="56"><use href="#${veg.symbol}"/></svg>`;
-    flier.style.left = (cardRect.left + cardRect.width/2 - 28) + 'px';
-    flier.style.top  = (cardRect.top  + cardRect.height/2 - 28) + 'px';
-    document.body.appendChild(flier);
-
-    const targetX = cauldronRect.left + cauldronRect.width/2 - cardRect.left - cardRect.width/2;
-    const targetY = cauldronRect.top  + cauldronRect.height*0.32 - cardRect.top  - cardRect.height/2;
-    requestAnimationFrame(() => {
-      flier.style.transform = `translate(${targetX}px, ${targetY}px) scale(0.55)`;
-      flier.style.opacity = '0.3';
-    });
-    setTimeout(() => flier.remove(), 600);
-
-    state.addedCounts[veg.id] = currentCount + 1;
-    const badge = veggieShelf.querySelector(`[data-count-for="${veg.id}"]`);
-    if (badge) {
-      badge.textContent = state.addedCounts[veg.id];
-      badge.classList.add('shown');
-    }
-    refreshIngredients();
-    updateStepHint();
-    sayCountReaction(veg);
-    enableCheckIfReady();
-  }
-
-  function shakeReject(card) {
-    card.classList.remove('reject'); // restart animation if already there
-    void card.offsetWidth;            // force reflow
-    card.classList.add('reject');
-    setTimeout(() => card.classList.remove('reject'), 450);
-  }
-
-  // ----- Humphrey reactions -----
-  // Humphrey.say(event, context) — event is the STRING name; text goes in context.
-  // Passing an object as event made every call fall through to CATALOG._default,
-  // which only had 4 generic filler lines ("Mm-hmm", "Sure thing"…). That's why
-  // every line in v121 sounded the same. priority:'high' clears any queued
-  // generic line so the latest specific call wins.
-  function safeSay(eventId, text, expression) {
     try {
-      const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-      if (hp && hp.say) {
-        hp.say(eventId, {
-          text: text,
-          expression: expression || 'encouraging',
-          priority: 'high',
-        });
-      }
-    } catch (e) { /* humphrey not ready yet */ }
-  }
-
-  function sayCountReaction(veg) {
-    const recipe = state.recipes[state.currentRecipeIdx];
-    const ing = recipe.ingredients.find(i => i.veggie.id === veg.id);
-    const count = state.addedCounts[veg.id] || 0;
-    const need = ing ? ing.count : 0;
-    // onAddVeggie has already validated — only valid taps reach this function,
-    // so we just narrate the count (possibly with the next-ingredient handoff).
-    if (!ing) return;
-    const labelSingular = veg.singular || veg.label.slice(0, -1).toLowerCase();
-    if (count === need) {
-      // Look ahead — is there a next ingredient still needed?
-      const recipe = state.recipes[state.currentRecipeIdx];
-      const nextIng = recipe.ingredients.find(i => (state.addedCounts[i.veggie.id] || 0) < i.count);
-      const stillNeeded = nextIng ? nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0) : 0;
-      const nextWord = nextIng && stillNeeded === 1
-        ? (nextIng.veggie.singular || nextIng.veggie.label.slice(0, -1).toLowerCase())
-        : (nextIng ? nextIng.veggie.label.toLowerCase() : '');
-      const handoff = nextIng
-        ? ` Now we need ${stillNeeded} ${nextWord}.`
-        : ' All the ingredients are in. Tap Serve it up.';
-      safeSay('cauldron-ingredient-done',
-        `Perfect — that's ${need} ${veg.label.toLowerCase()}.${handoff}`,
-        'encouraging');
-    } else {
-      safeSay('cauldron-count',
-        `${count} ${count === 1 ? labelSingular : veg.label.toLowerCase()}.`,
-        'encouraging');
-    }
-  }
-
-  // ----- Recipe rendering -----
-  function loadCurrentRecipe() {
-    const r = state.recipes[state.currentRecipeIdx];
-    state.addedCounts = {};
-    state.awaitingCheck = false;
-    recipeName.textContent = r.name;
-    recipePrompt.textContent = r.prompt;
-    recipeEquation.textContent = r.equation;
-    recipeEquation.hidden = false;
-    feedbackEl.textContent = '';
-    feedbackEl.className = 'parchment-feedback';
-    recipeProgressEl.textContent = `Recipe ${state.currentRecipeIdx + 1} of ${state.recipes.length}`;
-    refreshIngredients();
-    refreshShelfBadges();
-    updateStepHint();
-    enableCheckIfReady();
-    // She reads the recipe aloud + tells Nigel what to tap first
-    const firstIng = r.ingredients[0];
-    const firstStep = firstIng
-      ? ` Start by tapping ${firstIng.count} ${firstIng.count === 1 ? (firstIng.veggie.singular || 'one') : firstIng.veggie.label.toLowerCase()}.`
-      : '';
-    setTimeout(() => {
-      safeSay('cauldron-recipe-intro',
-        `Tonight's recipe: ${r.name}. ${r.prompt}${firstStep}`,
-        'encouraging');
-    }, 600);
-  }
-
-  function refreshIngredients() {
-    const r = state.recipes[state.currentRecipeIdx];
-    recipeIngredientsEl.innerHTML = '';
-    r.ingredients.forEach((ing) => {
-      const have = state.addedCounts[ing.veggie.id] || 0;
-      const done = have >= ing.count;
-      const row = document.createElement('div');
-      row.className = 'parchment-ingredient' + (done ? ' done' : '');
-      row.innerHTML = `
-        <span>${ing.veggie.label}</span>
-        <span class="parchment-ingredient-need">${have} / ${ing.count}</span>
-      `;
-      recipeIngredientsEl.appendChild(row);
-    });
-  }
-
-  function refreshShelfBadges() {
-    VEGGIES.forEach((v) => {
-      const badge = veggieShelf.querySelector(`[data-count-for="${v.id}"]`);
-      if (badge) {
-        const n = state.addedCounts[v.id] || 0;
-        badge.textContent = n;
-        badge.classList.toggle('shown', n > 0);
-      }
-    });
-  }
-
-  function updateStepHint() {
-    const r = state.recipes[state.currentRecipeIdx];
-    const hint = document.getElementById('stepHint');
-    if (!hint || !r) return;
-    // Find the next ingredient that still needs more
-    const nextIng = r.ingredients.find(i => (state.addedCounts[i.veggie.id] || 0) < i.count);
-    // Clear all focus pulses
-    veggieShelf.querySelectorAll('.veggie-card.focus').forEach(c => c.classList.remove('focus'));
-    if (!nextIng) {
-      hint.textContent = 'Tap "Serve it up" to check!';
-      hint.hidden = false;
-      return;
-    }
-    const need = nextIng.count - (state.addedCounts[nextIng.veggie.id] || 0);
-    const word = need === 1 ? (nextIng.veggie.singular || nextIng.veggie.label.slice(0, -1).toLowerCase()) : nextIng.veggie.label.toLowerCase();
-    hint.textContent = `Next: tap ${need} ${word}`;
-    hint.hidden = false;
-    // Pulse the right card
-    const card = veggieShelf.querySelector(`[data-veggie-id="${nextIng.veggie.id}"]`);
-    if (card) card.classList.add('focus');
-  }
-
-  function enableCheckIfReady() {
-    const r = state.recipes[state.currentRecipeIdx];
-    const allMet = r.ingredients.every(ing => (state.addedCounts[ing.veggie.id] || 0) >= ing.count);
-    checkBtn.disabled = !allMet;
-  }
-
-  function onCheck() {
-    if (checkBtn.disabled) return;
-    const r = state.recipes[state.currentRecipeIdx];
-    const total = Object.values(state.addedCounts).reduce((a, b) => a + b, 0);
-    state.awaitingCheck = true;
-    checkBtn.disabled = true;
-    if (total === r.answer) {
-      feedbackEl.textContent = `Yes! ${r.equation.replace('?', r.answer)}`;
-      feedbackEl.className = 'parchment-feedback correct';
-      safeSay('cauldron-correct',
-        `Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name} is ready.`,
-        'cheering');
-      state.completed++;
-      try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: true }); } catch (_) {}
-      setTimeout(() => {
-        if (state.currentRecipeIdx + 1 < state.recipes.length) {
-          state.currentRecipeIdx++;
-          loadCurrentRecipe();
-        } else {
-          showCompleteScreen();
-        }
-      }, 2200);
-    } else {
-      feedbackEl.textContent = `Hmm — that's ${total}, not ${r.answer}. Let's check the recipe.`;
-      feedbackEl.className = 'parchment-feedback wrong';
-      safeSay('cauldron-wrong-answer',
-        `Hmm — we have ${total} in the pot. The recipe wants ${r.answer}. Let me read it again.`,
-        'concerned');
-      try { window.HeroAcademy?.Characters?.recordAttempt?.({ zoneId: 'cauldron-cafe', correct: false }); } catch (_) {}
-      setTimeout(() => {
-        state.awaitingCheck = false;
-        enableCheckIfReady();
-      }, 1500);
-    }
-  }
-
-  function showCompleteScreen() {
-    const hint = document.getElementById('stepHint');
-    if (hint) hint.hidden = true;
-    veggieShelf.querySelectorAll('.veggie-card.focus').forEach(c => c.classList.remove('focus'));
-    recipeName.textContent = 'Service complete!';
-    recipePrompt.textContent = `You cooked all ${state.completed} dishes. Chef Ralphie says: well done.`;
-    recipeEquation.hidden = true;
-    recipeIngredientsEl.innerHTML = '';
-    checkBtn.textContent = 'Cook again';
-    checkBtn.disabled = false;
-    checkBtn.onclick = function () {
-      state.recipes = generateRecipes();
-      state.currentRecipeIdx = 0;
-      state.completed = 0;
-      checkBtn.textContent = 'Serve it up';
-      checkBtn.onclick = onCheck;
-      loadCurrentRecipe();
-    };
-    safeSay('cauldron-complete',
-      "That's the whole menu, Nigel. Beautiful work in my kitchen today.",
-      'cheering');
-  }
-
-  // ----- TODAY'S SPECIAL (5 AI-generated word problems, kept from v120 functionality) -----
-  function wireTodaysSpecial() {
-    const DC = window.HeroAcademy && window.HeroAcademy.DailyContent;
-    if (!DC) return;
-    DC.get('math_problems').then((result) => {
-      if (!result || !result.payload || !Array.isArray(result.payload.items) || !result.payload.items.length) return;
-      const items = result.payload.items;
-      const btn = $('todayRecipeBtn');
-      const overlay = $('todayRecipeOverlay');
-      const closeBtn = $('todayRecipeClose');
-      const promptEl = $('todayRecipePrompt');
-      const inputEl = $('todayRecipeInput');
-      const checkB = $('todayRecipeCheck');
-      const fbEl = $('todayRecipeFeedback');
-      const nextBtn = $('todayRecipeNext');
-      const idxEl = $('todayRecipeIdx');
-      const totalEl = $('todayRecipeTotal');
-      const summary = $('todayRecipeSummary');
-      const scoreEl = $('todayRecipeScore');
-      const summaryMsg = $('todayRecipeSummaryMsg');
-      const doneBtn = $('todayRecipeDone');
-      const cardEl = $('todayRecipeCardEl');
-
-      totalEl.textContent = items.length;
-      btn.hidden = false;
-
-      let idx = 0, score = 0;
-      function showProblem() {
-        const p = items[idx];
-        idxEl.textContent = idx + 1;
-        promptEl.textContent = p.prompt;
-        inputEl.value = '';
-        inputEl.focus();
-        fbEl.textContent = ''; fbEl.className = 'today-recipe-feedback';
-        nextBtn.hidden = true;
-        checkB.disabled = false;
-        cardEl.style.display = '';
-        summary.hidden = true;
-      }
-      function check() {
-        const p = items[idx];
-        const ans = String(inputEl.value).trim();
-        if (!ans) return;
-        const correct = String(p.answer).trim();
-        const isCorrect = ans === correct || Number(ans) === Number(correct);
-        if (isCorrect) {
-          fbEl.textContent = `Yes — ${correct} is right.`;
-          fbEl.className = 'today-recipe-feedback correct';
-          score++;
-          safeSay('cauldron-special-correct', 'Nice work, Nigel.', 'cheering');
-        } else {
-          fbEl.textContent = `Not quite — the answer was ${correct}.`;
-          fbEl.className = 'today-recipe-feedback wrong';
-          safeSay('cauldron-special-wrong', "Close — let's try the next one.", 'encouraging');
-        }
-        checkB.disabled = true;
-        if (idx + 1 < items.length) nextBtn.hidden = false;
-        else setTimeout(showSummary, 700);
-      }
-      function showSummary() {
-        cardEl.style.display = 'none';
-        summary.hidden = false;
-        scoreEl.textContent = score;
-        let msg;
-        if (score === items.length) msg = "Perfect! You're a recipe master, Nigel!";
-        else if (score >= items.length - 1) msg = 'So close to perfect! Great work.';
-        else if (score >= items.length / 2) msg = 'Nice job — keep practicing.';
-        else msg = 'Math takes practice. You tried every one, that matters.';
-        summaryMsg.textContent = msg;
-      }
-      btn.addEventListener('click', function () {
-        idx = 0; score = 0;
-        overlay.hidden = false;
-        showProblem();
-        DC.markUsed('math_problems');
-        safeSay('cauldron-special-intro', "I made a special order just for you today, Nigel. Five word problems — ready?", 'encouraging');
+      const resp = await fetch('/api/cauldron-recipes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ avoidTitles: seen }),
       });
-      closeBtn.addEventListener('click', () => { overlay.hidden = true; });
-      doneBtn.addEventListener('click', () => { overlay.hidden = true; });
-      checkB.addEventListener('click', check);
-      inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') check(); });
-      nextBtn.addEventListener('click', () => { idx++; showProblem(); });
-    });
-  }
-
-  // ----- HUMPHREY AMBIENT OBSERVER (vision) -----
-  // Periodically rasterizes the stage to a hidden canvas and posts to
-  // /api/humphrey-observe so she can drop in atmospheric praise. Lower
-  // frequency than Creation Studio (kitchen scene changes more slowly).
-  let observerTimer = null;
-  function startAmbientObserver() {
-    const COOLDOWN_MS = 28000; // 28s minimum between vision calls
-    const AUTOPILOT_MS = 32000; // first run after 32s
-    async function tick() {
-      try {
-        const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-        if (!hp || (hp.isSpeaking && hp.isSpeaking())) return;
-        if (document.hidden) return;
-        const r = state.recipes[state.currentRecipeIdx];
-        // Skip if Nigel hasn't put anything in the pot yet — nothing to observe
-        const anyInPot = Object.values(state.addedCounts).some(v => v > 0);
-        if (!anyInPot) return;
-        const summaryStr = `Recipe: ${r.name}. Equation: ${r.equation}. ` +
-          'In the pot right now: ' +
-          r.ingredients.map(ing => `${state.addedCounts[ing.veggie.id]||0} of ${ing.count} ${ing.veggie.label.toLowerCase()} added`).join(', ') + '.';
-        // Text-only mode — no rasterized blob (that was useless). The endpoint
-        // now branches on missing imageDataUrl and gives Haiku the activity +
-        // actionSummary alone, which is the actual signal anyway.
-        const resp = await fetch('/api/humphrey-observe', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            activity: 'cauldron-cafe',
-            actionSummary: summaryStr,
-          }),
-        });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (data && data.text) {
-          safeSay('cauldron-ambient', data.text, data.expression || 'encouraging');
-        }
-      } catch (_) { /* silent — ambient feature, never blocks */ }
+      if (!resp.ok) throw new Error('recipes ' + resp.status);
+      const j = await resp.json();
+      if (!j || !Array.isArray(j.recipes)) throw new Error('bad payload');
+      const hydrated = j.recipes.map(hydrateServerRecipe).filter(Boolean);
+      if (hydrated.length < 1) throw new Error('no valid recipes');
+      writeSeenTitles([...hydrated.map(r => r.name), ...seen]);
+      return hydrated;
+    } catch (e) {
+      console.warn('[Cauldron] fresh fetch failed, using fallback', e);
+      return fallbackRecipes();
     }
-    observerTimer = setInterval(tick, AUTOPILOT_MS);
   }
 
-  // ----- Boot -----
-  function boot() {
-    renderShelf();
-    loadCurrentRecipe();
-    checkBtn.addEventListener('click', onCheck);
-    wireTodaysSpecial();
-    // Init Humphrey
+  // ===================================================================
+  // Today's Special overlay (cron-generated word problems) — preserved
+  // ===================================================================
+  let todaySpecial = { problems: [], idx: 0 };
+  async function wireTodaysSpecial() {
+    try {
+      // Lightweight Supabase RPC call via existing daily-content helper if loaded
+      if (!window.HeroAcademy || !window.HeroAcademy.DailyContent) return;
+      const content = await window.HeroAcademy.DailyContent.fetchToday();
+      if (!content || !content.math_problems || !content.math_problems.length) return;
+      todaySpecial.problems = content.math_problems;
+      $('todayRecipeBtn').hidden = false;
+      $('todayRecipeTotal').textContent = todaySpecial.problems.length;
+    } catch (_) { /* hide button silently */ }
+  }
+  function openTodaySpecial() {
+    $('todayRecipeOverlay').hidden = false;
+    todaySpecial.idx = 0;
+    showTodayProblem();
+  }
+  function showTodayProblem() {
+    const p = todaySpecial.problems[todaySpecial.idx];
+    if (!p) return;
+    $('todayRecipeIdx').textContent = todaySpecial.idx + 1;
+    $('todayRecipePrompt').textContent = p.prompt || p.text || p;
+    $('todayRecipeInput').value = '';
+    $('todayRecipeFeedback').textContent = '';
+    $('todayRecipeFeedback').className = 'today-recipe-feedback';
+    $('todayRecipeNext').hidden = true;
+    setTimeout(() => $('todayRecipeInput').focus(), 100);
+  }
+  $('todayRecipeBtn').addEventListener('click', openTodaySpecial);
+  $('todayRecipeClose').addEventListener('click', () => { $('todayRecipeOverlay').hidden = true; });
+  $('todayRecipeCheck').addEventListener('click', () => {
+    const p = todaySpecial.problems[todaySpecial.idx];
+    if (!p) return;
+    const guess = parseInt($('todayRecipeInput').value);
+    if (isNaN(guess)) return;
+    if (guess === p.answer) {
+      $('todayRecipeFeedback').textContent = `Yes — ${p.answer} is right.`;
+      $('todayRecipeFeedback').className = 'today-recipe-feedback correct';
+      $('todayRecipeNext').hidden = false;
+    } else {
+      $('todayRecipeFeedback').textContent = `Not quite. Let's try again.`;
+      $('todayRecipeFeedback').className = 'today-recipe-feedback wrong';
+    }
+  });
+  $('todayRecipeNext').addEventListener('click', () => {
+    todaySpecial.idx++;
+    if (todaySpecial.idx >= todaySpecial.problems.length) {
+      $('todayRecipeOverlay').hidden = true;
+    } else {
+      showTodayProblem();
+    }
+  });
+
+  // ===================================================================
+  // Boot
+  // ===================================================================
+  async function boot() {
+    // Initialize Humphrey global if present, but immediately hide its floater —
+    // we have our own embedded tab in this zone.
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      window.HeroAcademy.Humphrey.init({
-        position: 'bottom-left',
-        audioEnabled: true,
-        debug: false,
-        welcomeEvent: 'welcome-cauldron',
-        kidName: 'Nigel',
-      });
+      try {
+        window.HeroAcademy.Humphrey.init({
+          position: 'bottom-left', audioEnabled: true,
+          welcomeEvent: 'welcome-cauldron', kidName: 'Nigel',
+        });
+        window.HeroAcademy.Humphrey.hide();
+      } catch (_) {}
     }
-    // Kick off fresh-recipe fetch in the background. We don't block boot — the
-    // fallback recipes already render so Nigel can play immediately. When the
-    // server response arrives, we swap in the fresh batch from his CURRENT
-    // recipe forward (any recipe he's already started stays the same).
-    fetchFreshRecipes().then((fresh) => {
-      if (!fresh || !fresh.length) return;
-      // Keep the recipe he is currently looking at — replace future ones.
-      const idx = state.currentRecipeIdx;
-      const currentlyOn = state.recipes[idx];
-      // If he hasn't added anything to the current recipe yet, replace it too
-      const noProgress = Object.values(state.addedCounts).every(v => !v);
-      if (noProgress) {
-        state.recipes = fresh;
-        state.currentRecipeIdx = 0;
-        loadCurrentRecipe();
-      } else {
-        // Splice in fresh recipes after the current one
-        state.recipes = [currentlyOn, ...fresh];
-        // currentRecipeIdx stays at 0 in the new array since current is at 0
-        state.currentRecipeIdx = 0;
-        recipeProgressEl.textContent = `Recipe 1 of ${state.recipes.length}`;
-      }
-    });
-    // Start ambient observer 32s after load
-    setTimeout(startAmbientObserver, 32000);
+
+    setHumphreyMessage("Welcome back to the kitchen, Nigel. Let me get tonight's recipes from Chef Ralphie…", { skipTTS: false });
+
+    const fresh = await fetchFreshRecipes();
+    state.recipes = fresh;
+    wireTodaysSpecial();
+    startRecipe();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
+
+  document.addEventListener('DOMContentLoaded', boot);
+  if (document.readyState !== 'loading') boot();
 })();
 </script>
-
-<script src="js/sw-register.js"></script>
+<script src="/js/humphrey.js"></script>
+<script src="/js/daily-content.js"></script>
 </body>
 </html>
