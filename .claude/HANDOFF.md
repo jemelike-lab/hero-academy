@@ -61,7 +61,7 @@ _Last updated: 2026-06-06, end of v127 deploy._
 - **Ten-frame inside cauldron** — one per ingredient, multi-row for teens to visualize place value
 - **Cross-ingredient bridges** between veggies ("9 carrots are in. Recipe needs 8 tomatoes. After we add them, how many total?")
 - **Strategy reveal + final submit** with equation panel at end
-- **Wrong-answer pedagogy:** visual count-along on basket (each veggie lights up sequentially 1, 2, 3…) + correct answer highlighted in brass for retry
+- **Wrong-answer pedagogy:** visual count-along on basket + correct answer highlighted in brass for retry
 - **NEW: Embedded pulsating Humphrey tab** — 64px portrait fixed top-right of scene, pulses with amber halo when she has new utterance, tap to replay TTS. Global Humphrey floater hidden on this page.
 - All TTS routed through direct `/api/humphrey/tts` POST (custom `tts()` wrapper), not through global `Humphrey.say()` — avoids the `_default` filler trap from v123
 
@@ -75,12 +75,12 @@ _Last updated: 2026-06-06, end of v127 deploy._
 - Animated **passport stamp pop** on completion of all 3 wonders
 - localStorage passport persistence — schema `{stamps: [{id, place, date}], lastSeen: 'YYYY-MM-DD'}`, same-day duplicate defense
 - **Embedded pulsating Humphrey tab** — same pattern as v125 Cauldron
-- v126 ships **one hardcoded Annapolis expedition** (Phases 1-3 + 6: departure, discovery, wonders, passport). Phases 4-5 (choice scenario, connection) deferred to v129. Haiku-generated daily content deferred to v128.
+- v126 ships **one hardcoded Annapolis expedition** (Phases 1-3 + 6). Phases 4-5 deferred to v129. Haiku-generated daily content deferred to v128.
 - **Router patched** in `js/app.js`: `explorer` zone → `explorers-hall.html` (was `diner-lanes.html`)
-- **SW CORE updated** — `explorers-hall.html` added; `diner-lanes.html` kept in CORE for rollback safety, file remains in repo but is unreachable from UI
+- **SW CORE updated** — `explorers-hall.html` added; `diner-lanes.html` kept in CORE for rollback safety
 
 ### v127 — Explorer's Hall audio filler hotfix
-- **Root cause:** same anti-pattern as v123. Init code passed `welcomeEvent: 'welcome-explorers'` to global Humphrey, which doesn't exist in CATALOG (only Cauldron, Sketch, etc.), so fell through to `_default` → played stray `"Got it, Nigel."` filler at boot, overlapping the custom intro from the embedded tab.
+- **Root cause:** same anti-pattern as v123. Init passed `welcomeEvent: 'welcome-explorers'` to global Humphrey, which doesn't exist in CATALOG, so fell through to `_default` → played stray `"Got it, Nigel."` filler at boot, overlapping the custom intro from the embedded tab.
 - **Fix:** `audioEnabled: false` on the global Humphrey init in `explorers-hall.html`, dropped the unregistered `welcomeEvent`. Our embedded tab routes TTS directly through `/api/humphrey/tts`, so the global doesn't need audio enabled.
 - Verified clean: boot fires exactly 1 TTS call (the custom intro), zero `_default` filler leakage.
 
@@ -107,82 +107,36 @@ _Last updated: 2026-06-06, end of v127 deploy._
 ## Open items (priority order)
 
 1. **Galaxy Tab device acceptance test** — deferred 12+ sessions. Specifically needed:
-   - v125 Cooking Math loop on touch: bunch tap-answers, ten-frame visibility, fly-in animation, step transitions
-   - v127 Explorer's Hall: embedded Humphrey tab pulse + tap-to-replay, wonder tile taps, passport stamp animation rewarding feel
-   - **Audio verification:** ElevenLabs TTS playback through tablet speakers — both Cauldron and Explorer's Hall route through direct `/api/humphrey/tts`; sandbox can confirm calls fire but not actual audio output
-2. **v128 — Haiku-generated daily expedition** for Explorer's Hall. New endpoint `/api/expedition.js` rotating through topic buckets: Maryland history (30%), US history (25%), geography (15%), civics (15%), cultures (15%). Replaces hardcoded Annapolis. Same anti-repeat localStorage pattern as cauldron-recipes.
-3. **v129 — Supabase passport persistence + home-screen passport tile**. Migration `ha_expedition_stamps` table. Visual passport book on Hero Hall home showing collected stamps.
-4. **Cauldron Phase 4-5 additions** — choice scenario + cross-ingredient reasoning enhancements from the original v125 design proposal (currently only Phases 1-3 + final submit are shipped)
-5. **Word Tower zone build** — needed before `word_list` payload from daily cron can surface anywhere
+   - v125 Cooking Math loop on touch
+   - v127 Explorer's Hall full play-through
+   - **Audio verification** through tablet speakers — sandbox cannot confirm actual audio output
+2. **v128 — Haiku-generated daily expedition** for Explorer's Hall. New endpoint `/api/expedition.js` rotating Maryland history (30%), US history (25%), geography (15%), civics (15%), cultures (15%). Replaces hardcoded Annapolis.
+3. **v129 — Supabase passport persistence + home-screen passport tile**. Migration `ha_expedition_stamps` table.
+4. **Cauldron Phase 4-5 additions** — choice scenario + cross-ingredient reasoning enhancements
+5. **Word Tower zone build** — needed before `word_list` payload from daily cron can surface
 6. **Build #4 — SRS** — `ha_srs_queue` Leitner intervals
 7. **Discovery Dome + Training Gym** — still placeholder zones
 8. **Bianca preview / parent veto loop** — Content-of-One Deploy 4
 9. **Ms. Humphrey 6th expression "smile"** — 5 of 6 live
 10. **Saturday email v2 polish** — tighten empty-data-week tone
-11. **Swing 1 (Hero Journey)** — Professor Forgetful villain, ranks, weekly boss battles
+11. **Swing 1 (Hero Journey)** — Professor Forgetful villain arc
 12. **Swing 2 (Humphrey Always-On)** — conversational voice mode + camera Show & Tell + read-aloud listener
-
----
-
-## File map (current as of v127)
-
-```
-hero-academy/
-├── index.html                          # Hero Hall hub + Today's Wonder card (v120)
-├── story-lab.html                      # Reading + Today's Adventure card (v119)
-├── cauldron-cafe.html                  # ~43KB, Cooking Math loop with bunches + ten-frames + embedded Humphrey tab (v125, v124 audit fixes carried forward)
-├── explorers-hall.html                 # ~25KB, museum expeditions with embedded Humphrey tab (v127)
-├── diner-lanes.html                    # DEPRECATED — unreachable from UI, kept for rollback safety
-├── sound-stage.html, piano-lab.html, video-theater.html  # v113
-├── beat-box.html, name-that-instrument.html, sing-it-back.html  # v114
-├── creation-studio.html                # 4-card 2x2 hub (v115-v116)
-├── sketch-lab.html, animation-studio.html, photo-booth.html, stamp-studio.html
-├── letter-lab.html                     # 47 chars + digits (v107-v108)
-├── hero-hall.html
-├── sw.js                               # CACHE_VERSION = "hero-academy-v127"
-│
-├── api/
-│   ├── cauldron-recipes.js             # v122 — fresh AI recipes per visit, additive-only multi-step constraint (v123)
-│   ├── humphrey-observe.js             # v123 — branched by activity, text-only mode for cauldron
-│   ├── humphrey/tts.js                 # ElevenLabs proxy
-│   ├── humphrey/image-search.js        # Wikipedia thumbnails
-│   ├── chat.js                         # page-aware Q&A
-│   └── cron/
-│       ├── generate-daily-content.js   # v119 — nightly Haiku
-│       ├── send-saturday-digest.js
-│       └── monthly-video-curation.js
-│
-├── js/
-│   ├── app.js                          # zone router (v126: explorer → explorers-hall.html)
-│   ├── humphrey.js                     # say(event, context) — CRITICAL: see Patterns
-│   ├── humphrey-observer.js            # v117 — vision + dynamic comments
-│   ├── daily-content.js                # v119 — client adapter
-│   └── (others unchanged)
-│
-├── data/
-│   └── nigel-profile.json              # family, friends, interests, faith
-│
-├── docs/sessions/
-│   ├── 2026-06-06.md                   # v116-v119 (prior session AM)
-│   └── 2026-06-06-part2.md             # v120-v127 (THIS session)
-└── .claude/HANDOFF.md                  # this doc — truth source
-```
 
 ---
 
 ## Patterns + learnings (carry forward — additions through v127)
 
-- **`humphrey.say(event, context)` — event MUST be a string.** Passing an object stringifies to `"[object Object]"`, no CATALOG entry, falls to `_default` → 4 generic fillers ("Got it, Nigel" / "Mm-hmm" / "Sure thing" / "Okay, Nigel"). When user reports "she keeps saying the same thing" → check call signatures first. Correct: `H.say('event-id', { text: 'custom', expression: 'encouraging', priority: 'high' })`.
-- **`welcomeEvent` in global Humphrey init has the same trap.** If the event isn't registered in CATALOG (e.g. `welcome-explorers` doesn't exist), init still tries to fire it and plays a `_default` filler. **Rule for new zones using the embedded tab pattern: ALWAYS pass `audioEnabled: false` on the global Humphrey init** so it can't auto-play a stray welcome that overlaps your custom intro.
-- **Embedded pulsating Humphrey tab pattern (introduced v125, refined v127):** when building a new zone with active prompts/questions, embed a 64px round Humphrey portrait fixed top-right with amber pulse halo on new utterance + tap-to-replay TTS. Hide the global floater (`Humphrey.hide()`). Route all TTS through a direct `fetch('/api/humphrey/tts', ...)` wrapper, not through `Humphrey.say()`. This pattern is documented in v125 Cauldron and v127 Explorer's Hall — lift verbatim for new zones.
-- **Audio chain still:** prerendered MP3 → `/api/humphrey/tts` (ElevenLabs blob) → Web Speech API → silent. When using the embedded tab pattern, we skip the prerendered MP3 step entirely and go direct to TTS.
+- **`humphrey.say(event, context)` — event MUST be a string.** Passing an object stringifies to `"[object Object]"`, no CATALOG entry, falls to `_default` → 4 generic fillers ("Got it, Nigel" / "Mm-hmm" / "Sure thing" / "Okay, Nigel"). When user reports "she keeps saying the same thing" → check call signatures first.
+- **`welcomeEvent` in global Humphrey init has the same trap.** If the event isn't registered in CATALOG, init still tries to fire it and plays a `_default` filler. **Rule for new zones using the embedded tab pattern: ALWAYS pass `audioEnabled: false` on the global Humphrey init** so it can't auto-play a stray welcome that overlaps your custom intro.
+- **Embedded pulsating Humphrey tab pattern (v125, refined v127):** when building a new zone with active prompts/questions, embed a 64px round Humphrey portrait fixed top-right with amber pulse halo on new utterance + tap-to-replay TTS. Hide the global floater. Route all TTS through a direct `fetch('/api/humphrey/tts', ...)` wrapper, not through `Humphrey.say()`. This pattern is documented in v125 Cauldron and v127 Explorer's Hall — lift verbatim for new zones.
+- **Audio chain still:** prerendered MP3 → `/api/humphrey/tts` (ElevenLabs blob) → Web Speech API → silent. When using the embedded tab pattern, we skip the prerendered MP3 step entirely.
 - **Cauldron UI is add-only.** Any multi-step problem with mid-equation subtraction strands Nigel. Enforce additive-only framing in any Cauldron prompt.
 - **Vision observer doesn't need an image when the activity has rich textual state.** Text-only mode is 1.1s vs 4+s and produces MORE specific responses.
-- **Bunch derivation for math pedagogy:** when designing a manipulative-style math zone, splitting totals into bunches of ≤5 enables subitization, doubles, and make-ten teaching. The v125 cauldron-cafe.html `deriveBunches()` function is a reusable template.
+- **Bunch derivation for math pedagogy:** when designing a manipulative-style math zone, splitting totals into bunches of ≤5 enables subitization, doubles, and make-ten teaching. The v125 `deriveBunches()` function is a reusable template.
 - **Live UI testing catches what endpoint testing misses.** v123 had "1 tomatoe" cosmetic + wrong-veggie acceptance trap; v126 had the welcome-event filler. Both invisible to endpoint+HTML-marker testing. Tap-and-snapshot UI walkthrough is mandatory before declaring a deploy verified.
-- **Raw GitHub CDN is often stale after a push.** Use `Vercel:list_deployments` to verify a deploy is READY by commit SHA, not raw URL content checks.
+- **Raw GitHub CDN is often stale after a push.** Use Vercel:list_deployments to verify a deploy is READY by commit SHA, not raw URL content checks.
 - **Vercel SSO blocks sandbox curl but `fetch()` from authenticated browser tab works.** Use Chrome MCP `javascript_exec` with `fetch()` from inside the app origin for live endpoint testing.
-- **Chrome MCP `navigate` invalidates following `javascript_exec` in same batch.** Split navigation and post-load tests into separate calls with `await new Promise(r => setTimeout(r, N))` for boot.
-- **AI content endpoints need pool-buffer thresholds + anti-repeat.** localStorage tracking of last 12 titles sent in payload prevents Haiku re-rolling the same names within a week. Pattern proven in cauldron-recipes; replicate for v128 expedition.
-- **Verify before claiming done — UI walkthrough is the gate.** Reaffirmed every session — endpoint testing and HTML markers don't catch everything. Tap, observe, snapshot, then ship.
-- **Old zone files stay in repo when deprecating.** Don't delete `diner-lanes.html` even though router skips it; SW CORE still references it for rollback path. Same will apply to any future zone replacement.
+- **Chrome MCP `navigate` invalidates following `javascript_exec` in same batch.** Split navigation and post-load tests into separate calls.
+- **AI content endpoints need pool-buffer thresholds + anti-repeat.** localStorage tracking of last 12 titles sent in payload prevents Haiku re-rolling same names within a week.
+- **Verify before claiming done — UI walkthrough is the gate.** Endpoint testing and HTML markers don't catch everything. Tap, observe, snapshot, then ship.
+- **Old zone files stay in repo when deprecating.** Don't delete `diner-lanes.html` even though router skips it; SW CORE still references it for rollback path.
