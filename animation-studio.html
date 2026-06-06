@@ -324,6 +324,7 @@
 <script src="js/humphrey-memory.js"></script>
 <script src="js/humphrey-qna.js"></script>
 <script src="js/humphrey-choices.js"></script>
+<script src="js/humphrey-observer.js"></script>
 <script src="js/art-gallery.js"></script>
 <script>
 (function(){
@@ -468,6 +469,7 @@
     snappedThisStroke = false;
     persistCurrentFrame();
     refreshFrameThumb(state.currentFrame);
+    if (typeof Observer !== 'undefined' && Observer) Observer.markAction('stroke');
   }
   function drawSeg(x0,y0,x1,y1) {
     var b = currentBrush();
@@ -551,6 +553,7 @@
         state.currentFrame = i;
         refreshFrameStrip();
         loadFrameToCanvas(i);
+        if (typeof Observer !== 'undefined' && Observer) Observer.markAction('frame');
         // Scroll the new frame into view
         var thumbs = strip.querySelectorAll('.frame-thumb');
         if (thumbs[i]) thumbs[i].scrollIntoView({behavior:'smooth', inline:'center'});
@@ -678,14 +681,7 @@
         fps: state.fps,
       });
       showToast('✓ Saved to your gallery!');
-      try {
-        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-          window.HeroAcademy.Humphrey.say('quick-praise', {
-            kidName:'Nigel',
-            text:"Wonderful, Nigel! Your animation is saved.",
-          });
-        }
-      } catch(e){}
+      if (Observer) Observer.observe(captureForObserve, { force: true, actionSummary: 'just saved an animation with ' + frames.length + ' frames' });
     } catch(e){ showToast('Save failed'); }
   });
 
@@ -747,14 +743,7 @@
         document.body.appendChild(a); a.click();
         setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
       }
-      try {
-        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-          window.HeroAcademy.Humphrey.say('quick-praise', {
-            kidName:'Nigel',
-            text:"Look at that! Your GIF is ready, Nigel.",
-          });
-        }
-      } catch(e){}
+      if (Observer) Observer.observe(captureForObserve, { force: true, actionSummary: 'just exported a GIF with ' + frames.length + ' frames' });
     });
     gif.render();
   });
@@ -771,6 +760,11 @@
   refreshFrameStrip();
   // Default onion toggle visible
   document.getElementById('onionBtn').classList.add('active');
+
+  // Humphrey observer
+  var Observer = (window.HeroAcademy && window.HeroAcademy.HumphreyObserver) ? window.HeroAcademy.HumphreyObserver.make('animation-studio', { kidName: 'Nigel' }) : null;
+  function captureForObserve() { persistCurrentFrame(); return frames[state.currentFrame]; }
+  if (Observer) Observer.autopilot(captureForObserve, { intervalMs: 14000 });
 
   try {
     if (window.HeroAcademy && window.HeroAcademy.Telemetry) {

@@ -348,6 +348,7 @@
 <script src="js/humphrey-memory.js"></script>
 <script src="js/humphrey-qna.js"></script>
 <script src="js/humphrey-choices.js"></script>
+<script src="js/humphrey-observer.js"></script>
 <script src="js/art-gallery.js"></script>
 <script>
 (function(){
@@ -662,6 +663,7 @@
     lastPoint = null;
     strokeInfo = null;
     undoSnapshotTaken = false;
+    if (typeof Observer !== 'undefined' && Observer) Observer.markAction('stroke');
   }
 
   function drawSegment(x0, y0, x1, y1) {
@@ -906,14 +908,7 @@
         thumbDataUrl: thumbDataUrl,
       });
       showToast('✓ Saved to your gallery!');
-      try {
-        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-          window.HeroAcademy.Humphrey.say('quick-praise', {
-            kidName:'Nigel',
-            text:"Beautiful work, Nigel! I saved it to your gallery.",
-          });
-        }
-      } catch(e){}
+      if (Observer) Observer.observe(captureForObserve, { force: true, actionSummary: 'just saved this drawing' });
     } catch(e){
       showToast('Save failed');
     }
@@ -982,6 +977,11 @@
   paintBg();
   paintPalette();
   drawSymAxes();
+
+  // Humphrey observer
+  var Observer = (window.HeroAcademy && window.HeroAcademy.HumphreyObserver) ? window.HeroAcademy.HumphreyObserver.make('sketch-lab', { kidName: 'Nigel' }) : null;
+  function captureForObserve() { return compositeForExport(); }
+  if (Observer) Observer.autopilot(captureForObserve, { intervalMs: 14000 });
 
   try {
     if (window.HeroAcademy && window.HeroAcademy.Telemetry) {

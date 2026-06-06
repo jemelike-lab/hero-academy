@@ -233,6 +233,7 @@ body {
 <script src="js/humphrey-memory.js"></script>
 <script src="js/humphrey-qna.js"></script>
 <script src="js/humphrey-choices.js"></script>
+<script src="js/humphrey-observer.js"></script>
 <script src="js/art-gallery.js"></script>
 <script>
 (function(){
@@ -300,6 +301,10 @@ body {
     document.querySelectorAll('.bg-chip').forEach(function(x){
       x.classList.toggle('active', x.dataset.bg === state.bg);
     });
+    if (typeof Observer !== 'undefined' && Observer) {
+      Observer.markAction('background change');
+      if (placedStickers.length >= 3) setTimeout(function(){ Observer.observe(captureForObserve, { actionSummary: 'just switched to a ' + state.bg + ' background with ' + placedStickers.length + ' stickers placed' }); }, 400);
+    }
   });
 
   // --- Stickers ---
@@ -307,12 +312,13 @@ body {
     var s = {
       id: 's' + Date.now() + Math.random().toString(36).slice(2,5),
       emoji: emoji,
-      xPct: 0.5, yPct: 0.5,  // position as fraction of scene size
+      xPct: 0.5, yPct: 0.5,
       size: 72,
     };
     placedStickers.push(s);
     renderSticker(s);
     selectSticker(s.id);
+    if (typeof Observer !== 'undefined' && Observer) Observer.markAction('sticker');
   }
   function renderSticker(s) {
     var el = document.createElement('div');
@@ -479,19 +485,25 @@ body {
         fullDataUrl: fullDataUrl,
       });
       showToast('✓ Saved to your gallery!');
-      try {
-        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-          window.HeroAcademy.Humphrey.say('quick-praise', {
-            kidName:'Nigel', text:"What a scene, Nigel! Saved to your gallery.",
-          });
-        }
-      } catch(e){}
+      if (Observer) Observer.observe(captureForObserve, { force: true, actionSummary: 'just saved this ' + state.bg + ' scene with ' + placedStickers.length + ' stickers' });
     } catch(e){ showToast('Save failed'); }
   });
 
   // --- Boot ---
   paintTabs();
   paintTray();
+
+  // Humphrey observer
+  var Observer = (window.HeroAcademy && window.HeroAcademy.HumphreyObserver) ? window.HeroAcademy.HumphreyObserver.make('stamp-studio', { kidName: 'Nigel' }) : null;
+  function captureForObserve() {
+    var out = document.createElement('canvas');
+    out.width = CANVAS_DIM; out.height = CANVAS_DIM;
+    var ctx2 = out.getContext('2d');
+    paintBgToCanvas(ctx2);
+    placedStickers.forEach(function(s){ ctx2.font = s.size + 'px serif'; ctx2.textAlign='center'; ctx2.textBaseline='middle'; ctx2.fillText(s.emoji, s.xPct * CANVAS_DIM, s.yPct * CANVAS_DIM); });
+    return out;
+  }
+  if (Observer) Observer.autopilot(captureForObserve, { intervalMs: 14000 });
   try {
     if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
       window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'stamp-studio' });

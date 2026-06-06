@@ -268,6 +268,7 @@ body {
 <script src="js/humphrey-memory.js"></script>
 <script src="js/humphrey-qna.js"></script>
 <script src="js/humphrey-choices.js"></script>
+<script src="js/humphrey-observer.js"></script>
 <script src="js/art-gallery.js"></script>
 <script>
 (function(){
@@ -348,6 +349,7 @@ body {
     stopCamera();
     hasCaptured = true;
     enterDecorateMode();
+    if (Observer) setTimeout(function(){ Observer.observe(captureForObserve, { force: true, actionSummary: 'just took a photo' }); }, 800);
   });
 
   function enterDecorateMode() {
@@ -484,6 +486,7 @@ body {
     placedStickers.push(s);
     renderSticker(s);
     selectSticker(s.id);
+    if (typeof Observer !== 'undefined' && Observer) Observer.markAction('sticker');
   }
   function renderSticker(s) {
     var el = document.createElement('div');
@@ -627,13 +630,7 @@ body {
         fullDataUrl: fullDataUrl,
       });
       showToast('✓ Saved to your gallery!');
-      try {
-        if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-          window.HeroAcademy.Humphrey.say('quick-praise', {
-            kidName:'Nigel', text:"Look at that creation, Nigel! Saved to your gallery.",
-          });
-        }
-      } catch(e){}
+      if (Observer) Observer.observe(captureForObserve, { force: true, actionSummary: 'just saved this decorated photo' });
     } catch(e){ showToast('Save failed'); }
   });
 
@@ -641,6 +638,18 @@ body {
   paintStickerTray();
   paintPalette();
   startCamera();
+
+  // Humphrey observer
+  var Observer = (window.HeroAcademy && window.HeroAcademy.HumphreyObserver) ? window.HeroAcademy.HumphreyObserver.make('photo-booth', { kidName: 'Nigel' }) : null;
+  function captureForObserve() {
+    var out = document.createElement('canvas');
+    out.width = W; out.height = H;
+    var octx = out.getContext('2d');
+    octx.drawImage(canvas, 0, 0);
+    placedStickers.forEach(function(s){ octx.font = s.size + 'px serif'; octx.textAlign='center'; octx.textBaseline='middle'; octx.fillText(s.emoji, s.x, s.y); });
+    return out;
+  }
+  if (Observer) Observer.autopilot(captureForObserve, { intervalMs: 14000 });
   try {
     if (window.HeroAcademy && window.HeroAcademy.Telemetry) {
       window.HeroAcademy.Telemetry.event('zone-enter', { zone:'creation-studio', activity:'photo-booth' });
