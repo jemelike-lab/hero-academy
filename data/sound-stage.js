@@ -1,28 +1,37 @@
 // ============================================================================
-// Hero Academy — Sound Stage data
+// Hero Academy — Sound Stage data  (v110, Jun 6 2026)
 // Songs (Piano Lab) + Curated music videos (Music Video Theater)
 //
-// Songs: arrays of { note, beats } where note is scientific pitch notation
-//        (e.g. "C4" = middle C, "G4" = G above middle C).
-//        beats = 1 (quarter note), 0.5 (eighth), 2 (half note).
+// VIDEO LIBRARY POLICY
+// ---------------------
+// All videos vetted Jun 6 2026 from official PBS Kids and Sesame Workshop
+// YouTube channels. Each is either a real video (youtubeId) or an OFFICIAL
+// curated playlist (playlistId). When in doubt, prefer playlists from
+// channels Josh trusts (PBS Kids, Sesame Street) — those self-curate.
 //
-// Videos: youtubeId is the 11-character YouTube ID (after watch?v= in the URL).
-//         For curated playlists (whole playlist embed), use playlistId instead.
-//         postQuestion is what Humphrey asks Nigel after the video ends.
-//         All videos vetted Jun 5 2026 — Josh should re-verify before launch.
+// To add more videos: copy a block, paste a new id from a vetted channel,
+// fill in title/description/postQuestion. The hub picks them up on reload.
 //
-// To add more videos: copy a block, paste a new id from a vetted source,
-//         and refill title/description/postQuestion. The hub picks them up
-//         on next reload (no schema work needed).
+// FUTURE: monthly auto-curation
+// ------------------------------
+// A Vercel cron job (1st of each month) will call Haiku to suggest 5-10 new
+// videos from the approved channel list below, email Josh + Bianca for
+// review, and on approval append them to a Supabase ha_video_library table.
+// The Video Theater frontend will read from that table first, falling back
+// to this static list if Supabase is unreachable. See HANDOFF for the
+// design. Until that ships, this static list is canonical.
+//
+// APPROVED SOURCE CHANNELS (for the auto-curator)
+//   • PBS Kids — https://www.youtube.com/c/PBSKIDS
+//   • Sesame Street — https://www.youtube.com/user/SesameStreet
+//   • Sesame Workshop — official health/hygiene PSAs
+//   • Daniel Tiger's Neighborhood (Fred Rogers Productions / PBS)
 // ============================================================================
 
 window.HeroAcademy = window.HeroAcademy || {};
 window.HeroAcademy.SoundStage = {
 
-  // ── PIANO SONGS ─────────────────────────────────────────────────────────
-  // Each song is { id, title, emoji, difficulty (1-3), notes: [{note, beats}] }
-  // We work in C major, one octave (C4–C5), all white keys + sharps.
-  // Add new songs by appending another object below.
+  // ── PIANO SONGS (unchanged from v109) ───────────────────────────────────
   songs: [
     {
       id: 'twinkle',
@@ -109,16 +118,134 @@ window.HeroAcademy.SoundStage = {
   ],
 
   // ── MUSIC VIDEO THEATER ─────────────────────────────────────────────────
-  // Each video has either { youtubeId } for a single video, or
-  // { playlistId } to embed an entire vetted playlist.
-  //
-  // post.text is what Humphrey says when the video ends.
-  // post.choices is an optional 2–3 button question to gauge listening.
-  //
-  // SAFETY: all videos here were chosen from official channels (PBS Kids,
-  // major classical labels). Re-verify the link still works before each
-  // session by clicking through once.
+  // Ordered with Life Skills first (Josh's request Jun 6 2026).
   videoCategories: [
+
+    // ─────────────────────────────────────────────────────────────────────
+    // LIFE SKILLS — songs that teach feelings, hygiene, kindness, manners.
+    // Hand-picked from Daniel Tiger and Sesame Street official channels.
+    // ─────────────────────────────────────────────────────────────────────
+    {
+      id: 'life-skills',
+      title: 'Life Skills',
+      emoji: '💛',
+      color: 'orange',
+      tagline: 'Songs that help you handle big feelings, take care of yourself, and be a good friend.',
+      videos: [
+        {
+          id: 'feelings-songs',
+          title: "Daniel's Feeling Songs",
+          composer: "Daniel Tiger's Neighborhood",
+          duration: '11 min',
+          description: 'A compilation of Daniel Tiger songs about feelings — happy, sad, mad, frustrated. The musical strategies you can sing when YOU feel that way.',
+          youtubeId: 'w0VQIJVnoxU',
+          post: {
+            text: "What did you do the last time you felt that way, Nigel?",
+            choices: ["Took deep breaths", "Talked to someone", "I'm still figuring it out"],
+          },
+        },
+        {
+          id: 'guess-the-feeling',
+          title: 'Guess The Feeling',
+          composer: "Daniel Tiger's Neighborhood",
+          duration: '3 min',
+          description: 'Look at the faces — can you tell what each tiger is feeling?',
+          youtubeId: 'ajT8JrfubGE',
+          post: {
+            text: 'Naming what you feel makes the feeling smaller. Which one are you good at spotting?',
+            choices: ['😊 Happy', '😠 Mad', '😢 Sad'],
+          },
+        },
+        {
+          id: 'daniel-tiger-playlist',
+          title: "Daniel Tiger Neighborhood — full PBS playlist",
+          composer: 'PBS Kids',
+          duration: 'Playlist',
+          description: "The official PBS Kids Daniel Tiger playlist — hours of songs about feelings, family, friends, and trying new things.",
+          playlistId: 'PLa8HWWMcQEGTvVi5IkHY526u1YMqM0w7m',
+          post: {
+            text: 'Which one was your favorite?',
+            choices: ['The one about feelings', 'The one about family', 'I want to watch another'],
+          },
+        },
+        {
+          id: 'brushy-brush-animated',
+          title: 'Brushy Brush! (animated)',
+          composer: 'Sesame Street · Elmo',
+          duration: '2 min',
+          description: 'Elmo teaches the brushing-teeth song. Sing it every morning and night and your teeth will thank you.',
+          youtubeId: 'lv7vZoR5zAI',
+          post: {
+            text: 'Do you brush twice a day, Nigel?',
+            choices: ['Yes, every day!', 'Mostly', 'I forget sometimes'],
+          },
+        },
+        {
+          id: 'brushy-brush-ms-rachel',
+          title: "Brushy Brush with Ms. Rachel & Elmo",
+          composer: 'Sesame Street',
+          duration: '2 min',
+          description: 'Ms. Rachel and Elmo show exactly how to brush — front, back, tops, bottoms.',
+          youtubeId: 'm-C1nrwzj-M',
+          post: {
+            text: 'Which part of brushing is hardest for you?',
+            choices: ['The back teeth', 'Brushing long enough', "I'm a brushing pro"],
+          },
+        },
+        {
+          id: 'brushy-brush-celebs',
+          title: 'Brushy Brush PSA',
+          composer: 'Sesame Street · Bruno Mars + friends',
+          duration: '2 min',
+          description: "Elmo and a crowd of celebrities sing about taking care of your teeth. Yes, that's Bruno Mars.",
+          youtubeId: 'wxMrtK-kYnE',
+          post: {
+            text: "Did you spot Bruno Mars in there?",
+            choices: ["Yeah!", "Who's that?", "Play it again"],
+          },
+        },
+        {
+          id: 'kindness-tori-kelly',
+          title: 'Try a Little Kindness (with Tori Kelly)',
+          composer: 'Sesame Street',
+          duration: '3 min',
+          description: '"K is for kindness." Simple acts that make somebody else\'s day better.',
+          youtubeId: 'enaRNnEzwi4',
+          post: {
+            text: 'How will you be kind today, Nigel?',
+            choices: ['Help someone', 'Say something nice', 'Share something'],
+          },
+        },
+        {
+          id: 'kindness-compilation',
+          title: 'Songs About Kindness — compilation',
+          composer: 'Sesame Street',
+          duration: '20 min',
+          description: 'A whole compilation of Sesame Street songs about being kind. Good for a quiet morning.',
+          youtubeId: 'yuMY2noPt08',
+          post: {
+            text: 'Which kindness idea will you try this week?',
+            choices: ['Help at home', 'Be a good friend', 'Be kind to myself'],
+          },
+        },
+        {
+          id: 'healthy-habits-playlist',
+          title: 'Healthy Habits — Sesame Street + Super Simple Songs',
+          composer: 'Sesame Workshop',
+          duration: 'Playlist',
+          description: 'A whole playlist of songs about washing hands, brushing teeth, and other ways to stay healthy.',
+          playlistId: 'PL8TioFHubWFtRPjYw_fXsuB5ZF0ZlpNI6',
+          post: {
+            text: 'What healthy habit do you want to get better at?',
+            choices: ['Washing hands', 'Brushing teeth', 'Going to bed on time'],
+          },
+        },
+      ],
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // CLASSICAL FOR KIDS
+    // ─────────────────────────────────────────────────────────────────────
     {
       id: 'classical',
       title: 'Classical for Kids',
@@ -152,6 +279,10 @@ window.HeroAcademy.SoundStage = {
         },
       ],
     },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PBS KIDS SONGS
+    // ─────────────────────────────────────────────────────────────────────
     {
       id: 'pbs-songs',
       title: 'PBS Kids Songs',
@@ -173,8 +304,5 @@ window.HeroAcademy.SoundStage = {
         },
       ],
     },
-    // To add more categories (e.g. "Around the World", "Instrument Spotlight",
-    // "Move & Groove"), copy a block above, change the id/title/emoji/color,
-    // and fill in videos[] with vetted YouTube IDs.
   ],
 };

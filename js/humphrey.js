@@ -511,10 +511,45 @@
         "Done and dusted, {kidName}. Beautiful work today.",
       ],
     },
-    // Fallback used if an unknown event is fired
+    // -----------------------------------------------------------------------
+    // Sound Stage (Music studio) — added v110. These welcome events fire on
+    // each Sound Stage page's Humphrey.init({ welcomeEvent: ... }) call.
+    // -----------------------------------------------------------------------
+    'welcome-sound-stage': {
+      expression: 'smile',
+      lines: [
+        "Welcome to the Sound Stage, {kidName}! Pick a room — Piano Lab is a great warm-up.",
+        "Sound Stage, {kidName}! What sounds fun today?",
+        "Hi {kidName}! Music time. Tap any room to begin.",
+        "Welcome in. Music makes brains happy — let us see what calls to you today.",
+        "Sound Stage it is! Play, listen, or sing — your call.",
+      ],
+    },
+    'welcome-piano-lab': {
+      expression: 'smile',
+      lines: [
+        "Piano Lab! Tap any key to start, {kidName}. I love listening.",
+        "Hi {kidName}! Try Free Play first, then we can learn a song together.",
+        "Welcome to the Piano Lab. Slow and steady makes pretty music.",
+        "Piano time! Pick a mode — Free Play, Learn a Song, or Echo Me.",
+        "Here we are at the piano. Take your time, {kidName}.",
+      ],
+    },
+    'welcome-video-theater': {
+      expression: 'smile',
+      lines: [
+        "Welcome to the Video Theater, {kidName}! Pick a category and we will watch together.",
+        "Video Theater! Real composers, real songs, real lessons.",
+        "Hi {kidName}! Lots of music ready to go. Pick a flavor.",
+        "Theater is open. Pull up a seat, friend.",
+        "Welcome in. Watching music is its own kind of magic.",
+      ],
+    },
+    // Fallback used if an unknown event is fired AND no { text } override
+    // is supplied. Kept benign — no thinking-aloud filler.
     '_default': {
       expression: 'idle',
-      lines: ["Hmm, let me think about that one."],
+      lines: ["Okay, {kidName}.", "Mm-hmm.", "Got it, {kidName}.", "Sure thing."],
     },
   };
 

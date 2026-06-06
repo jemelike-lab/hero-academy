@@ -549,7 +549,7 @@
         }
         return m.C.ask(transcript, ctx);
       }).then(function (result) {
-        var answer = (result && result.answer) || "Hmm, let me think about that one some more.";
+        var answer = (result && result.answer) || "Sorry Nigel, I missed that one. Tap me and ask again?";
         debug('Claude →', answer.slice(0, 60), 'redirected=', result && result.redirected, 'err=', result && result.error);
         appendHistory('assistant', answer);
         convo.lastTurnAt = Date.now();
