@@ -55,11 +55,117 @@
     color:rgba(255,209,71,0.5); font-size:11px;
     font-family:var(--font-display); pointer-events:none;
   }
+  /* Today's Recipe — AI-generated math problems (Content-of-One Deploy 2) */
+  .today-recipe-btn {
+    position:fixed; top:calc(var(--safe-top) + 14px); right:18px;
+    background:linear-gradient(135deg,#ff8b3d,#ffd147);
+    border:none; color:#1a1a1a;
+    padding:10px 18px; border-radius:999px;
+    font-family:var(--font-display); font-weight:700; font-size:14px;
+    box-shadow:0 6px 18px rgba(255,139,61,0.45);
+    cursor:pointer; z-index:10;
+    display:inline-flex; align-items:center; gap:6px;
+    transition:transform .12s ease;
+  }
+  .today-recipe-btn:active { transform:scale(0.96); }
+  .today-recipe-btn[hidden] { display:none; }
+  .today-recipe-overlay {
+    position:fixed; inset:0; z-index:9000;
+    background:linear-gradient(160deg,#0a0b2e 0%,#1a1554 60%,#7c3aed 100%);
+    display:flex; flex-direction:column;
+    padding:24px 18px 32px;
+    overflow-y:auto;
+    font-family:var(--font-display);
+    color:#fff;
+  }
+  .today-recipe-overlay[hidden] { display:none; }
+  .today-recipe-close {
+    align-self:flex-end;
+    width:44px; height:44px; border-radius:999px;
+    background:rgba(255,255,255,0.16); color:#fff;
+    border:none; font-size:24px; font-weight:700; cursor:pointer;
+  }
+  .today-recipe-h {
+    text-align:center; margin:8px 0 4px;
+    font-size:13px; letter-spacing:0.14em; opacity:0.85;
+  }
+  .today-recipe-counter {
+    text-align:center; font-size:32px; font-weight:800; color:#ffd147;
+    margin:0 0 22px;
+  }
+  .today-recipe-card {
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,0.16);
+    border-radius:22px; padding:22px 20px;
+    box-shadow:0 16px 32px rgba(0,0,0,0.35);
+  }
+  .today-recipe-prompt {
+    font-family:'Nunito',sans-serif; font-size:20px; line-height:1.4;
+    margin:0 0 18px;
+  }
+  .today-recipe-input {
+    width:100%; box-sizing:border-box;
+    padding:14px 18px; border-radius:14px;
+    background:#fff; color:#1a1a1a;
+    font-family:var(--font-display); font-weight:700; font-size:28px;
+    text-align:center; border:none; outline:none;
+  }
+  .today-recipe-check {
+    width:100%; margin-top:12px;
+    padding:14px; border-radius:14px;
+    background:#ffd147; color:#1a1a1a; border:none;
+    font-family:var(--font-display); font-weight:700; font-size:18px;
+    cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .today-recipe-check:active { transform:scale(0.97); }
+  .today-recipe-feedback {
+    margin-top:14px; min-height:24px; text-align:center;
+    font-family:'Nunito',sans-serif; font-size:18px; font-weight:700;
+  }
+  .today-recipe-feedback.correct { color:#2ec27e; }
+  .today-recipe-feedback.wrong { color:#ff8b3d; }
+  .today-recipe-next {
+    margin-top:14px; width:100%;
+    padding:12px; border-radius:14px;
+    background:rgba(255,255,255,0.16); color:#fff; border:none;
+    font-family:var(--font-display); font-weight:700; font-size:16px;
+    cursor:pointer;
+  }
+  .today-recipe-next[hidden] { display:none; }
+  .today-recipe-summary {
+    text-align:center; padding-top:32px;
+  }
+  .today-recipe-summary-score {
+    font-size:64px; font-weight:800; color:#ffd147; margin:0;
+  }
+  .today-recipe-summary-msg {
+    font-size:18px; opacity:0.92; margin:8px 0 24px;
+  }
 </style>
 <script src="js/characters.js"></script>
 </head>
 <body>
 <a href="index.html" class="back-btn">← Home</a>
+<button type="button" class="today-recipe-btn" id="todayRecipeBtn" hidden>🍽️ Today's Recipe</button>
+<div class="today-recipe-overlay" id="todayRecipeOverlay" hidden>
+  <button type="button" class="today-recipe-close" id="todayRecipeClose" aria-label="Close">×</button>
+  <p class="today-recipe-h">🍽️ TODAY'S SPECIAL RECIPE</p>
+  <p class="today-recipe-counter"><span id="todayRecipeIdx">1</span>/<span id="todayRecipeTotal">5</span></p>
+  <div class="today-recipe-card">
+    <p class="today-recipe-prompt" id="todayRecipePrompt">Loading…</p>
+    <input type="number" inputmode="numeric" class="today-recipe-input" id="todayRecipeInput" placeholder="?">
+    <button type="button" class="today-recipe-check" id="todayRecipeCheck">Check answer</button>
+    <p class="today-recipe-feedback" id="todayRecipeFeedback"></p>
+    <button type="button" class="today-recipe-next" id="todayRecipeNext" hidden>Next problem →</button>
+  </div>
+  <div class="today-recipe-summary" id="todayRecipeSummary" hidden>
+    <p class="today-recipe-summary-score"><span id="todayRecipeScore">0</span>/5</p>
+    <p class="today-recipe-summary-msg" id="todayRecipeSummaryMsg"></p>
+    <button type="button" class="today-recipe-next" id="todayRecipeDone" style="display:block;">Back to cooking</button>
+  </div>
+</div>
 <div id="game-container"></div>
 <div class="badge">Cauldron Café · v0.2</div>
 
@@ -968,6 +1074,7 @@ new Phaser.Game(config);
 
 <script src="js/telemetry.js"></script>
 <script src="js/humphrey.js"></script>
+<script src="js/daily-content.js"></script>
 <script src="js/humphrey-choices.js"></script>
 <script>
   if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
@@ -980,6 +1087,110 @@ new Phaser.Game(config);
     });
     // Welcome fires automatically on first user gesture (gated daily).
   }
+</script>
+<script>
+/* Today's Recipe wiring — Content-of-One Deploy 2 */
+(async function () {
+  const DC = window.HeroAcademy && window.HeroAcademy.DailyContent;
+  if (!DC) return;
+  const result = await DC.get('math_problems');
+  if (!result || !result.payload || !Array.isArray(result.payload.items) || !result.payload.items.length) return;
+
+  const items = result.payload.items;
+  const btn = document.getElementById('todayRecipeBtn');
+  const overlay = document.getElementById('todayRecipeOverlay');
+  const closeBtn = document.getElementById('todayRecipeClose');
+  const promptEl = document.getElementById('todayRecipePrompt');
+  const inputEl = document.getElementById('todayRecipeInput');
+  const checkBtn = document.getElementById('todayRecipeCheck');
+  const feedbackEl = document.getElementById('todayRecipeFeedback');
+  const nextBtn = document.getElementById('todayRecipeNext');
+  const idxEl = document.getElementById('todayRecipeIdx');
+  const totalEl = document.getElementById('todayRecipeTotal');
+  const summary = document.getElementById('todayRecipeSummary');
+  const scoreEl = document.getElementById('todayRecipeScore');
+  const summaryMsg = document.getElementById('todayRecipeSummaryMsg');
+  const doneBtn = document.getElementById('todayRecipeDone');
+  const card = overlay.querySelector('.today-recipe-card');
+
+  totalEl.textContent = items.length;
+  btn.hidden = false;
+
+  let idx = 0;
+  let score = 0;
+
+  function showProblem() {
+    const p = items[idx];
+    idxEl.textContent = idx + 1;
+    promptEl.textContent = p.prompt;
+    inputEl.value = '';
+    inputEl.focus();
+    feedbackEl.textContent = '';
+    feedbackEl.className = 'today-recipe-feedback';
+    nextBtn.hidden = true;
+    checkBtn.disabled = false;
+    card.style.display = '';
+    summary.hidden = true;
+  }
+
+  function check() {
+    const p = items[idx];
+    const ans = String(inputEl.value).trim();
+    const correct = String(p.answer).trim();
+    if (!ans) return;
+    const isCorrect = ans === correct || Number(ans) === Number(correct);
+    if (isCorrect) {
+      feedbackEl.textContent = '✓ Yes! ' + correct + ' is right!';
+      feedbackEl.className = 'today-recipe-feedback correct';
+      score++;
+      try {
+        const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        if (hp && hp.say) hp.say({ text: "Nice work, Nigel.", expression: 'cheering' });
+      } catch (_) {}
+    } else {
+      feedbackEl.textContent = 'Not quite — the answer was ' + correct;
+      feedbackEl.className = 'today-recipe-feedback wrong';
+      try {
+        const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        if (hp && hp.say) hp.say({ text: "Close — let's try the next one.", expression: 'encouraging' });
+      } catch (_) {}
+    }
+    checkBtn.disabled = true;
+    if (idx + 1 < items.length) {
+      nextBtn.hidden = false;
+    } else {
+      setTimeout(showSummary, 700);
+    }
+  }
+
+  function showSummary() {
+    card.style.display = 'none';
+    summary.hidden = false;
+    scoreEl.textContent = score;
+    let msg;
+    if (score === items.length) msg = "Perfect! You're a recipe master, Nigel!";
+    else if (score >= items.length - 1) msg = 'So close to perfect! Great work!';
+    else if (score >= items.length / 2) msg = 'Nice job — keep practicing!';
+    else msg = 'Math takes practice. You did great trying every one.';
+    summaryMsg.textContent = msg;
+  }
+
+  btn.addEventListener('click', function () {
+    idx = 0; score = 0;
+    overlay.hidden = false;
+    showProblem();
+    DC.markUsed('math_problems');
+    try {
+      const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+      if (hp && hp.say) hp.say({ text: "I made a special recipe just for you today, Nigel. Five word problems — ready?", expression: 'encouraging' });
+    } catch (_) {}
+  });
+  closeBtn.addEventListener('click', function () { overlay.hidden = true; });
+  doneBtn.addEventListener('click', function () { overlay.hidden = true; });
+  checkBtn.addEventListener('click', check);
+  inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); });
+  nextBtn.addEventListener('click', function () { idx++; showProblem(); });
+})();
 </script>
 </body>
 </html>
