@@ -5,13 +5,15 @@
  *
  * Pipeline:
  *   1. Verify Bearer ${CRON_SECRET} (Vercel cron auto-attaches when scheduled).
- *   2. Fetch the current data/sound-stage.js from main so Haiku knows what's
- *      already in the library (no duplicate suggestions).
- *   3. Call Claude Haiku with the existing catalog + approved channels and ask
- *      for 6-8 new song-as-life-skills suggestions for Nigel (age 7).
- *      Haiku is told to NOT include YouTube IDs (it hallucinates them) — it
- *      supplies title + channel + skill taught + a search query Josh will use
- *      to verify the actual video.
+ *   2. Fetch the current data/sound-stage.js from main and EXECUTE it in a
+ *      synthetic window context so we can read window.HeroAcademy.SoundStage
+ *      cleanly. (v112: replaced fragile regex that broke on apostrophes and
+ *      over-captured category titles.)
+ *   3. Call Claude Haiku with the existing catalog + a STRICT approved-channels
+ *      list and ask for 6-8 new song-as-life-skills suggestions for Nigel
+ *      (age 7). Haiku is told to NOT include YouTube IDs (it hallucinates them)
+ *      — it supplies title + channel + skill taught + a search query Josh will
+ *      use to verify the actual video.
  *   4. Render an HTML email with each suggestion as a card containing:
  *        • title + channel + skill + why it matters
  *        • a YouTube search URL (Josh clicks → finds the video → copies the ID)
@@ -21,7 +23,7 @@
  *   5. POST { to, subject, html, text } to ZAPIER_WEBHOOK_URL (existing Zap).
  *
  * Manual testing (without sending):
- *   curl 'https://hero-academy-jemelike-6356s-projects.vercel.app/api/cron/monthly-video-curation?dry_run=1' \
+ *   curl 'https://hero-academy-jemelike-6356s-projects.vercel.app/api/cron/monthly-video-curation?dry_run=1&debug=1' \
  *        -H 'Authorization: Bearer YOUR_CRON_SECRET'
  *
  * Env vars (all already exist for saturday-email):
@@ -40,14 +42,15 @@ const HAIKU_MODEL = 'claude-haiku-4-5';
 const HUMPHREY_PORTRAIT_URL = 'https://hero-academy-jemelike-6356s-projects.vercel.app/assets/humphrey/humphrey_base_512.png';
 const REPO_DATA_URL = 'https://raw.githubusercontent.com/jemelike-lab/hero-academy/main/data/sound-stage.js';
 
-// Channels Haiku is allowed to suggest videos from. Adding to this list is a
-// deliberate parental decision — never expand it from inside the model.
+// Channels Haiku is allowed to suggest videos from. v112: dropped
+// "Super Simple Songs" because Haiku rationalized it as a Sesame Workshop
+// partnership without clear evidence. Adding to this list is a deliberate
+// parental decision — Haiku must never expand it.
 const APPROVED_CHANNELS = [
   'PBS Kids',
   'Sesame Street',
   'Sesame Workshop',
-  "Daniel Tiger's Neighborhood (PBS / Fred Rogers Productions)",
-  'Super Simple Songs (when partnered with Sesame Workshop)',
+  "Daniel Tiger's Neighborhood",
 ];
 
 export default async function handler(req, res) {
@@ -94,10 +97,27 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'haiku returned no suggestions', currentLibrarySummary });
   }
 
+  // Defense-in-depth: drop any suggestion whose channel doesn't match the
+  // approved list (Haiku occasionally invents adjacent channel names).
+  const approvedSet = new Set(APPROVED_CHANNELS.map(c => c.toLowerCase()));
+  const filtered = suggestions.filter(s => {
+    const ch = String(s.channel || '').toLowerCase();
+    return APPROVED_CHANNELS.some(allowed => ch.includes(allowed.toLowerCase()) || allowed.toLowerCase().includes(ch));
+  });
+  const dropped = suggestions.length - filtered.length;
+  suggestions = filtered;
+
+  if (suggestions.length === 0) {
+    return res.status(500).json({
+      error: 'all suggestions rejected by channel filter',
+      dropped,
+    });
+  }
+
   // ---------- 4. Render email ----------
   const monthName = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const subject = `🎵 ${monthName} — ${suggestions.length} new video picks for the Sound Stage`;
-  const html = renderHtml({ monthName, suggestions, currentLibrarySummary });
+  const html = renderHtml({ monthName, suggestions, currentLibrarySummary, droppedCount: dropped });
   const text = renderText({ monthName, suggestions });
 
   // ---------- 5. Send via Zapier ----------
@@ -115,10 +135,8 @@ export default async function handler(req, res) {
           text,
           reply_to: 'jemelike@gmail.com',
           kid_name: 'Nigel',
-          // Distinct from saturday-email's week_ending; useful in Zapier routing
-          // if Josh wants different filters per cron.
           digest_type: 'monthly-video-curation',
-          month_key: new Date().toISOString().slice(0, 7),  // 2026-06
+          month_key: new Date().toISOString().slice(0, 7),
         }),
       });
       zapierStatus = r.ok ? `ok (${r.status})` : `failed (${r.status})`;
@@ -143,6 +161,7 @@ export default async function handler(req, res) {
     recipients: to,
     subject,
     suggestion_count: suggestions.length,
+    dropped_by_channel_filter: dropped,
     suggestions: suggestions.map(s => ({ title: s.title, channel: s.channel, skill: s.skill })),
   };
   if (debugReturn) {
@@ -154,52 +173,63 @@ export default async function handler(req, res) {
 }
 
 // ============================================================================
-// Library fetch — read main's sound-stage.js, extract titles per category.
+// v112: sandboxed exec instead of regex. The data file is a small JS module
+// that assigns to window.HeroAcademy.SoundStage — running it in a synthetic
+// window object lets us read videoCategories[*].videos[*].title directly,
+// instead of regex-scraping titles (which broke on apostrophes and
+// over-captured category headers).
 // ============================================================================
 async function fetchCurrentLibrary() {
   const r = await fetch(REPO_DATA_URL, { cache: 'no-store' });
   if (!r.ok) throw new Error(`github raw ${r.status}`);
   const src = await r.text();
 
-  // Cheap parse — pull every `title: 'X'` and `composer: 'Y'` inside videos.
-  // We don't need a full AST; we just want to give Haiku a list of "we
-  // already have these" so it doesn't duplicate.
-  const titles = [];
-  const titleRe = /title:\s*['"`]([^'"`]+)['"`]/g;
-  const composerRe = /composer:\s*['"`]([^'"`]+)['"`]/g;
-  let m;
-  while ((m = titleRe.exec(src)) !== null) titles.push(m[1]);
+  const win = {};
+  try {
+    // The data file does: window.HeroAcademy = window.HeroAcademy || {};
+    // and then assigns SoundStage to it. We call it with a fresh `win` so
+    // there are no leaks between cron invocations.
+    new Function('window', src)(win);
+  } catch (e) {
+    throw new Error(`data file did not execute: ${e.message}`);
+  }
+  const ss = win.HeroAcademy && win.HeroAcademy.SoundStage;
+  if (!ss || !Array.isArray(ss.videoCategories)) {
+    throw new Error('data file missing HeroAcademy.SoundStage.videoCategories');
+  }
+
+  const video_titles = [];
   const composers = new Set();
-  while ((m = composerRe.exec(src)) !== null) composers.add(m[1]);
-
-  // Filter out the piano-song titles (they're not videos — they're songs in
-  // the songs[] block). Heuristic: piano songs typically have emojis next to
-  // them in their own block; we'll filter by removing any title that exactly
-  // matches one of the well-known piano song names.
-  const pianoSongTitles = new Set([
-    'Twinkle Twinkle Little Star', 'Mary Had a Little Lamb', 'Hot Cross Buns',
-    'Ode to Joy (Beethoven)', 'Happy Birthday to You',
-  ]);
-  const videoTitles = titles.filter(t => !pianoSongTitles.has(t));
-
+  const categories = [];
+  for (const cat of ss.videoCategories) {
+    if (!cat || typeof cat !== 'object') continue;
+    categories.push({ id: cat.id, title: cat.title });
+    if (!Array.isArray(cat.videos)) continue;
+    for (const v of cat.videos) {
+      if (!v || typeof v !== 'object') continue;
+      if (v.title) video_titles.push(v.title);
+      if (v.composer) composers.add(v.composer);
+    }
+  }
   return {
-    video_titles: videoTitles,
+    video_titles,
     composers: Array.from(composers),
-    total_videos: videoTitles.length,
+    categories,
+    total_videos: video_titles.length,
     fetched_at: new Date().toISOString(),
   };
 }
 
 // ============================================================================
 // Haiku call — returns an array of {title, channel, skill, why, searchQuery,
-// suggestedCategory, suggestedDescription, suggestedPostQuestion}.
+// suggestedDescription, suggestedPostQuestionText, suggestedPostChoices}.
 // ============================================================================
 async function haikuSuggest({ ANTHROPIC_KEY, currentLibrarySummary }) {
   const systemPrompt = [
     "You are a music-curation assistant for a 7-year-old's homeschool app called Hero Academy.",
     "Your job: suggest 6 to 8 NEW kid-safe music videos that teach LIFE SKILLS through song.",
     "Strict rules:",
-    "1. ONLY suggest videos from these approved channels:",
+    "1. ONLY suggest videos from these approved channels. If a candidate doesn't clearly belong to one of these channels, DO NOT suggest it — there is no partial credit:",
     APPROVED_CHANNELS.map(c => `   • ${c}`).join('\n'),
     "2. DO NOT include YouTube IDs in your output. Trying to remember IDs leads to wrong videos. Give a search query the parent will use to find the real video.",
     "3. Do NOT duplicate anything already in the library (titles listed below).",
@@ -210,7 +240,7 @@ async function haikuSuggest({ ANTHROPIC_KEY, currentLibrarySummary }) {
     "JSON schema — each item:",
     "{",
     '  "title": string (the song title as the channel uses it),',
-    '  "channel": string (one of the approved channels exactly as listed),',
+    '  "channel": string (one of the approved channels — exact match to the names above),',
     '  "skill": string (the life skill in 2-4 words, e.g. "naming feelings", "asking for help", "sharing"),',
     '  "why": string (1 sentence on why this matters for a 7-year-old),',
     '  "searchQuery": string (what to paste into YouTube search to find this video — include channel name),',
@@ -221,7 +251,7 @@ async function haikuSuggest({ ANTHROPIC_KEY, currentLibrarySummary }) {
   ].join('\n');
 
   const userPrompt = [
-    `Library currently has ${currentLibrarySummary.total_videos} videos:`,
+    `Library currently has ${currentLibrarySummary.total_videos} videos across ${currentLibrarySummary.categories.length} categories:`,
     currentLibrarySummary.video_titles.map(t => `  • ${t}`).join('\n'),
     '',
     'Suggest 6-8 NEW videos for the Life Skills category. Return ONLY a JSON array.',
@@ -249,7 +279,6 @@ async function haikuSuggest({ ANTHROPIC_KEY, currentLibrarySummary }) {
   const blocks = Array.isArray(json.content) ? json.content : [];
   const text = blocks.filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
 
-  // Strip any accidental code fences
   const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
   let parsed;
   try {
@@ -259,7 +288,6 @@ async function haikuSuggest({ ANTHROPIC_KEY, currentLibrarySummary }) {
   }
   if (!Array.isArray(parsed)) throw new Error('haiku returned non-array JSON');
 
-  // Defensive validation — drop any item missing required fields, clamp to 10
   const valid = parsed.filter(s =>
     s && typeof s === 'object'
     && typeof s.title === 'string' && s.title.length > 0
@@ -287,8 +315,6 @@ function slugify(s) {
 }
 
 function renderJsonBlock(s) {
-  // The block Josh will paste into data/sound-stage.js's life-skills.videos[].
-  // youtubeId is left as PASTE_ID_HERE so Josh fills it in after verifying.
   const id = slugify(s.title) || 'new-video-' + Date.now();
   const choices = Array.isArray(s.suggestedPostChoices) && s.suggestedPostChoices.length
     ? s.suggestedPostChoices.slice(0, 3)
@@ -310,7 +336,7 @@ function renderJsonBlock(s) {
   return obj;
 }
 
-function renderHtml({ monthName, suggestions, currentLibrarySummary }) {
+function renderHtml({ monthName, suggestions, currentLibrarySummary, droppedCount }) {
   const cards = suggestions.map((s, i) => {
     const searchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(s.searchQuery || (s.channel + ' ' + s.title));
     const jsonBlock = renderJsonBlock(s);
@@ -333,6 +359,10 @@ function renderHtml({ monthName, suggestions, currentLibrarySummary }) {
 </div>`;
   }).join('\n');
 
+  const droppedNote = droppedCount > 0
+    ? `<div style="margin:0 0 10px; color:#9ca3af; font-size:12px;"><em>${droppedCount} suggestion${droppedCount === 1 ? ' was' : 's were'} dropped by the channel filter (not from an approved source).</em></div>`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>${esc(monthName)} video picks</title></head>
@@ -350,6 +380,7 @@ function renderHtml({ monthName, suggestions, currentLibrarySummary }) {
     <strong>How this works:</strong> Ms. Humphrey scanned the library (${currentLibrarySummary.total_videos} videos) and asked Haiku for fresh life-skills suggestions. Click <em>Verify</em> on the ones you like, grab the YouTube ID, and paste the code block into <code>data/sound-stage.js</code> → <code>life-skills</code>. Skip anything that doesn't fit. (Phase 2 will be one-tap approval from the parent dashboard.)
   </div>
 
+  ${droppedNote}
   ${cards}
 
   <div style="margin-top:28px; padding-top:18px; border-top:1px solid #e5e7eb; color:#9ca3af; font-size:12px; text-align:center;">
