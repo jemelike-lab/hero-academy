@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Explorer's Hall · Hero Academy</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<style>
+  :root {
+    --teal-deep: #0f4a4a;
+    --teal-dark: #093232;
+    --teal-light: #1d6b6b;
+    --brass: #b8893d;
+    --brass-light: #d4a85e;
+    --brass-shadow: #7a5520;
+    --cream: #fbf5e5;
+    --cream-edge: #d4c490;
+    --ink: #2d1f0f;
+    --ink-soft: #5a4a30;
+    --pulse-brass: rgba(184, 137, 61, 0.7);
+    --purple-fill: #EEEDFE;
+    --purple-edge: #7F77DD;
+    --purple-text: #3C3489;
+    --emerald-fill: #E1F5EE;
+    --emerald-edge: #5DCAA5;
+    --emerald-text: #085041;
+    --amber-fill: #FAEEDA;
+    --amber-edge: #EF9F27;
+    --amber-text: #633806;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; overscroll-behavior: none; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--teal-deep);
+    color: var(--cream); min-height: 100vh; user-select: none;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Caveat:wght@700&display=swap');
+
+  /* ===== Header ===== */
+  .topbar {
+    height: 60px; background: var(--teal-dark);
+    border-bottom: 2px solid var(--brass);
+    display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  }
+  .topbar .back {
+    background: var(--cream); color: var(--ink);
+    border: none; border-radius: 8px; padding: 8px 14px;
+    font-weight: 600; font-size: 14px; cursor: pointer;
+    box-shadow: 0 2px 0 var(--brass-shadow);
+  }
+  .topbar h1 {
+    margin: 0; font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 600; color: var(--cream); letter-spacing: 0.04em;
+  }
+  .topbar .spacer { flex: 1; }
+  .topbar .passport-mini {
+    background: var(--brass-shadow); color: var(--cream);
+    padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--brass); font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+    cursor: default;
+  }
+
+  /* ===== Embedded Humphrey tab ===== */
+  .humphrey-tab {
+    position: fixed; top: 76px; right: 16px;
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 3px solid var(--cream); background: var(--brass);
+    padding: 0; cursor: pointer; z-index: 50;
+    overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+    transition: transform 0.15s ease;
+  }
+  .humphrey-tab img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .humphrey-tab:active { transform: scale(0.93); }
+  .humphrey-tab.pulsing {
+    animation: humphrey-pulse 1.4s ease-in-out infinite;
+    border-color: var(--brass-light);
+  }
+  @keyframes humphrey-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--pulse-brass), 0 4px 12px rgba(0,0,0,0.45); }
+    50%      { box-shadow: 0 0 0 14px rgba(184, 137, 61, 0), 0 4px 12px rgba(0,0,0,0.45); }
+  }
+  .humphrey-tab-hint {
+    position: fixed; top: 144px; right: 16px;
+    width: 64px; text-align: center;
+    font-family: 'Caveat', cursive; font-weight: 700; font-size: 14px;
+    color: var(--brass-light); z-index: 50;
+    opacity: 0; transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .humphrey-tab-hint.visible { opacity: 1; }
+
+  /* ===== Expedition header strip ===== */
+  .expedition-strip {
+    background: var(--teal-dark);
+    padding: 12px 16px 14px;
+    border-bottom: 1px solid var(--teal-deep);
+  }
+  .expedition-eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+    color: var(--brass-light); text-transform: uppercase;
+  }
+  .expedition-place {
+    font-family: 'Cormorant Garamond', serif; font-size: 24px;
+    color: var(--cream); margin: 2px 0 0; font-weight: 600;
+  }
+
+  /* ===== Discovery card ===== */
+  .discovery-card {
+    background: var(--cream); color: var(--ink);
+    margin: 16px;
+    border-radius: 12px;
+    padding: 14px;
+    border: 2px solid var(--cream-edge);
+    box-shadow: 0 4px 0 var(--brass-shadow), 0 6px 12px rgba(0,0,0,0.35);
+    display: flex; gap: 14px; align-items: center;
+  }
+  @media (max-width: 540px) {
+    .discovery-card { flex-direction: column; align-items: stretch; }
+  }
+  .discovery-illustration {
+    flex-shrink: 0;
+    width: 140px; height: 110px;
+    background: #E8F0EB; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  @media (max-width: 540px) {
+    .discovery-illustration { width: 100%; }
+  }
+  .discovery-text {
+    font-size: 15px; line-height: 1.55;
+    color: var(--ink); margin: 0;
+  }
+
+  /* ===== Three Wonders section ===== */
+  .wonders-section { padding: 0 16px 16px; }
+  .wonders-heading {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; font-weight: 600;
+    color: var(--cream); margin: 0 0 10px;
+  }
+  .wonders-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  @media (max-width: 440px) {
+    .wonders-grid { grid-template-columns: 1fr; }
+  }
+  .wonder-tile {
+    background: var(--purple-fill); border: 2px solid var(--purple-edge);
+    border-radius: 12px; padding: 16px 10px;
+    text-align: center; cursor: pointer; color: var(--purple-text);
+    font-family: inherit; font-size: 14px; font-weight: 500;
+    transition: transform 0.15s ease, opacity 0.3s ease;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .wonder-tile:active { transform: scale(0.96); }
+  .wonder-tile.color-emerald { background: var(--emerald-fill); border-color: var(--emerald-edge); color: var(--emerald-text); }
+  .wonder-tile.color-amber   { background: var(--amber-fill);   border-color: var(--amber-edge);   color: var(--amber-text);   }
+  .wonder-tile.done {
+    opacity: 0.55; cursor: default;
+    background: transparent !important; border-style: dashed;
+    color: var(--cream) !important;
+  }
+  .wonder-tile-icon {
+    font-size: 28px; line-height: 1;
+  }
+  .wonder-tile-title { font-weight: 600; }
+  .wonder-tile-hint { font-size: 12px; opacity: 0.85; }
+
+  /* ===== Reveal area ===== */
+  .reveal-area { padding: 0 16px 16px; }
+  .reveal-card {
+    background: var(--cream); color: var(--ink);
+    border-radius: 12px; padding: 16px;
+    border: 2px solid var(--cream-edge);
+    box-shadow: 0 3px 0 var(--brass-shadow);
+    animation: reveal-in 0.35s ease;
+  }
+  @keyframes reveal-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px; font-weight: 600;
+    margin: 0 0 8px; color: var(--ink);
+  }
+  .reveal-text { font-size: 15px; line-height: 1.55; margin: 0 0 12px; color: var(--ink); }
+  .quick-check-prompt {
+    font-size: 14px; color: var(--ink-soft);
+    font-weight: 600; margin: 8px 0 8px;
+  }
+  .quick-check-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .quick-check-btn {
+    background: var(--brass); color: var(--cream);
+    border: 2px solid var(--brass-shadow); border-radius: 10px;
+    padding: 10px 18px; font-size: 16px; font-weight: 700;
+    min-width: 80px; cursor: pointer;
+    box-shadow: 0 3px 0 var(--brass-shadow);
+    flex: 1;
+  }
+  .quick-check-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--brass-shadow); }
+  .quick-check-btn:disabled { opacity: 0.6; cursor: default; }
+  .quick-check-btn.correct {
+    background: #4a9b3f; border-color: #2e6b27; box-shadow: 0 3px 0 #1f4a18;
+  }
+  .quick-check-btn.wrong {
+    background: #c0392b; border-color: #8b2418; box-shadow: 0 3px 0 #5e1810;
+  }
+  .quick-check-btn.hint { outline: 4px solid var(--brass-light); outline-offset: 2px; }
+  .quick-check-fb {
+    font-size: 14px; min-height: 18px; margin-top: 10px;
+    font-weight: 600; text-align: center;
+  }
+  .quick-check-fb.correct { color: #2e6b27; }
+  .quick-check-fb.wrong { color: #c0392b; }
+
+  /* ===== Passport bottom strip ===== */
+  .passport-strip {
+    background: var(--teal-dark);
+    margin: 0 16px 16px; padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--brass-shadow);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .passport-icon {
+    font-size: 22px; color: var(--brass-light);
+  }
+  .passport-info { flex: 1; }
+  .passport-label {
+    font-size: 12px; font-weight: 600; color: var(--brass-light);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .passport-status {
+    font-size: 14px; color: var(--cream); margin-top: 2px;
+  }
+  .passport-slot {
+    width: 52px; height: 52px; border-radius: 50%;
+    border: 2px dashed var(--brass);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--brass-light); font-size: 12px; font-weight: 600;
+  }
+  .passport-slot.earned {
+    background: var(--amber-fill); border-style: solid; border-color: var(--amber-edge);
+    color: var(--amber-text); font-size: 9px; font-weight: 700; text-align: center; line-height: 1.1;
+    animation: stamp-pop 0.55s ease;
+  }
+  @keyframes stamp-pop {
+    0%   { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+    60%  { transform: scale(1.18) rotate(6deg); opacity: 1; }
+    100% { transform: scale(1) rotate(-4deg); opacity: 1; }
+  }
+
+  /* ===== Completion overlay ===== */
+  .completion-banner {
+    background: var(--brass); color: var(--ink);
+    margin: 0 16px 16px; padding: 16px;
+    border-radius: 12px; text-align: center;
+    border: 2px solid var(--brass-shadow);
+    display: none;
+  }
+  .completion-banner.visible { display: block; animation: reveal-in 0.4s ease; }
+  .completion-title {
+    font-family: 'Cormorant Garamond', serif; font-size: 22px;
+    margin: 0 0 6px; font-weight: 600;
+  }
+  .completion-msg { font-size: 14px; line-height: 1.5; }
+  .completion-actions { margin-top: 12px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .completion-actions button {
+    background: var(--teal-dark); color: var(--cream);
+    border: none; border-radius: 10px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="back" onclick="location.href='/'">← Home</button>
+  <h1>Explorer's Hall</h1>
+  <div class="spacer"></div>
+  <div class="passport-mini" id="passportMini">
+    <span aria-hidden="true">🛂</span>
+    <span id="passportMiniCount">0</span> stamps
+  </div>
+</header>
+
+<button type="button" id="humphreyTab" class="humphrey-tab" aria-label="Ms. Humphrey — tap to hear">
+  <img src="/assets/humphrey/humphrey_encouraging_512.webp"
+       onerror="this.src='/assets/humphrey/humphrey_base_512.webp'"
+       alt="Ms. Humphrey">
+</button>
+<div class="humphrey-tab-hint" id="humphreyHint">tap me!</div>
+
+<section class="expedition-strip">
+  <div class="expedition-eyebrow">Today's expedition</div>
+  <h2 class="expedition-place" id="expeditionPlace">Loading…</h2>
+</section>
+
+<article class="discovery-card">
+  <div class="discovery-illustration" id="discoveryIllustration"></div>
+  <p class="discovery-text" id="discoveryText">Preparing today's stop…</p>
+</article>
+
+<section class="wonders-section">
+  <h3 class="wonders-heading">Three wonders to discover</h3>
+  <div class="wonders-grid" id="wondersGrid"></div>
+</section>
+
+<section class="reveal-area" id="revealArea"></section>
+
+<section class="completion-banner" id="completionBanner">
+  <div class="completion-title" id="completionTitle">Stamp earned!</div>
+  <p class="completion-msg" id="completionMsg"></p>
+  <div class="completion-actions">
+    <button onclick="location.href='/'">Back to hub</button>
+  </div>
+</section>
+
+<div class="passport-strip">
+  <div class="passport-icon" aria-hidden="true">🛂</div>
+  <div class="passport-info">
+    <div class="passport-label">Explorer's passport</div>
+    <div class="passport-status" id="passportStatus">Discover all 3 wonders to earn today's stamp</div>
+  </div>
+  <div class="passport-slot" id="passportSlot">0/3</div>
+</div>
+
+<!-- Inline illustration SVGs -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ill-statehouse" viewBox="0 0 140 110">
+      <rect x="0" y="95" width="140" height="15" fill="#5DCAA5"/>
+      <rect x="56" y="42" width="28" height="48" fill="#fff" stroke="#854F0B" stroke-width="1.2"/>
+      <ellipse cx="70" cy="38" rx="16" ry="9" fill="#fff" stroke="#854F0B" stroke-width="1.2"/>
+      <rect x="68" y="22" width="4" height="18" fill="#854F0B"/>
+      <polygon points="70,10 65,22 75,22" fill="#EF9F27"/>
+      <rect x="10" y="58" width="42" height="32" fill="#fff" stroke="#854F0B" stroke-width="1.2"/>
+      <rect x="88" y="58" width="42" height="32" fill="#fff" stroke="#854F0B" stroke-width="1.2"/>
+      <line x1="18" y1="58" x2="18" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="28" y1="58" x2="28" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="38" y1="58" x2="38" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="48" y1="58" x2="48" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="96" y1="58" x2="96" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="106" y1="58" x2="106" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="116" y1="58" x2="116" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+      <line x1="126" y1="58" x2="126" y2="90" stroke="#854F0B" stroke-width="0.8"/>
+    </symbol>
+  </defs>
+</svg>
+
+<script>
+// ===================================================================
+// EXPLORER'S HALL v126 — Daily expedition loop
+//
+// Loop per visit:
+//   1. Discovery card (illustration + intro text, Humphrey reads)
+//   2. Tap one of three wonder tiles
+//   3. Reveal expands: fact + quick-check question + 3 answer buttons
+//   4. Correct OR shown-correct after wrong → wonder marked done
+//   5. After all 3 wonders complete → passport stamp + completion banner
+//
+// v126 first slice: ONE hardcoded Annapolis expedition.
+// v127 will hook this to /api/expedition for fresh daily content.
+// ===================================================================
+
+(function() {
+
+  // ---- v126 hardcoded expedition (Annapolis) ----
+  const EXPEDITION = {
+    id: 'annapolis',
+    place: 'Annapolis, Maryland',
+    illustrationId: 'ill-statehouse',
+    discovery: "Annapolis has been Maryland's capital since 1694, sitting right on the Chesapeake Bay. It is where every law for our state gets made — and it is only 30 minutes from your house in Upper Marlboro.",
+    wonders: [
+      {
+        id: 'who',
+        color: 'purple',
+        icon: '👑',
+        shortTitle: 'Who leads',
+        shortHint: 'our state?',
+        revealTitle: 'Who leads our state?',
+        revealText: 'A governor leads Maryland. They live in the Government House right in Annapolis, and they sign every new law for our state. The job is a lot like being the principal of a really, really big school.',
+        question: 'Who is the leader of our whole state?',
+        options: ['Mayor', 'Governor', 'President'],
+        correct: 1,
+        hint: 'Some kids think it is the mayor or the president. But the leader of just our state — that is the governor.',
+      },
+      {
+        id: 'where',
+        color: 'emerald',
+        icon: '⚓',
+        shortTitle: 'Why here',
+        shortHint: 'on the water?',
+        revealTitle: 'Why is Annapolis on the water?',
+        revealText: 'Annapolis sits where the Severn River meets the Chesapeake Bay. Ships used to bring food, books, and travelers here from across the ocean — long before there were highways or airplanes. Even today, the U.S. Naval Academy trains future sailors right in Annapolis.',
+        question: 'What body of water touches Annapolis?',
+        options: ['Lake', 'Bay', 'Ocean'],
+        correct: 1,
+        hint: 'It is a bay — the Chesapeake Bay. You have probably crossed the bridge that goes over it.',
+      },
+      {
+        id: 'when',
+        color: 'amber',
+        icon: '⏳',
+        shortTitle: 'How old',
+        shortHint: 'is the capital?',
+        revealTitle: 'How old is the capital?',
+        revealText: 'Annapolis became the capital in 1694 — almost 100 years before the United States was even a country. That makes Annapolis older than the entire USA. George Washington even came here to say goodbye when he finished being a general.',
+        question: 'Was Annapolis around before George Washington was born?',
+        options: ['Yes', 'No'],
+        correct: 0,
+        hint: 'Yes — by almost 40 years. Washington was born in 1732. Annapolis was already a busy capital before that.',
+      },
+    ],
+    completion: {
+      title: 'Annapolis stamp earned!',
+      msg: "Beautiful work, Nigel. You learned that our state's capital is Annapolis, our state's leader is the Governor, and our capital is older than the USA itself.",
+    },
+  };
+
+  // ---- Local state ----
+  const state = {
+    completed: new Set(),
+    currentMessage: '',
+    currentAudio: null,
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---- TTS routing (mirror v125 Cauldron) ----
+  async function tts(text) {
+    if (state.currentAudio) {
+      try { state.currentAudio.pause(); } catch (_) {}
+      state.currentAudio = null;
+    }
+    try {
+      const resp = await fetch('/api/humphrey/tts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!resp.ok) throw new Error('TTS ' + resp.status);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      state.currentAudio = audio;
+      audio.addEventListener('ended', () => {
+        URL.revokeObjectURL(url);
+        if (state.currentAudio === audio) state.currentAudio = null;
+        stopPulse();
+      });
+      await audio.play().catch(() => {});
+      return audio;
+    } catch (e) {
+      setTimeout(stopPulse, 2500);
+      return null;
+    }
+  }
+
+  // ---- Pulsating Humphrey tab ----
+  function startPulse() {
+    $('humphreyTab').classList.add('pulsing');
+    $('humphreyHint').classList.add('visible');
+  }
+  function stopPulse() {
+    $('humphreyTab').classList.remove('pulsing');
+    $('humphreyHint').classList.remove('visible');
+  }
+  function setHumphreyMessage(text, opts = {}) {
+    state.currentMessage = text;
+    startPulse();
+    if (opts.skipTTS) {
+      setTimeout(stopPulse, 1500);
+    } else {
+      tts(text);
+    }
+  }
+  $('humphreyTab').addEventListener('click', () => {
+    if (state.currentMessage) tts(state.currentMessage);
+  });
+
+  // ---- Passport persistence in localStorage ----
+  // Schema: { stamps: [{id, place, date}], lastSeen: 'YYYY-MM-DD' }
+  function loadPassport() {
+    try {
+      const raw = localStorage.getItem('explorer_passport');
+      if (raw) return JSON.parse(raw);
+    } catch (_) {}
+    return { stamps: [], lastSeen: null };
+  }
+  function savePassport(p) {
+    try { localStorage.setItem('explorer_passport', JSON.stringify(p)); } catch (_) {}
+  }
+  function addStamp(expedition) {
+    const p = loadPassport();
+    // Avoid duplicate for same expedition+day
+    const today = new Date().toISOString().slice(0, 10);
+    const exists = p.stamps.find(s => s.id === expedition.id && s.date === today);
+    if (!exists) {
+      p.stamps.push({ id: expedition.id, place: expedition.place, date: today });
+    }
+    p.lastSeen = today;
+    savePassport(p);
+    return p.stamps.length;
+  }
+  function updatePassportDisplay() {
+    const p = loadPassport();
+    $('passportMiniCount').textContent = p.stamps.length;
+  }
+
+  // ---- Render expedition ----
+  function renderExpedition() {
+    $('expeditionPlace').textContent = EXPEDITION.place;
+    $('discoveryText').textContent = EXPEDITION.discovery;
+    // Illustration
+    const ill = $('discoveryIllustration');
+    ill.innerHTML = `<svg viewBox="0 0 140 110" width="140" height="110"><use href="#${EXPEDITION.illustrationId}"/></svg>`;
+    // Wonder tiles
+    const grid = $('wondersGrid');
+    grid.innerHTML = '';
+    EXPEDITION.wonders.forEach(w => {
+      const btn = document.createElement('button');
+      btn.className = `wonder-tile color-${w.color}`;
+      btn.dataset.wonderId = w.id;
+      btn.innerHTML = `
+        <div class="wonder-tile-icon" aria-hidden="true">${w.icon}</div>
+        <div class="wonder-tile-title">${w.shortTitle}</div>
+        <div class="wonder-tile-hint">${w.shortHint}</div>
+      `;
+      btn.addEventListener('click', () => openWonder(w));
+      grid.appendChild(btn);
+    });
+    updatePassportDisplay();
+  }
+
+  function openWonder(wonder) {
+    if (state.completed.has(wonder.id)) return;
+    // Mark the tile as the current focus
+    document.querySelectorAll('.wonder-tile').forEach(t => {
+      if (t.dataset.wonderId === wonder.id) t.style.outline = '3px solid var(--brass-light)';
+      else t.style.outline = '';
+    });
+    // Render reveal card
+    const reveal = $('revealArea');
+    reveal.innerHTML = '';
+    const card = document.createElement('div');
+    card.className = 'reveal-card';
+    card.innerHTML = `
+      <h4 class="reveal-title">${wonder.revealTitle}</h4>
+      <p class="reveal-text">${wonder.revealText}</p>
+      <div class="quick-check-prompt">${wonder.question}</div>
+      <div class="quick-check-buttons" id="qcBtns"></div>
+      <div class="quick-check-fb" id="qcFb"></div>
+    `;
+    reveal.appendChild(card);
+    // Speak the reveal text via Humphrey
+    setHumphreyMessage(wonder.revealText);
+    // Answer buttons
+    const btns = card.querySelector('#qcBtns');
+    wonder.options.forEach((opt, i) => {
+      const b = document.createElement('button');
+      b.className = 'quick-check-btn';
+      b.textContent = opt;
+      b.addEventListener('click', () => handleWonderAnswer(b, i, wonder));
+      btns.appendChild(b);
+    });
+    // Scroll into view
+    setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+  }
+
+  function handleWonderAnswer(btn, pickedIdx, wonder) {
+    const allBtns = $('qcBtns').querySelectorAll('button');
+    allBtns.forEach(b => b.disabled = true);
+    const fb = $('qcFb');
+    if (pickedIdx === wonder.correct) {
+      btn.classList.add('correct');
+      fb.textContent = `Yes — ${wonder.options[wonder.correct]}!`;
+      fb.className = 'quick-check-fb correct';
+      setHumphreyMessage(`Yes — ${wonder.options[wonder.correct]}.`);
+      markWonderDone(wonder);
+    } else {
+      btn.classList.add('wrong');
+      fb.textContent = wonder.hint;
+      fb.className = 'quick-check-fb wrong';
+      setHumphreyMessage(wonder.hint);
+      // After hint, highlight correct + let him tap it
+      setTimeout(() => {
+        allBtns.forEach((b, idx) => {
+          if (idx === wonder.correct) {
+            b.disabled = false;
+            b.classList.remove('wrong');
+            b.classList.add('hint');
+          }
+        });
+        fb.textContent = 'Try the highlighted answer.';
+      }, 2200);
+    }
+  }
+
+  function markWonderDone(wonder) {
+    state.completed.add(wonder.id);
+    // Update tile appearance
+    document.querySelectorAll('.wonder-tile').forEach(t => {
+      if (t.dataset.wonderId === wonder.id) {
+        t.classList.add('done');
+        t.style.outline = '';
+      }
+    });
+    // Update passport tracker
+    const total = EXPEDITION.wonders.length;
+    const slot = $('passportSlot');
+    slot.textContent = `${state.completed.size}/${total}`;
+    if (state.completed.size === total) {
+      // Earned stamp
+      const stampCount = addStamp(EXPEDITION);
+      slot.classList.add('earned');
+      slot.innerHTML = EXPEDITION.place.split(',')[0].toUpperCase().replace(/(.{6})/g, '$1<br>').slice(0, 18);
+      $('passportStatus').textContent = `${EXPEDITION.place.split(',')[0]} stamp earned. ${stampCount} of 24 expeditions this month.`;
+      $('completionMsg').textContent = EXPEDITION.completion.msg;
+      $('completionTitle').textContent = EXPEDITION.completion.title;
+      $('completionBanner').classList.add('visible');
+      setHumphreyMessage(EXPEDITION.completion.msg);
+      updatePassportDisplay();
+      // Scroll to banner
+      setTimeout(() => $('completionBanner').scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    }
+  }
+
+  // ---- Boot ----
+  function boot() {
+    // Hide global Humphrey floater since we have our own embedded tab
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      try {
+        window.HeroAcademy.Humphrey.init({
+          position: 'bottom-left', audioEnabled: true,
+          welcomeEvent: 'welcome-explorers', kidName: 'Nigel',
+        });
+        window.HeroAcademy.Humphrey.hide();
+      } catch (_) {}
+    }
+    renderExpedition();
+    // Brief intro from Humphrey
+    setTimeout(() => {
+      setHumphreyMessage(`Welcome to Explorer's Hall, Nigel. Today we are visiting ${EXPEDITION.place}. ${EXPEDITION.discovery}`);
+    }, 600);
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
+})();
+</script>
+<script src="/js/humphrey.js"></script>
+</body>
+</html>
