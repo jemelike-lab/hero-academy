@@ -13,6 +13,100 @@
   <link rel="stylesheet" href="css/story-lab.css">
   <link rel="stylesheet" href="css/humphrey.css">
   <link rel="stylesheet" href="css/canvas.css">
+  <style>
+    /* "Today's Adventure" hero card — surfaces when AI-generated story exists.
+       Lives ABOVE the existing picker stage. Nigel taps to read, then can also
+       browse the static templates below. Non-destructive — the picker is
+       untouched. */
+    .ha-today-card {
+      margin: 14px 16px 0;
+      padding: 18px 18px 16px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #4338ca 0%, #7c3aed 60%, #c026d3 100%);
+      color: #fff;
+      box-shadow: 0 12px 32px rgba(76, 29, 149, 0.45);
+      position: relative;
+      overflow: hidden;
+      font-family: 'Nunito', system-ui, sans-serif;
+    }
+    .ha-today-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 85% 15%, rgba(255,255,255,0.22), transparent 55%);
+      pointer-events: none;
+    }
+    .ha-today-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 700; opacity: 0.92;
+      background: rgba(255,255,255,0.14); padding: 4px 10px; border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    .ha-today-title {
+      font-family: 'Fredoka', system-ui, sans-serif;
+      font-size: 24px; font-weight: 700; line-height: 1.15;
+      margin: 0 0 6px;
+    }
+    .ha-today-preview {
+      font-size: 14px; line-height: 1.45; opacity: 0.95;
+      margin: 0 0 14px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .ha-today-cta {
+      appearance: none; border: none; cursor: pointer;
+      background: #fff; color: #4c1d95;
+      font-family: 'Fredoka', system-ui, sans-serif;
+      font-weight: 700; font-size: 15px;
+      padding: 11px 22px; border-radius: 999px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      transition: transform 0.15s ease;
+    }
+    .ha-today-cta:active { transform: scale(0.96); }
+    .ha-today-card[hidden] { display: none !important; }
+
+    /* Full-story reader overlay */
+    .ha-today-reader {
+      position: fixed; inset: 0; z-index: 9000;
+      background: #f8fafc;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      padding: 18px 18px 80px;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ha-today-reader[hidden] { display: none; }
+    .ha-today-reader-close {
+      align-self: flex-end;
+      appearance: none; border: none; cursor: pointer;
+      background: #e2e8f0; color: #1e293b;
+      width: 44px; height: 44px; border-radius: 999px;
+      font-size: 22px; font-weight: 700;
+    }
+    .ha-today-reader h2 {
+      font-family: 'Fredoka', sans-serif;
+      color: #4c1d95;
+      font-size: 26px; margin: 8px 0 16px;
+    }
+    .ha-today-reader p {
+      font-size: 18px; line-height: 1.6; color: #1e293b;
+      margin: 0 0 14px;
+    }
+    .ha-today-reader-questions {
+      margin-top: 22px;
+      padding: 14px 16px;
+      background: #ede9fe; border-radius: 14px;
+    }
+    .ha-today-reader-questions h3 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 17px; color: #4c1d95; margin: 0 0 10px;
+    }
+    .ha-today-reader-questions ol {
+      margin: 0; padding-left: 22px;
+    }
+    .ha-today-reader-questions li {
+      font-size: 16px; line-height: 1.5; margin-bottom: 8px; color: #1e293b;
+    }
+  </style>
   <title>Story Lab · Hero Academy</title>
 </head>
 <body class="zone-body zone-story-lab">
@@ -37,10 +131,29 @@
     </div>
   </header>
 
+  <!-- Today's Adventure card — populated by daily-content.js, hidden by default -->
+  <section class="ha-today-card" id="ha-today-card" hidden>
+    <span class="ha-today-eyebrow">✨ Today's Adventure</span>
+    <h2 class="ha-today-title" id="ha-today-title">Loading…</h2>
+    <p class="ha-today-preview" id="ha-today-preview"></p>
+    <button class="ha-today-cta" id="ha-today-cta" type="button">Read with Ms. Humphrey →</button>
+  </section>
+
   <main class="sl-main">
     <!-- All four screens render inside this stage div -->
     <div id="sl-stage" class="sl-stage sl-stage--picker"></div>
   </main>
+
+  <!-- Full-story reader overlay -->
+  <div class="ha-today-reader" id="ha-today-reader" hidden>
+    <button class="ha-today-reader-close" id="ha-today-reader-close" aria-label="Close">×</button>
+    <h2 id="ha-today-reader-title"></h2>
+    <div id="ha-today-reader-body"></div>
+    <div class="ha-today-reader-questions" id="ha-today-reader-questions" hidden>
+      <h3>Think about it</h3>
+      <ol id="ha-today-reader-qlist"></ol>
+    </div>
+  </div>
 
   <button class="humphrey-btn" id="humphreyBtn" aria-label="Talk to Miss Humphrey">
     <span class="humphrey-pulse"></span>
@@ -60,11 +173,12 @@
   <script src="js/humphrey-chat.js"></script>
   <script src="js/humphrey-memory.js"></script>
   <script src="js/humphrey-qna.js"></script>
+
+  <!-- Content-of-One engine (Swing 3) -->
+  <script src="js/daily-content.js"></script>
+
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
-      // No welcomeEvent — story-lab.js fires a one-per-day welcome on the
-      // picker screen using try-again-reading style. Same pattern as Word
-      // Tower and Story Time (the zone's own intro is the welcome).
       window.HeroAcademy.Humphrey.init({
         position: 'bottom-left',
         audioEnabled: true,
@@ -81,6 +195,68 @@
         if (el) el.textContent = arr.length || 0;
       } catch (e) {}
     });
+
+    // ----- Today's Adventure surface -----
+    (async function () {
+      const card     = document.getElementById('ha-today-card');
+      const titleEl  = document.getElementById('ha-today-title');
+      const previewEl = document.getElementById('ha-today-preview');
+      const ctaBtn   = document.getElementById('ha-today-cta');
+      const reader   = document.getElementById('ha-today-reader');
+      const closeBtn = document.getElementById('ha-today-reader-close');
+      const rTitle   = document.getElementById('ha-today-reader-title');
+      const rBody    = document.getElementById('ha-today-reader-body');
+      const rQwrap   = document.getElementById('ha-today-reader-questions');
+      const rQlist   = document.getElementById('ha-today-reader-qlist');
+
+      if (!window.HeroAcademy || !window.HeroAcademy.DailyContent) return;
+      const result = await window.HeroAcademy.DailyContent.get('story');
+      if (!result || !result.payload || !result.payload.body) return;
+
+      const s = result.payload;
+      titleEl.textContent = s.title || "Today's Adventure";
+      const firstPara = (s.body || '').split('\n\n')[0] || '';
+      previewEl.textContent = firstPara;
+      card.hidden = false;
+
+      ctaBtn.addEventListener('click', function () {
+        rTitle.textContent = s.title || "Today's Adventure";
+        rBody.innerHTML = '';
+        (s.body || '').split('\n\n').forEach(function (para) {
+          if (!para.trim()) return;
+          const p = document.createElement('p');
+          p.textContent = para.trim();
+          rBody.appendChild(p);
+        });
+        if (Array.isArray(s.comprehension_questions) && s.comprehension_questions.length) {
+          rQlist.innerHTML = '';
+          s.comprehension_questions.forEach(function (q) {
+            const li = document.createElement('li');
+            li.textContent = q.q;
+            rQlist.appendChild(li);
+          });
+          rQwrap.hidden = false;
+        }
+        reader.hidden = false;
+        window.scrollTo(0, 0);
+        // Fire-and-forget telemetry: mark today's story as surfaced
+        window.HeroAcademy.DailyContent.markUsed('story');
+        // Nudge Humphrey to introduce the story
+        try {
+          const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (hp && hp.say) {
+            hp.say({
+              text: "I wrote a story just for you today, Nigel. Read it out loud and I'll listen.",
+              expression: 'encouraging',
+            });
+          }
+        } catch (_) {}
+      });
+
+      closeBtn.addEventListener('click', function () {
+        reader.hidden = true;
+      });
+    })();
   </script>
   <script src="js/telemetry.js"></script>
   <script src="js/characters.js"></script>
