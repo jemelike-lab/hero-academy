@@ -57,6 +57,20 @@
     width:38px; height:38px; border-radius:50%; cursor:pointer;
     display:inline-flex; align-items:center; justify-content:center;
   }
+  .btn-big {
+    font-family:var(--font-display); font-weight:700; font-size:14px;
+    padding:10px 16px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--border-light);
+    display:inline-flex; align-items:center; gap:6px; line-height:1;
+    text-decoration:none; white-space:nowrap;
+  }
+  .btn-big.back { background:var(--surface-glass); color:#fff; }
+  .btn-big.save {
+    background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+    color:var(--bg-deep); border:1px solid var(--gold-bright);
+    box-shadow:0 4px 14px rgba(255,209,71,0.45);
+  }
+  .btn-big:active { transform:scale(0.96); }
   .icon-btn:active { transform:scale(0.94); }
   .icon-btn.primary { background:var(--gold); color:var(--bg-deep); border-color:var(--gold-bright); }
   .icon-btn.disabled { opacity:0.35; pointer-events:none; }
@@ -239,11 +253,11 @@
 <body>
 
 <div class="top-bar">
-  <a href="creation-studio.html" class="back-btn">← Studio</a>
+  <a href="creation-studio.html" class="btn-big back">← BACK</a>
   <div class="title-pill">🎬 Animation Studio</div>
   <button class="icon-btn" id="undoBtn" title="Undo">↶</button>
   <button class="icon-btn" id="onionBtn" title="Onion skin">👁</button>
-  <button class="icon-btn primary" id="saveBtn" title="Save">💾</button>
+  <button class="btn-big save" id="saveBtn">💾 SAVE</button>
   <button class="icon-btn" id="gifBtn" title="Export GIF">🎞️</button>
 </div>
 
@@ -340,7 +354,7 @@
     playing: false,
   };
 
-  // frames[] : Array<string dataUrl> — each is the full PNG of that frame
+  // frames[] : Array<HTMLCanvasElement> — synchronous frame switching (no async race)
   var frames = [];
   var MAX_FRAMES = 12;
 
@@ -439,13 +453,20 @@
     drawSeg(lastPoint.x, lastPoint.y, p.x, p.y);
     lastPoint = p;
   }
+  function persistCurrentFrame() {
+    var fc = frames[state.currentFrame];
+    if (!fc) return;
+    var fctx = fc.getContext('2d');
+    fctx.fillStyle = '#ffffff';
+    fctx.fillRect(0, 0, W, H);
+    fctx.drawImage(canvas, 0, 0);
+  }
   function strokeEnd() {
     if (!drawing) return;
     drawing = false;
     lastPoint = null;
     snappedThisStroke = false;
-    // Persist this frame back into frames[]
-    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    persistCurrentFrame();
     refreshFrameThumb(state.currentFrame);
   }
   function drawSeg(x0,y0,x1,y1) {
@@ -463,11 +484,7 @@
   // ---------- Frames ----------
   function loadFrameToCanvas(idx) {
     ctx.clearRect(0, 0, W, H);
-    if (frames[idx]) {
-      var img = new Image();
-      img.onload = function(){ ctx.drawImage(img, 0, 0, W, H); };
-      img.src = frames[idx];
-    }
+    if (frames[idx]) ctx.drawImage(frames[idx], 0, 0);
     paintOnion(idx);
     undoSnapshot = null;
     document.getElementById('undoBtn').classList.add('disabled');
@@ -479,25 +496,24 @@
     onion.style.display = 'block';
     var prevIdx = idx - 1;
     if (prevIdx < 0 || !frames[prevIdx]) return;
-    var img = new Image();
-    img.onload = function(){ onionCtx.drawImage(img, 0, 0, W, H); };
-    img.src = frames[prevIdx];
+    onionCtx.drawImage(frames[prevIdx], 0, 0);
   }
 
   function newBlankFrame() {
-    // White-canvas blank
     var c = document.createElement('canvas');
     c.width = W; c.height = H;
     var cc = c.getContext('2d');
     cc.fillStyle = '#ffffff'; cc.fillRect(0, 0, W, H);
-    return c.toDataURL('image/png');
+    return c;
   }
   function duplicateCurrentFrame() {
     if (frames.length >= MAX_FRAMES) return null;
-    // Persist current state then duplicate the dataURL into a new slot
-    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    persistCurrentFrame();
+    var dup = document.createElement('canvas');
+    dup.width = W; dup.height = H;
+    dup.getContext('2d').drawImage(frames[state.currentFrame], 0, 0);
     var idx = state.currentFrame + 1;
-    frames.splice(idx, 0, frames[state.currentFrame]);
+    frames.splice(idx, 0, dup);
     return idx;
   }
 
@@ -509,7 +525,7 @@
       div.className = 'frame-thumb' + (i === state.currentFrame ? ' active' : '');
       div.dataset.idx = String(i);
       div.innerHTML = '<span class="num">' + (i+1) + '</span>' +
-                      '<img src="' + d + '" alt="">' +
+                      '<img src="' + d.toDataURL('image/png') + '" alt="">' +
                       (frames.length > 1 ? '<button class="del" title="Delete">×</button>' : '');
       div.addEventListener('click', function(ev){
         if (ev.target.classList.contains('del')) {
@@ -544,15 +560,13 @@
   }
 
   function refreshFrameThumb(idx) {
-    // Just patch the one thumb image rather than rebuilding the whole strip
     var thumb = document.querySelector('.frame-thumb[data-idx="' + idx + '"] img');
-    if (thumb) thumb.src = frames[idx];
+    if (thumb && frames[idx]) thumb.src = frames[idx].toDataURL('image/png');
   }
 
   function switchToFrame(idx) {
     if (idx === state.currentFrame) return;
-    // Persist current frame to dataUrl before switching
-    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    persistCurrentFrame();
     state.currentFrame = idx;
     refreshFrameStrip();
     loadFrameToCanvas(idx);
@@ -563,18 +577,15 @@
   var playIdx = 0;
   function startPlayback() {
     if (frames.length < 2) return;
-    // Persist current frame first
-    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    persistCurrentFrame();
     state.playing = true;
     document.getElementById('playBtn').textContent = '■ Stop';
     document.getElementById('playBtn').classList.add('playing');
     playIdx = 0;
     var step = 1000 / state.fps;
-    var playImages = frames.map(function(d){ var i = new Image(); i.src = d; return i; });
     playTimer = setInterval(function(){
-      var img = playImages[playIdx];
       ctx.clearRect(0, 0, W, H);
-      if (img.complete) ctx.drawImage(img, 0, 0, W, H);
+      ctx.drawImage(frames[playIdx], 0, 0);
       playIdx = (playIdx + 1) % frames.length;
     }, step);
   }
@@ -654,22 +665,16 @@
 
   // ---------- Save to gallery ----------
   document.getElementById('saveBtn').addEventListener('click', async function(){
-    // Persist current frame first
-    frames[state.currentFrame] = canvas.toDataURL('image/png');
-    // Build thumbnail from frame 0
-    var img = new Image(); img.src = frames[0];
-    await new Promise(function(res){ if (img.complete) res(); else img.onload = res; });
-    var t = document.createElement('canvas');
-    t.width = W; t.height = H;
-    t.getContext('2d').drawImage(img, 0, 0, W, H);
-    var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(t, 128);
+    persistCurrentFrame();
+    var frameDataUrls = frames.map(function(c){ return c.toDataURL('image/png'); });
+    var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(frames[0], 128);
     try {
       await HeroAcademy.ArtGallery.save({
         type: 'animation',
         title: "Nigel's animation",
         thumbDataUrl: thumbDataUrl,
-        fullDataUrl: frames[0],
-        frames: frames.slice(),
+        fullDataUrl: frameDataUrls[0],
+        frames: frameDataUrls,
         fps: state.fps,
       });
       showToast('✓ Saved to your gallery!');
@@ -694,8 +699,7 @@
       showToast('Add at least 2 frames first');
       return;
     }
-    // Persist current frame
-    frames[state.currentFrame] = canvas.toDataURL('image/png');
+    persistCurrentFrame();
     var modal = document.getElementById('gifModal');
     var fill = document.getElementById('gifProgressFill');
     var pct  = document.getElementById('gifPct');
@@ -711,14 +715,9 @@
       workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js',
     });
     var delay = Math.round(1000 / state.fps);
-    // Load each frame's dataUrl into an Image and add to gif
+    // gif.js accepts HTMLCanvasElement directly — no Image() roundtrip
     for (var i = 0; i < frames.length; i++) {
-      var im = new Image();
-      im.src = frames[i];
-      // Wait for it to be decoded
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise(function(res){ if (im.complete) res(); else im.onload = res; });
-      gif.addFrame(im, { delay: delay, copy: true });
+      gif.addFrame(frames[i], { delay: delay, copy: true });
     }
     gif.on('progress', function(p){
       var v = Math.round(p * 100);
@@ -764,10 +763,9 @@
   // Start with one blank frame
   frames = [newBlankFrame()];
   state.currentFrame = 0;
-  // Paint frame 0 (blank white)
-  var initImg = new Image();
-  initImg.onload = function(){ ctx.drawImage(initImg, 0, 0, W, H); };
-  initImg.src = frames[0];
+  // Paint canvas synchronously — no race with first user touch
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
 
   paintPalette();
   refreshFrameStrip();
