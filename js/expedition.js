@@ -489,36 +489,204 @@
     this._tts(text);
   };
 
-  // ---- REFLECTION (MC fallback only in v128b — voice in v128c) -------------
+  // ---- REFLECTION (v129a: voice-first via ElevenLabs Conversational AI) ----
+  //
+  // Auto-starts a Conversation session with the Miss Humphrey agent
+  // (agent_5901kssbzjm1e0yvd0kdwxa3r49m) on phase entry. Passes the topic
+  // + the 3 wonder facts as dynamic variables so the agent knows what
+  // Nigel just learned and can pick up on his actual answer. Overrides
+  // the agent's first_message with the reflection prompt so she opens
+  // the conversation by asking the right question.
+  //
+  // 90s client-side hard cap. On disconnect, transcript is logged via
+  // ha_record_expedition_event and the flow proceeds to completion.
+  //
+  // Silent fallback to the MC fallback_question if:
+  //   - @elevenlabs/client SDK not loaded
+  //   - mic permission denied
+  //   - conversation errors / fails to connect
+  //   - the agent is unreachable
+  Expedition.prototype.AGENT_ID = 'agent_5901kssbzjm1e0yvd0kdwxa3r49m';
+  Expedition.prototype.CONVERSATION_CAP_MS = 90000;
+
   Expedition.prototype._showReflection = function () {
     this.phase = PHASE.REFLECTION;
     var r = (this.payload && this.payload.reflection) || {};
     var prompt = r.prompt || 'Tell Humphrey what you want to remember.';
     var fb = r.fallback_question || {};
-    var fbPrompt = fb.prompt || prompt;
-    var fbOpts = fb.options || [];
     this._setMessage(prompt);
+    this._renderReflectionVoice(prompt, fb);
+    this._attemptConversation(prompt, r, fb);
+  };
 
-    var optsHtml = fbOpts.map(function (o) {
-      return [
-        '<button class="ex-option-btn" data-reflect-option="' + escapeHtml(o.id) + '">',
-        '  <span class="ex-option-text">' + escapeHtml(o.text) + '</span>',
-        '</button>',
-      ].join('');
-    }).join('');
-
+  Expedition.prototype._renderReflectionVoice = function (prompt, fb) {
     this._render([
       '<section class="ex-phase ex-phase-reflection" data-phase="reflection">',
       '  <div class="ex-eyebrow">Reflection</div>',
       '  <p class="ex-reflection-prompt">' + escapeHtml(prompt) + '</p>',
-      '  <div class="ex-reflection-fallback">',
-      '    <p class="ex-reflection-fb-q">' + escapeHtml(fbPrompt) + '</p>',
-      '    <div class="ex-options">' + optsHtml + '</div>',
+      '  <div class="ex-voice-stage" id="exVoiceStage">',
+      '    <div class="ex-voice-orb" id="exVoiceOrb" aria-hidden="true">',
+      '      <div class="ex-voice-orb-ring"></div>',
+      '      <div class="ex-voice-orb-ring delay"></div>',
+      '      <div class="ex-voice-orb-core"></div>',
+      '    </div>',
+      '    <div class="ex-voice-status" id="exVoiceStatus">Connecting to Humphrey…</div>',
+      '    <button class="ex-secondary" data-action="end-conversation" id="exVoiceEnd">I\'m done talking</button>',
       '  </div>',
-      '  <p class="ex-reflection-hint">Voice answers coming soon — for now, tap your answer above.</p>',
+      '  <div class="ex-voice-fallback" id="exVoiceFallback" hidden>',
+      '    <p class="ex-reflection-fb-q">' + escapeHtml(fb.prompt || prompt) + '</p>',
+      '    <div class="ex-options" id="exVoiceFallbackOpts">' +
+      (fb.options || []).map(function (o) {
+        return '<button class="ex-option-btn" data-reflect-option="' + escapeHtml(o.id) + '"><span class="ex-option-text">' + escapeHtml(o.text) + '</span></button>';
+      }).join('') +
+      '    </div>',
+      '  </div>',
       '</section>',
     ].join(''));
 
+    var self = this;
+    this._wire('[data-action="end-conversation"]', 'click', function () {
+      self._endConversationCleanly('user_ended');
+    });
+  };
+
+  Expedition.prototype._attemptConversation = function (prompt, refl, fb) {
+    var self = this;
+    var SDK = window.ElevenLabs && window.ElevenLabs.Conversation;
+    if (!SDK || typeof SDK.startSession !== 'function') {
+      console.warn('[expedition] @elevenlabs/client SDK not loaded — falling back to MC');
+      self._fallbackToMc(fb);
+      return;
+    }
+
+    var topic = (this.payload && this.payload.topic) || "today's expedition";
+    var wonderFacts = ((this.payload && this.payload.wonders) || [])
+      .map(function (w, i) { return (i + 1) + '. ' + (w.title || '') + ' — ' + (w.fact || ''); })
+      .join('\n\n');
+    var connectionText = ((this.payload && this.payload.connection) || {}).text || '';
+
+    this._transcript = [];
+    this._conversationStarted = Date.now();
+    this._conversationCap = setTimeout(function () {
+      console.warn('[expedition] 90s conversation cap reached');
+      self._endConversationCleanly('time_cap');
+    }, this.CONVERSATION_CAP_MS);
+
+    var startOpts = {
+      agentId: this.AGENT_ID,
+      dynamicVariables: {
+        topic: topic,
+        wonders_learned: wonderFacts,
+        connection_note: connectionText,
+      },
+      overrides: {
+        agent: {
+          firstMessage: prompt,
+        },
+      },
+      onConnect: function (info) {
+        self._conversationId = info && info.conversationId;
+        self._setVoiceStatus('Humphrey is listening…');
+      },
+      onMessage: function (msg) {
+        if (!msg) return;
+        var text = msg.message || msg.text || '';
+        var source = msg.source || msg.role || 'unknown';
+        if (text) self._transcript.push({ role: source, message: text });
+      },
+      onModeChange: function (mode) {
+        var m = mode && (mode.mode || mode);
+        var orb = document.getElementById('exVoiceOrb');
+        if (m === 'speaking') {
+          if (orb) orb.classList.add('is-speaking');
+          self._setVoiceStatus('Humphrey is speaking…');
+          self._startPulse();
+        } else {
+          if (orb) orb.classList.remove('is-speaking');
+          self._setVoiceStatus('Humphrey is listening…');
+          self._stopPulse();
+        }
+      },
+      onDisconnect: function () {
+        if (self._conversationCap) { clearTimeout(self._conversationCap); self._conversationCap = null; }
+        if (self.phase !== PHASE.REFLECTION) return;
+        self._logTranscriptAndProceed();
+      },
+      onError: function (err) {
+        console.warn('[expedition] ElevenLabs conversation error:', err);
+        if (self._conversationCap) { clearTimeout(self._conversationCap); self._conversationCap = null; }
+        if (self.phase === PHASE.REFLECTION) self._fallbackToMc(fb);
+      },
+    };
+
+    var startPromise;
+    try {
+      startPromise = SDK.startSession(startOpts);
+    } catch (e) {
+      console.warn('[expedition] startSession threw:', e);
+      self._fallbackToMc(fb);
+      return;
+    }
+    Promise.resolve(startPromise)
+      .then(function (conv) {
+        self._conversation = conv;
+        // If startSession resolved synchronously without onConnect firing,
+        // update the status proactively.
+        if (!self._conversationId) self._setVoiceStatus('Humphrey is connecting…');
+      })
+      .catch(function (e) {
+        console.warn('[expedition] startSession rejected:', e);
+        if (self._conversationCap) { clearTimeout(self._conversationCap); self._conversationCap = null; }
+        self._fallbackToMc(fb);
+      });
+  };
+
+  Expedition.prototype._setVoiceStatus = function (text) {
+    var el = document.getElementById('exVoiceStatus');
+    if (el) el.textContent = text;
+  };
+
+  Expedition.prototype._endConversationCleanly = function (reason) {
+    var self = this;
+    this._endReason = reason;
+    if (this._conversationCap) { clearTimeout(this._conversationCap); this._conversationCap = null; }
+    if (this._conversation && typeof this._conversation.endSession === 'function') {
+      try { this._conversation.endSession(); } catch (_) {}
+      // onDisconnect will fire shortly and proceed.
+      // Safety: if onDisconnect doesn't fire within 2.5s, proceed anyway.
+      setTimeout(function () {
+        if (self.phase === PHASE.REFLECTION) self._logTranscriptAndProceed();
+      }, 2500);
+      return;
+    }
+    this._logTranscriptAndProceed();
+  };
+
+  Expedition.prototype._logTranscriptAndProceed = function () {
+    if (this.phase !== PHASE.REFLECTION) return; // already advanced
+    var transcriptText = (this._transcript || [])
+      .map(function (t) { return (t.role || '?') + ': ' + t.message; })
+      .join('\n');
+    this._logEvent('reflection_voice', {
+      transcript: transcriptText,
+      turns: (this._transcript || []).length,
+      duration_ms: Date.now() - (this._conversationStarted || Date.now()),
+      conversation_id: this._conversationId || null,
+      end_reason: this._endReason || 'agent_ended',
+    });
+    this.reflectionAnswer = {
+      mode: 'voice',
+      transcript: transcriptText,
+      turns: (this._transcript || []).length,
+    };
+    this._showCompletion();
+  };
+
+  Expedition.prototype._fallbackToMc = function (fb) {
+    var stage = document.getElementById('exVoiceStage');
+    var fallback = document.getElementById('exVoiceFallback');
+    if (stage) stage.style.display = 'none';
+    if (fallback) fallback.hidden = false;
     var self = this;
     this.mount.querySelectorAll('[data-reflect-option]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -526,8 +694,9 @@
         self._submitReflectionAnswer(chosen);
       });
     });
-
-    this._tts(prompt);
+    // Speak the prompt so it doesn't go silent.
+    var prompt = ((this.payload && this.payload.reflection) || {}).prompt;
+    if (prompt) this._tts(prompt);
   };
 
   Expedition.prototype._submitReflectionAnswer = function (chosenOptionId) {
@@ -610,6 +779,11 @@
     if (this.currentAudio) {
       try { this.currentAudio.pause(); } catch (_) {}
       this.currentAudio = null;
+    }
+    if (this._conversationCap) { clearTimeout(this._conversationCap); this._conversationCap = null; }
+    if (this._conversation && typeof this._conversation.endSession === 'function') {
+      try { this._conversation.endSession(); } catch (_) {}
+      this._conversation = null;
     }
     this._stopPulse();
   };
