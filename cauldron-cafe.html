@@ -1275,6 +1275,11 @@
     var SDK = window.ElevenLabsClient && window.ElevenLabsClient.Conversation;
     if (!SDK) { console.warn('[cauldron-conv] SDK not loaded'); return; }
     var question = ($('questionText') && $('questionText').textContent || '').trim();
+    // v130b: capture recipe context for richer agent grounding
+    var recipeName = ($('recipeName') && $('recipeName').textContent || '').trim();
+    var recipeSub = ($('recipeSub') && $('recipeSub').textContent || '').trim();
+    var potReadout = ($('potReadout') && $('potReadout').textContent || '').trim();
+    var basketLabel = ($('basketLabel') && $('basketLabel').textContent || '').trim();
     var overlay = $('ccVoiceOverlay');
     if (overlay) overlay.hidden = false;
     setStatus('Connecting to Humphrey…');
@@ -1290,11 +1295,19 @@
           topic: question,
           current_problem: question,
           current_zone: 'Cauldron Cafe',
-          context: 'Nigel is working on a math problem in Cauldron Cafe. The current question is: ' + question + '. Help him think through it without giving the direct answer first.'
+          recipe_name: recipeName,
+          recipe_today: recipeSub,
+          recipe_progress: potReadout,
+          basket_state: basketLabel,
+          context: 'Nigel is in Cauldron Cafe cooking ' + (recipeName || 'a recipe') +
+                   (recipeSub ? ' (' + recipeSub + ')' : '') +
+                   '. Pot progress: ' + (potReadout || 'just starting') +
+                   '. The current problem he needs help with is: ' + question +
+                   '. Scaffold him toward the answer using counting strategies, ten-frames, or doubles -- do not just give the answer.'
         },
         overrides: {
           agent: {
-            firstMessage: "Hi Nigel! I see you're working on: " + question + " Want to think through it together?"
+            firstMessage: "Hey Nigel! I see you're cooking " + (recipeName || 'tonight\'s recipe') + ". Talk me through what you're thinking on this one."
           }
         },
         onConnect: function (info) {
@@ -1360,7 +1373,9 @@
       duration_ms: Date.now() - (startedAt || Date.now()),
       conversation_id: conversationId,
       end_reason: endReason || 'agent_ended',
-      question: ($('questionText') && $('questionText').textContent || '').trim()
+      question: ($('questionText') && $('questionText').textContent || '').trim(),
+      recipe_name: ($('recipeName') && $('recipeName').textContent || '').trim(),
+      recipe_progress: ($('potReadout') && $('potReadout').textContent || '').trim()
     });
     session = null; transcript = []; startedAt = null; conversationId = null; endReason = null;
   }
