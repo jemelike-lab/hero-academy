@@ -83,9 +83,6 @@
   }
 
   function todayKey() {
-  // v140: Class Time is the warmup, always slot 1
-  const __classTimeSlot = { id:'class-time', zone:'class-time', label:'Class Time', minutes:7, badge:'CLASS', emoji:'🎓', blurb:'7-minute class with Ms. Humphrey. She teaches today\'s lesson on a shared board.' };
-
     var d = new Date();
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
@@ -357,7 +354,7 @@
       // like completion markers. Check now strictly means "actually done."
       var slotIcon = done ? '\u2705' : '\ud83c\udfaf';
       var blurb = step.blurb || '';
-      return [ __classTimeSlot,
+      return [
         '<li class="tm-step' + (done ? ' tm-step--done' : '') + '" data-zone="' + escapeAttr(step.zone_id) + '" data-slot="' + escapeAttr(step.slot || '') + '">',
         '  <span class="tm-step-icon" aria-hidden="true">' + slotIcon + '</span>',
         '  <div class="tm-step-body">',

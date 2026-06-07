@@ -20,10 +20,6 @@
     {
       "path": "/api/cron/generate-expedition",
       "schedule": "30 8 * * *"
-    },
-    {
-      "path": "/api/cron/class-time-lessons",
-      "schedule": "0 10 * * *"
     }
   ]
 }
