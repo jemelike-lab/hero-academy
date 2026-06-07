@@ -1,4 +1,4 @@
-const CACHE_VERSION = "hero-academy-v136";
+const CACHE_VERSION = "hero-academy-v137";
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -88,8 +88,8 @@ const CORE = [
   "./data/sound-stage.js",
   "./js/daily-content.js",
 ];
-self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(CORE))); self.skipWaiting(); });
-self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))))); self.clients.claim(); });
+self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(CORE))); self.skipWaiting(); });
+self.addEventListener("activate", (e) => { self.clients.claim(); e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   var url = new URL(e.request.url);

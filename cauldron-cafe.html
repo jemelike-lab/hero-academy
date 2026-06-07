@@ -869,22 +869,33 @@
     const intro = `Tonight's recipe: ${r.name}. ${r.prompt}`;
     setHumphreyMessage(intro);
     $('answerButtons').innerHTML = '';
-    // v130d: wait for intro audio to finish before starting first ingredient
-    // (was fixed 2800ms timeout — too short for longer recipe intros, causing
-    // the intro TTS to be cancelled mid-sentence by the first bunch question)
-    var __ingStarted = false;
-    var __ingFallback = setTimeout(function () { if (!__ingStarted) { __ingStarted = true; startIngredient(); } }, 10000);
-    var __ingWait = function () {
-      if (state.currentAudio) {
-        state.currentAudio.addEventListener('ended', function () {
-          clearTimeout(__ingFallback);
-          if (!__ingStarted) { __ingStarted = true; startIngredient(); }
-        }, { once: true });
-      } else {
-        setTimeout(__ingWait, 150);
+    // v130e: wait for intro audio to finish before starting first ingredient.
+    // Captures audio ref BEFORE tts resolves, then polls until a NEW playing
+    // audio appears. Prevents attaching listener to stale/paused audio.
+    var __prevAudio = state.currentAudio;
+    (async function() {
+      var introAudio = await new Promise(function(resolve) {
+        var giveUp = setTimeout(function() { resolve(null); }, 15000);
+        var check = function() {
+          var cur = state.currentAudio;
+          if (cur && cur !== __prevAudio && !cur.paused) {
+            clearTimeout(giveUp);
+            resolve(cur);
+          } else {
+            setTimeout(check, 120);
+          }
+        };
+        check();
+      });
+      if (introAudio && !introAudio.ended) {
+        await new Promise(function(resolve) {
+          var safety = setTimeout(resolve, 20000);
+          introAudio.addEventListener('ended', function() { clearTimeout(safety); resolve(); }, { once: true });
+          if (introAudio.ended) { clearTimeout(safety); resolve(); }
+        });
       }
-    };
-    __ingWait();
+      startIngredient();
+    })();
   }
 
   function startIngredient() {
