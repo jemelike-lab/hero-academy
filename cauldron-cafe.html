@@ -377,6 +377,68 @@
   .today-recipe-feedback { font-size: 16px; margin: 12px 0; min-height: 22px; font-weight: 600; }
   .today-recipe-feedback.correct { color: #2e6b27; }
   .today-recipe-feedback.wrong { color: #c0392b; }
+
+/* ===== v130a: Voice conversation overlay ===== */
+.cc-ask-badge {
+  background: linear-gradient(135deg, #6e2bd6, #a855f7);
+  color: #fff; border: none; border-radius: 999px;
+  padding: 8px 16px; font: 600 14px/1 Inter, sans-serif;
+  cursor: pointer; box-shadow: 0 2px 8px rgba(110,43,214,0.35);
+  margin: 12px auto; display: block; transition: transform 0.1s;
+}
+.cc-ask-badge:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(110,43,214,0.45); }
+.cc-ask-badge:active { transform: translateY(1px); box-shadow: 0 1px 4px rgba(110,43,214,0.35); }
+.cc-voice-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(20, 14, 8, 0.78); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+}
+.cc-voice-overlay[hidden] { display: none !important; }
+.cc-voice-card {
+  background: linear-gradient(180deg, #4a2a17, #321a0c);
+  border: 2px solid #d4a85e; border-radius: 20px;
+  padding: 28px 24px; width: min(360px, 90vw);
+  text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.cc-voice-eyebrow {
+  color: #d4a85e; font: 700 12px/1 Inter, sans-serif;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 18px;
+}
+.cc-voice-orb { position: relative; width: 130px; height: 130px; margin: 0 auto 18px; }
+.cc-voice-orb-core {
+  position: absolute; inset: 30%; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f5d68f, #d4a85e 70%);
+  box-shadow: 0 0 30px rgba(212, 168, 94, 0.55);
+}
+.cc-voice-orb-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid #d4a85e; opacity: 0;
+  animation: cc-orb-ring 2.4s ease-out infinite;
+}
+.cc-voice-orb-ring.delay { animation-delay: 1.2s; }
+@keyframes cc-orb-ring {
+  0%   { transform: scale(0.45); opacity: 0.8; }
+  80%  { opacity: 0; }
+  100% { transform: scale(1.0); opacity: 0; }
+}
+.cc-voice-orb.is-speaking .cc-voice-orb-core {
+  animation: cc-orb-speak 0.75s ease-in-out infinite alternate;
+  box-shadow: 0 0 50px rgba(212, 168, 94, 0.85);
+}
+@keyframes cc-orb-speak {
+  from { transform: scale(0.92); }
+  to   { transform: scale(1.10); }
+}
+.cc-voice-status {
+  color: #fef3c7; font: 600 16px/1.3 Inter, sans-serif;
+  min-height: 22px; margin-bottom: 18px;
+}
+.cc-voice-end {
+  background: rgba(212, 168, 94, 0.15); border: 1px solid #d4a85e;
+  color: #fef3c7; border-radius: 10px;
+  padding: 10px 18px; font: 600 14px/1 Inter, sans-serif; cursor: pointer;
+}
+.cc-voice-end:active { transform: translateY(1px); }
 </style>
 </head>
 <body>
@@ -1148,11 +1210,202 @@
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 
-  document.addEventListener('DOMContentLoaded', boot);
+  // ===== v130a: CauldronConversation - ConvAI for math help =====
+(function () {
+  'use strict';
+  if (window.__cauldronConv) return;
+  var AGENT_ID = 'agent_5901kssbzjm1e0yvd0kdwxa3r49m';
+  var CONVERSATION_CAP_MS = 90000;
+  var DAILY_VOICE_CAP_MS = 10 * 60 * 1000;
+  var DAILY_VOICE_CAP_COUNT = 5;
+  var session = null, capTimer = null, transcript = [], startedAt = null, endReason = null, conversationId = null;
+  function $(id) { return document.getElementById(id); }
+  function NS() { return window.HeroAcademy && window.HeroAcademy.Telemetry; }
+  function childId() { var t = NS(); return (t && t.childId && t.childId()) || null; }
+  function logEvent(type, payload) {
+    var t = NS();
+    if (!t || !t.rpc) return;
+    try { t.rpc('ha_record_event', { p_child_id: childId(), p_event_type: type, p_payload: payload || {} }); } catch (_) {}
+  }
+  async function checkCap() {
+    var t = NS();
+    if (!t || !t.rpc) return true;
+    try {
+      var r = await t.rpc('ha_get_today_voice_usage', { p_child_id: childId() });
+      if (!r.ok) return true;
+      var data = await r.json();
+      var totalMs = (data && data.total_ms) || 0;
+      var count = (data && data.count) || 0;
+      var over = totalMs >= DAILY_VOICE_CAP_MS || count >= DAILY_VOICE_CAP_COUNT;
+      if (over) {
+        logEvent('cauldron_voice_cap_hit', {
+          total_ms: totalMs, count: count,
+          cap_minutes: DAILY_VOICE_CAP_MS / 60000, cap_count: DAILY_VOICE_CAP_COUNT
+        });
+        return false;
+      }
+      return true;
+    } catch (_) { return true; }
+  }
+  function setStatus(text) { var el = $('ccVoiceStatus'); if (el) el.textContent = text; }
+  function injectBadge() {
+    var anchor = $('answerButtons');
+    if (!anchor || $('ccAskBadge')) return;
+    var badge = document.createElement('button');
+    badge.id = 'ccAskBadge';
+    badge.type = 'button';
+    badge.className = 'cc-ask-badge';
+    badge.textContent = '💬 Ask Humphrey';
+    badge.title = 'Talk through this with Ms. Humphrey';
+    badge.addEventListener('click', open);
+    anchor.parentNode.insertBefore(badge, anchor.nextSibling);
+  }
+  async function open() {
+    if (session) return;
+    var ok = await checkCap();
+    if (!ok) {
+      var badge = $('ccAskBadge');
+      if (badge) {
+        var orig = badge.textContent;
+        badge.textContent = '💬 Save it for tomorrow!';
+        setTimeout(function () { if (badge) badge.textContent = orig; }, 2500);
+      }
+      return;
+    }
+    var SDK = window.ElevenLabsClient && window.ElevenLabsClient.Conversation;
+    if (!SDK) { console.warn('[cauldron-conv] SDK not loaded'); return; }
+    var question = ($('questionText') && $('questionText').textContent || '').trim();
+    var overlay = $('ccVoiceOverlay');
+    if (overlay) overlay.hidden = false;
+    setStatus('Connecting to Humphrey…');
+    transcript = []; startedAt = Date.now(); endReason = null; conversationId = null;
+    capTimer = setTimeout(function () {
+      console.warn('[cauldron-conv] 90s cap reached');
+      endReason = 'time_cap'; endSession();
+    }, CONVERSATION_CAP_MS);
+    try {
+      var p = SDK.startSession({
+        agentId: AGENT_ID,
+        dynamicVariables: {
+          topic: question,
+          current_problem: question,
+          current_zone: 'Cauldron Cafe',
+          context: 'Nigel is working on a math problem in Cauldron Cafe. The current question is: ' + question + '. Help him think through it without giving the direct answer first.'
+        },
+        overrides: {
+          agent: {
+            firstMessage: "Hi Nigel! I see you're working on: " + question + " Want to think through it together?"
+          }
+        },
+        onConnect: function (info) {
+          conversationId = info && info.conversationId;
+          setStatus('Humphrey is listening…');
+        },
+        onMessage: function (m) {
+          if (!m) return;
+          var text = m.message || m.text || '';
+          var source = m.source || m.role || 'unknown';
+          if (text) transcript.push({ role: source, message: text });
+        },
+        onModeChange: function (mode) {
+          var orb = $('ccVoiceOrb');
+          var mm = mode && (mode.mode || mode);
+          if (mm === 'speaking') {
+            if (orb) orb.classList.add('is-speaking');
+            setStatus('Humphrey is speaking…');
+          } else {
+            if (orb) orb.classList.remove('is-speaking');
+            setStatus('Humphrey is listening…');
+          }
+        },
+        onDisconnect: function () {
+          if (capTimer) { clearTimeout(capTimer); capTimer = null; }
+          finalize();
+        },
+        onError: function (err) {
+          console.warn('[cauldron-conv] error:', err);
+          if (capTimer) { clearTimeout(capTimer); capTimer = null; }
+          endReason = endReason || 'error';
+          finalize();
+        }
+      });
+      Promise.resolve(p).then(function (conv) { session = conv; })
+        .catch(function (e) {
+          console.warn('[cauldron-conv] startSession rejected:', e);
+          endReason = 'start_failed'; finalize();
+        });
+    } catch (e) {
+      console.warn('[cauldron-conv] startSession threw:', e);
+      endReason = 'start_threw'; finalize();
+    }
+  }
+  function endSession() {
+    if (session && typeof session.endSession === 'function') {
+      try { session.endSession(); } catch (_) {}
+    }
+    setTimeout(function () {
+      if ($('ccVoiceOverlay') && !$('ccVoiceOverlay').hidden) finalize();
+    }, 2500);
+  }
+  function finalize() {
+    var overlay = $('ccVoiceOverlay');
+    if (overlay) overlay.hidden = true;
+    var orb = $('ccVoiceOrb');
+    if (orb) orb.classList.remove('is-speaking');
+    setStatus('');
+    var transcriptText = transcript.map(function (t) { return (t.role || '?') + ': ' + t.message; }).join('\n');
+    logEvent('cauldron_voice', {
+      transcript: transcriptText,
+      turns: transcript.length,
+      duration_ms: Date.now() - (startedAt || Date.now()),
+      conversation_id: conversationId,
+      end_reason: endReason || 'agent_ended',
+      question: ($('questionText') && $('questionText').textContent || '').trim()
+    });
+    session = null; transcript = []; startedAt = null; conversationId = null; endReason = null;
+  }
+  function wireEndButton() {
+    var btn = $('ccVoiceEnd');
+    if (btn && !btn.__wired) {
+      btn.addEventListener('click', function () { endReason = 'user_ended'; endSession(); });
+      btn.__wired = true;
+    }
+  }
+  function bootCC() {
+    injectBadge();
+    wireEndButton();
+    var qt = $('questionText');
+    if (qt && window.MutationObserver) {
+      new MutationObserver(injectBadge).observe(qt, { childList: true, subtree: true, characterData: true });
+    }
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(bootCC, 100);
+  } else {
+    document.addEventListener('DOMContentLoaded', bootCC);
+  }
+  window.__cauldronConv = { open: open, endSession: endSession, finalize: finalize };
+})();
+
+document.addEventListener('DOMContentLoaded', boot);
   if (document.readyState !== 'loading') boot();
 })();
 </script>
 <script src="/js/humphrey.js"></script>
+<script src="/js/telemetry.js"></script>
+<script src="https://unpkg.com/@elevenlabs/client@1.9.0/dist/lib.iife.js" defer></script>
 <script src="/js/daily-content.js"></script>
+<div id="ccVoiceOverlay" class="cc-voice-overlay" hidden>
+  <div class="cc-voice-card">
+    <div class="cc-voice-eyebrow">Talking with Ms. Humphrey</div>
+    <div class="cc-voice-orb" id="ccVoiceOrb" aria-hidden="true">
+      <div class="cc-voice-orb-ring"></div>
+      <div class="cc-voice-orb-ring delay"></div>
+      <div class="cc-voice-orb-core"></div>
+    </div>
+    <div class="cc-voice-status" id="ccVoiceStatus">Connecting…</div>
+    <button type="button" class="cc-voice-end" id="ccVoiceEnd">I think I've got it</button>
+  </div>
+</div>
 </body>
 </html>
