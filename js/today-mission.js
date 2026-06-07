@@ -40,7 +40,7 @@
     'story-time':  'story-time.html',
     'number-lab':  'cauldron-cafe.html',  // v88: route to themed Phaser game
     'discovery':   'discovery-dome.html',
-    'explorer':    'diner-lanes.html',
+    'explorer':    'explorers-hall.html',
     'writing':     'story-lab.html',
     'hero-hall':   'hero-hall.html',
     'letter-lab':  'letter-lab.html',     // v99: letter practice with Humphrey vision
