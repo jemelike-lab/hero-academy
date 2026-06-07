@@ -439,6 +439,13 @@
   padding: 10px 18px; font: 600 14px/1 Inter, sans-serif; cursor: pointer;
 }
 .cc-voice-end:active { transform: translateY(1px); }
+.cc-ask-badge-spent {
+  background: linear-gradient(135deg, #5a4a3a, #6b5a48) !important;
+  opacity: 0.85;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+.cc-ask-badge-spent:hover { transform: none !important; box-shadow: none !important; }
 </style>
 </head>
 <body>
@@ -982,7 +989,7 @@
     const total = have + need;
 
     state.phase = 'cross';
-    emptyBasket('Next ingredient coming…');
+    emptyBasket('Pot wants more! ✨');
 
     const prompt = `Great — ${have} ${ing.veggie.label.toLowerCase()} are in the pot. Now we need ${need} ${nextIng.veggie.label.toLowerCase()}. After we add them, how many veggies total?`;
     renderQuestion(prompt, makeOptions(total), total,
@@ -1217,7 +1224,7 @@
   var AGENT_ID = 'agent_5901kssbzjm1e0yvd0kdwxa3r49m';
   var CONVERSATION_CAP_MS = 90000;
   var DAILY_VOICE_CAP_MS = 10 * 60 * 1000;
-  var DAILY_VOICE_CAP_COUNT = 5;
+  var DAILY_VOICE_CAP_COUNT = 15;
   var session = null, capTimer = null, transcript = [], startedAt = null, endReason = null, conversationId = null;
   function $(id) { return document.getElementById(id); }
   function NS() { return window.HeroAcademy && window.HeroAcademy.Telemetry; }
@@ -1227,7 +1234,7 @@
     if (!t || !t.rpc) return;
     try { t.rpc('ha_record_event', { p_child_id: childId(), p_event_type: type, p_payload: payload || {} }); } catch (_) {}
   }
-  async function checkCap() {
+  async function checkCap(quiet) {
     var t = NS();
     if (!t || !t.rpc) return true;
     try {
@@ -1238,14 +1245,24 @@
       var count = (data && data.count) || 0;
       var over = totalMs >= DAILY_VOICE_CAP_MS || count >= DAILY_VOICE_CAP_COUNT;
       if (over) {
-        logEvent('cauldron_voice_cap_hit', {
-          total_ms: totalMs, count: count,
-          cap_minutes: DAILY_VOICE_CAP_MS / 60000, cap_count: DAILY_VOICE_CAP_COUNT
-        });
+        if (!quiet) {
+          logEvent('cauldron_voice_cap_hit', {
+            total_ms: totalMs, count: count,
+            cap_minutes: DAILY_VOICE_CAP_MS / 60000, cap_count: DAILY_VOICE_CAP_COUNT
+          });
+        }
         return false;
       }
       return true;
     } catch (_) { return true; }
+  }
+  function markSpent() {
+    var b = $('ccAskBadge');
+    if (!b) return;
+    b.disabled = true;
+    b.classList.add('cc-ask-badge-spent');
+    b.textContent = '🌙 Chat again tomorrow';
+    b.title = "You and Ms. Humphrey chatted a lot today. Come back tomorrow!";
   }
   function setStatus(text) { var el = $('ccVoiceStatus'); if (el) el.textContent = text; }
   function injectBadge() {
@@ -1259,17 +1276,15 @@
     badge.title = 'Talk through this with Ms. Humphrey';
     badge.addEventListener('click', open);
     anchor.parentNode.insertBefore(badge, anchor.nextSibling);
+    // Pre-check (quiet): if already at cap, render badge in spent state immediately
+    checkCap(true).then(function (ok) { if (!ok) markSpent(); });
   }
   async function open() {
     if (session) return;
     var ok = await checkCap();
     if (!ok) {
-      var badge = $('ccAskBadge');
-      if (badge) {
-        var orig = badge.textContent;
-        badge.textContent = '💬 Save it for tomorrow!';
-        setTimeout(function () { if (badge) badge.textContent = orig; }, 2500);
-      }
+      // v130c: persistent cap-hit feedback (not a 2.5s flash)
+      markSpent();
       return;
     }
     var SDK = window.ElevenLabsClient && window.ElevenLabsClient.Conversation;

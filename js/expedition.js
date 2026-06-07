@@ -511,7 +511,7 @@
   // v129b daily voice caps. ConvAI bills ~$0.10/min on Flash; 10 min = $1/day.
   // Tripping EITHER limit silently falls back to the MC reflection.
   Expedition.prototype.DAILY_VOICE_CAP_MS = 10 * 60 * 1000;
-  Expedition.prototype.DAILY_VOICE_CAP_COUNT = 5;
+  Expedition.prototype.DAILY_VOICE_CAP_COUNT = 15;
 
   Expedition.prototype._showReflection = function () {
     this.phase = PHASE.REFLECTION;
