@@ -193,14 +193,14 @@
     var alreadyHas = m.steps.some(function (s) { return s && s.zone_id === 'letter-lab'; });
     if (alreadyHas) return m;
     var dow = new Date().getDay(); // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
-    var letterDays = [1, 3, 5];    // Mon, Wed, Fri
+    var letterDays = [0, 1, 2, 3, 4, 5, 6];    // every day
     if (letterDays.indexOf(dow) === -1) return m;
     var step = {
       zone_id: 'letter-lab',
       slot:    'writing',
       subject: 'writing',
       title:   'Letter Lab',
-      blurb:   'Practice 3 letters with Ms. Humphrey on the drawing board.',
+      blurb:   'Practice letters and numbers with Ms. Humphrey on the drawing board.',
       minutes: 5,
     };
     // Insert after the first step so the warmup still leads.
