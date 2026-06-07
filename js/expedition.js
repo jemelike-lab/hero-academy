@@ -552,7 +552,7 @@
 
   Expedition.prototype._attemptConversation = function (prompt, refl, fb) {
     var self = this;
-    var SDK = window.ElevenLabs && window.ElevenLabs.Conversation;
+    var SDK = (window.ElevenLabsClient || window.ElevenLabs || {}).Conversation;
     if (!SDK || typeof SDK.startSession !== 'function') {
       console.warn('[expedition] @elevenlabs/client SDK not loaded — falling back to MC');
       self._fallbackToMc(fb);
