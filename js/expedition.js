@@ -508,6 +508,10 @@
   //   - the agent is unreachable
   Expedition.prototype.AGENT_ID = 'agent_5901kssbzjm1e0yvd0kdwxa3r49m';
   Expedition.prototype.CONVERSATION_CAP_MS = 90000;
+  // v129b daily voice caps. ConvAI bills ~$0.10/min on Flash; 10 min = $1/day.
+  // Tripping EITHER limit silently falls back to the MC reflection.
+  Expedition.prototype.DAILY_VOICE_CAP_MS = 10 * 60 * 1000;
+  Expedition.prototype.DAILY_VOICE_CAP_COUNT = 5;
 
   Expedition.prototype._showReflection = function () {
     this.phase = PHASE.REFLECTION;
@@ -550,7 +554,55 @@
     });
   };
 
+  // Daily voice usage check. Returns true if Nigel has budget left for
+  // another conversation, false if either the minutes cap or the count
+  // cap is hit. Fail-open on RPC errors (better UX > strict enforcement).
+  Expedition.prototype._checkDailyVoiceCap = function () {
+    var self = this;
+    if (!NS.Telemetry || !NS.Telemetry.rpc) return Promise.resolve(true);
+    return NS.Telemetry.rpc('ha_get_today_voice_usage', {
+      p_child_id: NS.Telemetry.childId(),
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return true;
+        var totalMs = (data && data.total_ms) || 0;
+        var count = (data && data.count) || 0;
+        var overMs = totalMs >= self.DAILY_VOICE_CAP_MS;
+        var overCount = count >= self.DAILY_VOICE_CAP_COUNT;
+        if (overMs || overCount) {
+          console.warn('[expedition] daily voice cap reached:',
+            { total_minutes: (totalMs / 60000).toFixed(2), count: count,
+              cap_minutes: self.DAILY_VOICE_CAP_MS / 60000,
+              cap_count: self.DAILY_VOICE_CAP_COUNT });
+          try {
+            self._logEvent('reflection_voice_cap_hit', {
+              total_ms: totalMs,
+              count: count,
+              cap_minutes: self.DAILY_VOICE_CAP_MS / 60000,
+              cap_count: self.DAILY_VOICE_CAP_COUNT,
+            });
+          } catch (_) {}
+          return false;
+        }
+        return true;
+      })
+      .catch(function () { return true; });
+  };
+
+  // Two-step: cap check, then SDK availability check, then start session.
   Expedition.prototype._attemptConversation = function (prompt, refl, fb) {
+    var self = this;
+    this._checkDailyVoiceCap().then(function (allowed) {
+      if (!allowed) {
+        self._fallbackToMc(fb);
+        return;
+      }
+      self._startConversation(prompt, refl, fb);
+    });
+  };
+
+  Expedition.prototype._startConversation = function (prompt, refl, fb) {
     var self = this;
     var SDK = (window.ElevenLabsClient || window.ElevenLabs || {}).Conversation;
     if (!SDK || typeof SDK.startSession !== 'function') {
