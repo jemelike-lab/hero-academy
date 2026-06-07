@@ -719,7 +719,9 @@
     var transcriptText = (this._transcript || [])
       .map(function (t) { return (t.role || '?') + ': ' + t.message; })
       .join('\n');
-    this._logEvent('reflection_voice', {
+    // v130d: only count reflections where Humphrey actually spoke
+    var __eventType = (this._transcript || []).length > 0 ? 'reflection_voice' : 'reflection_voice_failed';
+    this._logEvent(__eventType, {
       transcript: transcriptText,
       turns: (this._transcript || []).length,
       duration_ms: Date.now() - (this._conversationStarted || Date.now()),

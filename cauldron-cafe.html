@@ -869,7 +869,22 @@
     const intro = `Tonight's recipe: ${r.name}. ${r.prompt}`;
     setHumphreyMessage(intro);
     $('answerButtons').innerHTML = '';
-    setTimeout(() => startIngredient(), 2800);
+    // v130d: wait for intro audio to finish before starting first ingredient
+    // (was fixed 2800ms timeout — too short for longer recipe intros, causing
+    // the intro TTS to be cancelled mid-sentence by the first bunch question)
+    var __ingStarted = false;
+    var __ingFallback = setTimeout(function () { if (!__ingStarted) { __ingStarted = true; startIngredient(); } }, 10000);
+    var __ingWait = function () {
+      if (state.currentAudio) {
+        state.currentAudio.addEventListener('ended', function () {
+          clearTimeout(__ingFallback);
+          if (!__ingStarted) { __ingStarted = true; startIngredient(); }
+        }, { once: true });
+      } else {
+        setTimeout(__ingWait, 150);
+      }
+    };
+    __ingWait();
   }
 
   function startIngredient() {
@@ -1382,7 +1397,11 @@
     if (orb) orb.classList.remove('is-speaking');
     setStatus('');
     var transcriptText = transcript.map(function (t) { return (t.role || '?') + ': ' + t.message; }).join('\n');
-    logEvent('cauldron_voice', {
+    // v130d: only count conversations where the agent actually spoke. Failed
+    // conversations (auth error, network issue, instant disconnect) log as
+    // 'cauldron_voice_failed' which doesn't count toward the daily cap.
+    var __eventType = transcript.length > 0 ? 'cauldron_voice' : 'cauldron_voice_failed';
+    logEvent(__eventType, {
       transcript: transcriptText,
       turns: transcript.length,
       duration_ms: Date.now() - (startedAt || Date.now()),
