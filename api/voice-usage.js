@@ -1,8 +1,31 @@
-// api/voice-usage.js
+// api/voice-usage.js — v141
 // GET /api/voice-usage?child_id=... → today's voice conversation count
-import { createClient } from '@supabase/supabase-js';
+// Native fetch to Supabase REST RPC. No @supabase/supabase-js dep.
 
 const DEFAULT_CHILD_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
+
+async function sbRpc(fnName, args) {
+  const SB_URL = process.env.SUPABASE_URL;
+  const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SB_URL || !SB_KEY) {
+    throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+  }
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST',
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(args || {}),
+  });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`supabase rpc/${fnName} -> ${r.status} ${body.slice(0, 200)}`);
+  }
+  return r.json();
+}
 
 export default async function handler(req, res){
   res.setHeader('Cache-Control', 'no-store');
@@ -12,9 +35,7 @@ export default async function handler(req, res){
   const child_id = String(req.query?.child_id || DEFAULT_CHILD_ID);
 
   try {
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-    const { data, error } = await supabase.rpc('ha_get_today_voice_usage', { p_child_id: child_id });
-    if (error) throw error;
+    const data = await sbRpc('ha_get_today_voice_usage', { p_child_id: child_id });
     const count = Array.isArray(data) && data.length > 0 ? (data[0].count ?? 0) : 0;
     return res.status(200).json({ ok: true, count });
   } catch (e){

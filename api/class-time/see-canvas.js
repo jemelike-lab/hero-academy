@@ -1,13 +1,11 @@
-// api/class-time/see-canvas.js
+// api/class-time/see-canvas.js — v141
 // POST { image: dataUrl, context: {...} }
 // Returns short description of what Nigel drew/wrote so Humphrey can react in real-time.
-import Anthropic from '@anthropic-ai/sdk';
+// Native fetch to Anthropic. No @anthropic-ai/sdk dep.
 
+const MODEL = 'claude-haiku-4-5-20251001';
+const ANTHROPIC_VERSION = '2023-06-01';
 const MAX_DESC_CHARS = 240;
-
-function getAnthropic(){
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-}
 
 function dataUrlParts(dataUrl){
   if (!dataUrl || typeof dataUrl !== 'string') return null;
@@ -43,6 +41,41 @@ Do NOT:
 Just describe what you see. Reply with the description only, no quotes, no preamble.`;
 }
 
+async function callHaikuVision({ media_type, data, prompt }){
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': ANTHROPIC_VERSION,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 90,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type, data } },
+            { type: 'text', text: prompt }
+          ]
+        }
+      ]
+    }),
+  });
+  if (!r.ok){
+    const body = await r.text().catch(() => '');
+    throw new Error(`anthropic ${r.status}: ${body.slice(0, 200)}`);
+  }
+  const j = await r.json();
+  const text = (j.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('')
+    .trim();
+  return text;
+}
+
 export default async function handler(req, res){
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS'){ res.status(204).end(); return; }
@@ -65,26 +98,16 @@ export default async function handler(req, res){
   }
 
   try {
-    const anthropic = getAnthropic();
-    const r = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 90,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: parts.media_type, data: parts.data } },
-            { type: 'text', text: buildPrompt(body.context || {}) }
-          ]
-        }
-      ]
+    let desc = await callHaikuVision({
+      media_type: parts.media_type,
+      data: parts.data,
+      prompt: buildPrompt(body.context || {})
     });
-    let desc = (r.content[0] && r.content[0].text) ? r.content[0].text : '';
-    desc = desc.trim().replace(/^["']|["']$/g, '').slice(0, MAX_DESC_CHARS);
-    if (!desc) return res.status(200).json({ ok: true, description: '' });
+    desc = (desc || '').trim().replace(/^["']|["']$/g, '').slice(0, MAX_DESC_CHARS);
     return res.status(200).json({ ok: true, description: desc });
   } catch (e){
     console.error('[see-canvas] vision error', e);
+    // Fail open with empty description so the canvas loop doesn't crash the lesson
     return res.status(200).json({ ok: true, description: '', error: String(e.message || e) });
   }
 }

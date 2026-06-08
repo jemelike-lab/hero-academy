@@ -1,6 +1,29 @@
-// api/record-event.js
+// api/record-event.js — v141
 // POST { child_id, event_type, payload } → ha_record_event RPC
-import { createClient } from '@supabase/supabase-js';
+// Native fetch to Supabase REST. No @supabase/supabase-js dep.
+
+async function sbRpc(fnName, args) {
+  const SB_URL = process.env.SUPABASE_URL;
+  const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SB_URL || !SB_KEY) {
+    throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+  }
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST',
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(args || {}),
+  });
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`supabase rpc/${fnName} -> ${r.status} ${body.slice(0, 200)}`);
+  }
+  return r.json();
+}
 
 export default async function handler(req, res){
   res.setHeader('Cache-Control', 'no-store');
@@ -21,13 +44,11 @@ export default async function handler(req, res){
   if (event_type.length > 80) return res.status(400).json({ error:'event_type_too_long' });
 
   try {
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-    const { data, error } = await supabase.rpc('ha_record_event', {
+    const data = await sbRpc('ha_record_event', {
       p_child_id: child_id,
       p_event_type: event_type,
       p_payload: payload
     });
-    if (error) throw error;
     return res.status(200).json({ ok: true, id: data });
   } catch (e){
     console.error('[record-event] failed', e);

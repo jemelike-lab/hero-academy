@@ -1,8 +1,10 @@
-// api/class-time/lesson-plan.js
+// api/class-time/lesson-plan.js — v141
 // GET /api/class-time/lesson-plan?date=YYYY-MM-DD&child_id=...
 // Returns today's curated lesson plan. Reads from Supabase cache; generates via Haiku if missing.
-import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@supabase/supabase-js';
+// Native fetch to Supabase REST + Anthropic. No npm package deps.
+
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+const ANTHROPIC_VERSION = '2023-06-01';
 
 const VALID_VISUALS = ['plant','sun','water','soil','butterfly','frog','bee','planet','moon','star','volcano','mountain','river','ocean','fire','ice','magnet','heart','lung','brain','dog','cat','fish','bird','dinosaur','knight','castle','map','flag','clock','calendar'];
 
@@ -18,50 +20,85 @@ function dayOfWeekET(){
   return s.toLowerCase();
 }
 
-function getClients(){
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false }
+// ---------- Supabase REST helpers (no SDK) ----------
+
+function sbHeaders(){
+  const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return {
+    apikey: SB_KEY,
+    Authorization: `Bearer ${SB_KEY}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+}
+
+async function sbSelect(table, query){
+  // query is a query-string fragment (without leading ?), e.g. "select=lesson&date=eq.2026-06-07"
+  const SB_URL = process.env.SUPABASE_URL;
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${query}`, {
+    method: 'GET', headers: sbHeaders()
   });
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return { supabase, anthropic };
+  if (!r.ok){
+    const body = await r.text().catch(() => '');
+    throw new Error(`supabase select ${table} -> ${r.status} ${body.slice(0, 200)}`);
+  }
+  return r.json();
 }
 
-async function getRecentTopicHistory(supabase, childId){
-  // Last 14 days of class_time_complete events to track topic variety
-  try {
-    const { data } = await supabase
-      .from('ha_events')
-      .select('payload, created_at')
-      .eq('child_id', childId)
-      .eq('event_type', 'class_time_complete')
-      .gte('created_at', new Date(Date.now() - 14*86400000).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(30);
-    return data || [];
-  } catch (e){ return []; }
+async function sbUpsert(table, row, onConflict){
+  const SB_URL = process.env.SUPABASE_URL;
+  const url = `${SB_URL}/rest/v1/${table}${onConflict ? `?on_conflict=${onConflict}` : ''}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...sbHeaders(),
+      Prefer: 'resolution=merge-duplicates,return=minimal'
+    },
+    body: JSON.stringify(row)
+  });
+  if (!r.ok){
+    const body = await r.text().catch(() => '');
+    throw new Error(`supabase upsert ${table} -> ${r.status} ${body.slice(0, 200)}`);
+  }
+  return true;
 }
 
-async function getRecentLessons(supabase){
+async function getRecentTopicHistory(childId){
   try {
-    const { data } = await supabase
-      .from('ha_class_time_lessons')
-      .select('date, lesson')
-      .order('date', { ascending: false })
-      .limit(7);
-    return data || [];
+    const since = new Date(Date.now() - 14*86400000).toISOString();
+    const q = `select=payload,created_at&child_id=eq.${childId}&event_type=eq.class_time_complete&created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=30`;
+    return await sbSelect('ha_events', q);
   } catch(e){ return []; }
 }
 
-async function getRecentZonePerf(supabase, childId){
-  // Snapshot of strugglers/strong areas — last 7 days
+async function getRecentLessons(){
   try {
-    const { data } = await supabase
-      .from('ha_difficulty_state')
-      .select('skill_id, current_level, recent_accuracy, updated_at')
-      .eq('child_id', childId);
-    return data || [];
+    return await sbSelect('ha_class_time_lessons', 'select=date,lesson&order=date.desc&limit=7');
   } catch(e){ return []; }
 }
+
+async function getRecentZonePerf(childId){
+  try {
+    return await sbSelect('ha_difficulty_state', `select=skill_id,current_level,recent_accuracy,updated_at&child_id=eq.${childId}`);
+  } catch(e){ return []; }
+}
+
+async function getCachedLesson(date){
+  try {
+    const rows = await sbSelect('ha_class_time_lessons', `select=lesson&date=eq.${date}&limit=1`);
+    return rows[0]?.lesson || null;
+  } catch(e){ return null; }
+}
+
+async function cacheLesson(date, lesson){
+  try {
+    await sbUpsert('ha_class_time_lessons', { date, lesson, generated_at: new Date().toISOString() }, 'date');
+  } catch(e){
+    console.warn('[lesson-plan] cache write failed', e.message || e);
+  }
+}
+
+// ---------- Lesson generation ----------
 
 function fallbackPlan(date){
   // Same fallback shape as client-side, but server-side for cron use
@@ -157,40 +194,57 @@ function sanitizeLesson(raw, date){
   };
 }
 
-async function generateWithHaiku(anthropic, ctx){
-  const prompt = buildPrompt(ctx);
-  const r = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1200,
-    messages: [{ role: 'user', content: prompt }]
+async function callHaiku(prompt){
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': ANTHROPIC_VERSION,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: HAIKU_MODEL,
+      max_tokens: 1200,
+      messages: [{ role: 'user', content: prompt }]
+    })
   });
-  const txt = (r.content[0] && r.content[0].text) ? r.content[0].text : '';
+  if (!r.ok){
+    const body = await r.text().catch(() => '');
+    throw new Error(`anthropic ${r.status}: ${body.slice(0, 200)}`);
+  }
+  const j = await r.json();
+  return (j.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('')
+    .trim();
+}
+
+async function generateWithHaiku(ctx){
+  const prompt = buildPrompt(ctx);
+  const txt = await callHaiku(prompt);
   // Strip code fences if present
   const clean = txt.replace(/```json|```/g, '').trim();
   try {
     const parsed = JSON.parse(clean);
     return sanitizeLesson(parsed, ctx.date);
-  } catch (e){
+  } catch(e){
     console.warn('[lesson-plan] Haiku JSON parse failed:', e.message, txt.slice(0, 200));
     return null;
   }
 }
 
-async function getOrGenerateLesson(supabase, anthropic, { date, childId, force }){
+async function getOrGenerateLesson({ date, childId, force }){
   if (!force){
-    const { data: cached } = await supabase
-      .from('ha_class_time_lessons')
-      .select('lesson')
-      .eq('date', date)
-      .maybeSingle();
-    if (cached && cached.lesson) return cached.lesson;
+    const cached = await getCachedLesson(date);
+    if (cached) return cached;
   }
 
   // Build context
   const [recentTopicHistory, recentLessons, zonePerf] = await Promise.all([
-    getRecentTopicHistory(supabase, childId),
-    getRecentLessons(supabase),
-    getRecentZonePerf(supabase, childId)
+    getRecentTopicHistory(childId),
+    getRecentLessons(),
+    getRecentZonePerf(childId)
   ]);
 
   const ctx = {
@@ -203,21 +257,15 @@ async function getOrGenerateLesson(supabase, anthropic, { date, childId, force }
 
   let lesson = null;
   try {
-    lesson = await generateWithHaiku(anthropic, ctx);
+    lesson = await generateWithHaiku(ctx);
   } catch(e){
-    console.error('[lesson-plan] Haiku generation failed', e);
+    console.error('[lesson-plan] Haiku generation failed', e.message || e);
   }
 
   if (!lesson) lesson = fallbackPlan(date);
 
-  // Cache
-  try {
-    await supabase
-      .from('ha_class_time_lessons')
-      .upsert({ date, lesson, generated_at: new Date().toISOString() }, { onConflict: 'date' });
-  } catch(e){
-    console.warn('[lesson-plan] cache write failed', e);
-  }
+  // Cache (best-effort)
+  await cacheLesson(date, lesson);
 
   return lesson;
 }
@@ -238,8 +286,7 @@ export default async function handler(req, res){
   const force = isCron || (req.query?.force === '1');
 
   try {
-    const { supabase, anthropic } = getClients();
-    const lesson = await getOrGenerateLesson(supabase, anthropic, { date, childId, force });
+    const lesson = await getOrGenerateLesson({ date, childId, force });
     return res.status(200).json({ ok: true, lesson });
   } catch (e){
     console.error('[lesson-plan] handler error', e);
