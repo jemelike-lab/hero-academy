@@ -241,20 +241,96 @@
         window.scrollTo(0, 0);
         // Fire-and-forget telemetry: mark today's story as surfaced
         window.HeroAcademy.DailyContent.markUsed('story');
-        // Nudge Humphrey to introduce the story
+
+        // v148: actually READ the story to Nigel. Previously this fired a
+        // single broken H.say({obj}) call (wrong signature — event arg was
+        // an object, so it resolved to CATALOG['_default'] and Humphrey
+        // spoke a generic fallback line instead of the intro AND the body
+        // was never read at all). Now we queue the intro, every paragraph
+        // of the body, and (if present) the comprehension questions as
+        // separate H.say('try-again-reading', { text }) calls. Humphrey's
+        // built-in queue plays them serially. Paragraphs longer than the
+        // 500-char TTS cap are split on sentence boundaries first.
         try {
-          const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-          if (hp && hp.say) {
-            hp.say({
-              text: "I wrote a story just for you today, Nigel. Read it out loud and I'll listen.",
-              expression: 'encouraging',
+          const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (H && typeof H.say === 'function') {
+            const chunks = buildReadChunks(s);
+            chunks.forEach(function (chunk) {
+              H.say('try-again-reading', {
+                kidName: 'Nigel',
+                text: chunk,
+                expression: 'encouraging',
+              });
             });
           }
         } catch (_) {}
       });
 
+      // v148: split a paragraph or any long line into ≤450-char chunks on
+      // sentence boundaries. The TTS proxy caps at 500 chars per request;
+      // 450 leaves a margin for the punctuation we re-append.
+      function splitForTts(text) {
+        const MAX = 450;
+        const t = String(text || '').trim();
+        if (!t) return [];
+        if (t.length <= MAX) return [t];
+        const out = [];
+        let buf = '';
+        const sentences = t.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [t];
+        sentences.forEach(function (s) {
+          const sentence = s.trim();
+          if (!sentence) return;
+          if ((buf + ' ' + sentence).trim().length > MAX) {
+            if (buf) out.push(buf.trim());
+            // If a single sentence still exceeds MAX, hard-split on words.
+            if (sentence.length > MAX) {
+              const words = sentence.split(/\s+/);
+              let line = '';
+              words.forEach(function (w) {
+                if ((line + ' ' + w).trim().length > MAX) {
+                  if (line) out.push(line.trim());
+                  line = w;
+                } else {
+                  line = (line + ' ' + w).trim();
+                }
+              });
+              buf = line;
+            } else {
+              buf = sentence;
+            }
+          } else {
+            buf = (buf + ' ' + sentence).trim();
+          }
+        });
+        if (buf) out.push(buf.trim());
+        return out;
+      }
+
+      function buildReadChunks(story) {
+        const out = [];
+        out.push("I wrote a story just for you today, Nigel. Listen along.");
+        const paragraphs = (story.body || '').split('\n\n');
+        paragraphs.forEach(function (para) {
+          splitForTts(para).forEach(function (c) { out.push(c); });
+        });
+        if (Array.isArray(story.comprehension_questions) && story.comprehension_questions.length) {
+          out.push("Now let's think about it.");
+          story.comprehension_questions.forEach(function (q) {
+            if (q && q.q) splitForTts(q.q).forEach(function (c) { out.push(c); });
+          });
+        }
+        return out;
+      }
+
       closeBtn.addEventListener('click', function () {
         reader.hidden = true;
+        // v148: silence any in-flight or queued story read so closing the
+        // overlay actually stops Humphrey. Without this she keeps narrating
+        // an invisible story to the home screen.
+        try {
+          const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (H && typeof H.stop === 'function') H.stop();
+        } catch (_) {}
       });
     })();
   </script>

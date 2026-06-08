@@ -1570,11 +1570,22 @@
     } catch (e) { /* private mode etc. */ }
   }
 
+  // v148: expose a public cancel — clear the queue and stop in-flight
+  // playback. Used by Story Lab's reader-close handler to silence Humphrey
+  // if the kid closes the story mid-read. Engine-agnostic (covers both the
+  // warmed audio element path and the speechSynthesis fallback path).
+  function stop() {
+    state.queue = [];
+    stopAudio();
+    state.speaking = false;
+  }
+
   // Public surface
   NS.Humphrey = {
     VERSION,
     init,
     say,
+    stop,
     show,
     hide,
     toggleMute,
