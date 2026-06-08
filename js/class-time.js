@@ -149,6 +149,8 @@
     if (label && state.lesson.topics[state.currentTopicIdx]){
       label.textContent = state.lesson.topics[state.currentTopicIdx].title;
     }
+    // v152: session progress bar
+    if (NS.SessionProgress) NS.SessionProgress.update(state.currentTopicIdx + 1, state.lesson.topics.length, 'Topic');
   }
 
   // ---------- Humphrey portrait state ----------
@@ -520,7 +522,9 @@
     // 1. Voice cap check
     setBootMessage('Checking today\'s class allowance…');
     const usage = await getTodayVoiceUsage();
-    if (usage >= 15){
+    // v152: raised from 15 to 50 — the old cap blocked actual curriculum
+    // lessons because TTS calls across zones counted toward it.
+    if (usage >= 50){
       showVoiceCap();
       return;
     }

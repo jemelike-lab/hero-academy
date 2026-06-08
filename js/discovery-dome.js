@@ -125,6 +125,8 @@
     $('currentSkillName').textContent = NS.ScienceCards.topics[card.topic].label;
     $('problemNum').textContent = (session.index + 1) + ' / ' + session.queue.length;
     renderProgressDots();
+    // v152: session progress bar
+    if (NS.SessionProgress) NS.SessionProgress.update(session.index + 1, session.queue.length, 'Question');
 
     // The card itself — emoji + title + fact + question
     var pq = $('problemQuestion');
@@ -399,7 +401,8 @@
       H.say('mastery-achieved', { kidName: 'Nigel', topic: topicLabel, text: line });
     }
     burstConfetti();
-
+    // v152: session progress bar — done
+    if (NS.SessionProgress) NS.SessionProgress.complete();
     // Buttons
     var nextBtn = $('masteryNext');
     var restBtn = $('masteryRest');

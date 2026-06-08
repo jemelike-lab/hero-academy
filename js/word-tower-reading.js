@@ -184,6 +184,8 @@
     $('wt-pattern').textContent = w.pattern || '';
     $('wt-pattern').hidden = !w.pattern;
     $('wt-counter').textContent = 'Word ' + (session.index + 1) + ' of ' + session.queue.length;
+    // v152: session progress bar
+    if (NS.SessionProgress) NS.SessionProgress.update(session.index + 1, session.queue.length, 'Word');
     $('wt-tryagain-btn').hidden = true;
     setStatus('', null);
     setMicState('ready');
@@ -206,6 +208,8 @@
         : '<div class="wt-end-line wt-end-line--soft">No stumbles — incredible!</div>');
     $('wt-stage').hidden = true;
     card.hidden = false;
+    // v152: session progress bar — done
+    if (NS.SessionProgress) NS.SessionProgress.complete();
     // Persist a summary to Ms. Humphrey's memory so she remembers this session
     persistSessionSummary({ total: total, first: first, struggled: struggled });
     // Celebrate

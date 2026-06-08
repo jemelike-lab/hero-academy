@@ -139,6 +139,8 @@
     var p = session.passages[session.currentPassage];
     if (!p) { showEnd(); return; }
     $('st-title').textContent = p.title || 'Story Time';
+    // v152: session progress bar — passage level
+    if (NS.SessionProgress) NS.SessionProgress.update(session.currentPassage + 1, TARGET_PASSAGES, 'Passage');
     var container = $('st-passage');
     container.innerHTML = '';
     p.sentences.forEach(function (s, i) {
@@ -524,7 +526,8 @@
       : "Wonderful reading, Nigel. We will pick up right where we left off next time.";
     say(line, { event: 'correct-answer-reading' });
     burstConfetti();
-    // v151: mark zone complete for Today's Mission checkmark.
+    // v152: session progress bar — done
+    if (NS.SessionProgress) NS.SessionProgress.complete();
     try {
       var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
       var df = JSON.parse(localStorage.getItem(dk) || '{}');

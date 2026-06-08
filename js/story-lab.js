@@ -284,6 +284,8 @@
       d.className = 'sl-progress-dot' + (i < session.slotIndex ? ' filled' : (i === session.slotIndex ? ' current' : ''));
       prog.appendChild(d);
     }
+    // v152: session progress bar
+    if (NS.SessionProgress) NS.SessionProgress.update(session.slotIndex + 1, tpl.slots.length, 'Word');
 
     // Back button — to picker (with confirm if mid-story)
     $('sl-slot-back').onclick = function () {
@@ -388,6 +390,9 @@
     setTimeout(readAloud, 500);
 
     burstConfetti();
+
+    // v152: session progress bar — done
+    if (NS.SessionProgress) NS.SessionProgress.complete();
 
     // v151: cap-proof completion flag for Today's Mission checkmark.
     try {

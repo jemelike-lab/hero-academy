@@ -882,6 +882,10 @@
     // v146: show the Skip button now that a real recipe is live. Hidden in
     // boot/complete phases by startComplete() and the initial hidden attribute.
     showSkip();
+    // v152: update session progress bar — shows "Recipe X of Y"
+    if (window.HeroAcademy && window.HeroAcademy.SessionProgress) {
+      window.HeroAcademy.SessionProgress.update(state.currentRecipeIdx + 1, state.recipes.length, 'Recipe');
+    }
     // Brief recipe intro
     const intro = `Tonight's recipe: ${r.name}. ${r.prompt}`;
     setHumphreyMessage(intro);
@@ -1122,6 +1126,10 @@
 
     // Hide the skip button — there's nothing left to skip past.
     hideSkip();
+    // v152: mark session progress bar as complete
+    if (window.HeroAcademy && window.HeroAcademy.SessionProgress) {
+      window.HeroAcademy.SessionProgress.complete();
+    }
 
     $('recipeName').textContent = "That's the whole menu!";
     $('recipeSub').textContent = 'Beautiful work in my kitchen today.';
@@ -1529,6 +1537,7 @@ document.addEventListener('DOMContentLoaded', boot);
 <script src="/js/telemetry.js"></script>
 <script src="https://unpkg.com/@elevenlabs/client@1.9.0/dist/lib.iife.js" defer></script>
 <script src="/js/daily-content.js"></script>
+  <script src="/js/session-progress.js" defer></script>
 <script src="/js/break-timer.js" defer></script>
 <div id="ccVoiceOverlay" class="cc-voice-overlay" hidden>
   <div class="cc-voice-card">
