@@ -199,12 +199,12 @@
     }
 
     const clientTools = {
-      drawNumber:   (p) => { NS.ClassTimeBoard.drawNumber(p);   return 'drew number'; },
-      drawDots:     (p) => { NS.ClassTimeBoard.drawDots(p);     return 'drew dots'; },
-      drawTenFrame: (p) => { NS.ClassTimeBoard.drawTenFrame(p); return 'drew ten frame'; },
-      writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    return 'wrote word'; },
-      writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  return 'wrote letter'; },
-      drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); return 'drew equation'; },
+      drawNumber:   (p) => { NS.ClassTimeBoard.drawNumber(p);   const v = p?.n ?? p?.number ?? p?.value ?? '?'; console.log('[class-time] drawNumber', p); return `drew number ${v} on the board`; },
+      drawDots:     (p) => { NS.ClassTimeBoard.drawDots(p);     const v = p?.count ?? p?.n ?? p?.dots ?? '?'; console.log('[class-time] drawDots', p); return `drew ${v} dots on the board`; },
+      drawTenFrame: (p) => { NS.ClassTimeBoard.drawTenFrame(p); const v = p?.filled ?? p?.n ?? p?.count ?? '?'; console.log('[class-time] drawTenFrame', p); return `drew ten frame with ${v} filled circles on the board — verify this matches what you said`; },
+      writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    const v = p?.word ?? p?.text ?? '?'; console.log('[class-time] writeWord', p); return `wrote "${v}" on the board`; },
+      writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  const v = p?.letter ?? p?.char ?? '?'; console.log('[class-time] writeLetter', p); return `wrote letter "${v}" on the board`; },
+      drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); const v = p?.equation ?? p?.eq ?? p?.text ?? '?'; console.log('[class-time] drawEquation', p); return `drew equation "${v}" on the board`; },
       // v142: showVisual is now async — fetch a live Wikipedia image, fall back to SVG
       showVisual:   async (p) => {
         const subject = String(p?.subject ?? p?.topic ?? p?.text ?? '').trim();
@@ -239,6 +239,8 @@
         if (!state.lesson) return 'no lesson';
         if (state.currentTopicIdx < state.lesson.topics.length - 1) {
           state.currentTopicIdx++;
+          state.topicStartedAt = Date.now();
+          state.topicNudged = false;
           renderTopicPips();
           // v142: when she advances to a new topic, push her the topic context
           // including the why_chosen note so she opens the topic with a
@@ -313,6 +315,41 @@
       state.voiceEventLogged = true;
       logEvent('class_time_voice', { lesson_date: state.today, source: state.lesson.source });
     }
+
+    // v153: topic auto-advance watcher. Nudge Humphrey after 90s on one
+    // topic, then auto-advance at 120s so the class doesn't stall.
+    state.topicStartedAt = Date.now();
+    state.topicNudged = false;
+    state.topicWatcherInterval = setInterval(() => {
+      if (!state.lesson || state.completed) return;
+      const elapsed = (Date.now() - state.topicStartedAt) / 1000;
+      const isLast = state.currentTopicIdx >= state.lesson.topics.length - 1;
+      if (elapsed >= 90 && !state.topicNudged && !isLast) {
+        state.topicNudged = true;
+        const next = state.lesson.topics[state.currentTopicIdx + 1];
+        sendContextualUpdate(
+          `You have been on this topic for about 90 seconds. ` +
+          `Wrap up with one final thought, then call nextTopic to move on to "${next?.title || 'the next topic'}".`
+        );
+        console.log('[class-time] topic nudge sent at', Math.round(elapsed), 's');
+      }
+      if (elapsed >= 130 && !isLast) {
+        // Auto-advance — Humphrey didn't call nextTopic despite the nudge
+        console.log('[class-time] auto-advancing topic at', Math.round(elapsed), 's');
+        state.currentTopicIdx++;
+        state.topicStartedAt = Date.now();
+        state.topicNudged = false;
+        renderTopicPips();
+        announceTopicToHumphrey(state.currentTopicIdx);
+      }
+      if (isLast && elapsed >= 90 && !state.topicNudged) {
+        state.topicNudged = true;
+        sendContextualUpdate(
+          `This is the last topic. Wrap up class in the next 30 seconds, ` +
+          `then call endClass to finish.`
+        );
+      }
+    }, 10000);
   }
 
   // v142: when Humphrey advances topics via the nextTopic tool, push her the
@@ -440,6 +477,7 @@
     state.completed = true;
     clearInterval(state.timerInterval);
     clearInterval(state.captureInterval);
+    clearInterval(state.topicWatcherInterval);
     if (state.stopCaptureWatcher) state.stopCaptureWatcher();
     clearTimeout(state.pendingPostCapture);
 
@@ -512,6 +550,7 @@
       try { if (state.conversation) await state.conversation.endSession(); } catch(e){}
       clearInterval(state.timerInterval);
       clearInterval(state.captureInterval);
+    clearInterval(state.topicWatcherInterval);
       logEvent('class_time_exit_early', { lesson_date: state.today, time_in_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0 });
     }
     exitToHome();
