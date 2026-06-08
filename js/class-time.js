@@ -31,7 +31,9 @@
     isMuted: false,
     voiceEventLogged: false,
     today: ymdLocal(new Date()),
-    sessionStartedAt: null
+    sessionStartedAt: null,
+    // v142
+    transcript: []
   };
 
   function ymdLocal(d){
@@ -201,13 +203,45 @@
       writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    return 'wrote word'; },
       writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  return 'wrote letter'; },
       drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); return 'drew equation'; },
-      showVisual:   (p) => { NS.ClassTimeBoard.showVisual(p);   return 'showed visual'; },
+      // v142: showVisual is now async — fetch a live Wikipedia image, fall back to SVG
+      showVisual:   async (p) => {
+        const subject = String(p?.subject ?? p?.topic ?? p?.text ?? '').trim();
+        if (!subject){
+          NS.ClassTimeBoard.showVisual({ topic: '' });
+          return 'showed visual (empty subject, fell back)';
+        }
+        try {
+          const r = await fetch('/api/class-time/lookup-image', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ subject })
+          });
+          const data = await r.json();
+          if (data && data.image_url){
+            NS.ClassTimeBoard.showLiveImage({
+              url: data.image_url,
+              caption: data.caption || subject,
+              attribution: data.attribution || 'Wikipedia'
+            });
+            return `showed live image: ${subject}`;
+          }
+        } catch(e){
+          console.warn('[class-time] image lookup failed, falling back to SVG', e);
+        }
+        // No live image found — fall back to SVG library or text
+        NS.ClassTimeBoard.showVisual({ topic: subject });
+        return `showed visual fallback: ${subject}`;
+      },
       clearBoard:   ()  => { NS.ClassTimeBoard.clearBoard();    return 'cleared board'; },
       nextTopic:    ()  => {
         if (!state.lesson) return 'no lesson';
         if (state.currentTopicIdx < state.lesson.topics.length - 1) {
           state.currentTopicIdx++;
           renderTopicPips();
+          // v142: when she advances to a new topic, push her the topic context
+          // including the why_chosen note so she opens the topic with a
+          // personalized "I chose this because…" line.
+          announceTopicToHumphrey(state.currentTopicIdx);
           return `topic ${state.currentTopicIdx + 1}`;
         }
         return 'last topic reached';
@@ -220,17 +254,39 @@
 
     const dynamicVariables = {
       nigel_current_zone: 'class-time',
-      lesson_topics: JSON.stringify(state.lesson.topics.map(t => ({ title: t.title, focus: t.focus, skill: t.skill }))),
+      lesson_topics: JSON.stringify(state.lesson.topics.map(t => ({
+        title: t.title,
+        focus: t.focus,
+        skill: t.skill,
+        why_chosen: t.why_chosen || ''
+      }))),
       current_topic_index: 0,
       time_remaining_min: 7,
       lesson_theme: state.lesson.theme || 'daily review',
       lesson_source: state.lesson.source || 'unknown'
     };
 
+    // v142: AUTO-START the class. Instead of letting the agent use her generic
+    // dashboard default ("What are we working on first today?"), give her an
+    // opener tailored to today's first topic. She immediately launches into
+    // teaching topic 1 the moment Nigel connects.
+    const t0 = state.lesson.topics[0];
+    const why0 = (t0?.why_chosen || '').trim();
+    const opener = (() => {
+      const base = `Hey Nigel! Today we're starting with ${t0?.title || 'our lesson'}.`;
+      if (why0) return `${base} ${why0} Let me show you something — watch the board.`;
+      return `${base} Let me show you something — watch the board.`;
+    })();
+
     state.conversation = await Conv.startSession({
       agentId: AGENT_ID,
       clientTools,
       dynamicVariables,
+      overrides: {
+        agent: {
+          firstMessage: opener
+        }
+      },
       onConnect: () => { console.log('[class-time] connected'); setHumphreyState('listening'); },
       onDisconnect: () => { console.log('[class-time] disconnected'); setHumphreyState('idle'); },
       onError: (err) => { console.error('[class-time] conv error', err); },
@@ -238,7 +294,16 @@
         if (m && m.mode === 'speaking') setHumphreyState('speaking');
         else setHumphreyState('listening');
       },
-      onStatusChange: (s) => { console.log('[class-time] status', s); }
+      onStatusChange: (s) => { console.log('[class-time] status', s); },
+      // v142: capture transcript so it flows into the Saturday digest
+      onMessage: (m) => {
+        if (!m) return;
+        const text = m.message || m.text || '';
+        const source = m.source || m.role || 'unknown';
+        if (text && state.transcript){
+          state.transcript.push({ role: source, message: text, ts: Date.now() });
+        }
+      }
     });
 
     // Log telemetry for voice usage cap
@@ -246,6 +311,19 @@
       state.voiceEventLogged = true;
       logEvent('class_time_voice', { lesson_date: state.today, source: state.lesson.source });
     }
+  }
+
+  // v142: when Humphrey advances topics via the nextTopic tool, push her the
+  // topic context so her next utterance opens that topic with the why_chosen
+  // hook ("I picked this because…").
+  function announceTopicToHumphrey(idx){
+    if (!state.lesson || !state.lesson.topics[idx]) return;
+    const t = state.lesson.topics[idx];
+    const why = (t.why_chosen || '').trim();
+    let msg = `Topic ${idx + 1} of ${state.lesson.topics.length} starting now: "${t.title}" (${t.skill}). Focus: ${t.focus}.`;
+    if (why) msg += ` Why this topic for Nigel today: ${why}`;
+    msg += " Open the topic by mentioning the why-chosen reason if it fits naturally, then start teaching.";
+    sendContextualUpdate(msg);
   }
 
   function sendContextualUpdate(text){
@@ -375,7 +453,14 @@
       reason,
       topics_completed: state.currentTopicIdx + 1,
       total_topics: state.lesson?.topics?.length || 0,
-      duration_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0
+      duration_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0,
+      // v142: surface today's topic titles for the Saturday digest and for
+      // the lesson-plan regen check (which keys on lesson_date).
+      topic_titles: (state.lesson?.topics || []).map(t => t.title),
+      lesson_theme: state.lesson?.theme || '',
+      lesson_source: state.lesson?.source || '',
+      transcript_turns: (state.transcript || []).length,
+      transcript: (state.transcript || []).slice(-60) // last 60 turns max
     });
 
     // Mission integration

@@ -269,7 +269,9 @@
 
   function showVisual(topic){
     if (!visualAid) return;
-    const key = String(topic||'').toLowerCase();
+    // v142: accept either a string topic or an object {topic} for backward compat
+    const t = (typeof topic === 'object' && topic !== null) ? (topic.topic ?? topic.subject ?? '') : topic;
+    const key = String(t || '').toLowerCase();
     const NSV = (window.HeroAcademy && window.HeroAcademy.ClassTimeVisuals) || null;
     const svg = NSV && NSV.has(key) ? NSV.get(key) : null;
     if (!svg) {
@@ -280,6 +282,27 @@
     setBoardActive();
     if (visualSvg) visualSvg.innerHTML = svg;
     if (visualLabel) visualLabel.textContent = key;
+    visualAid.classList.add('active');
+  }
+
+  // v142: render a live image (e.g. Wikipedia thumbnail) into the visual aid
+  // popup. Used by the new showVisual client-tool path when the API returns
+  // a real photo for "George Washington", "monarch butterfly", etc.
+  function showLiveImage({ url, caption, attribution }){
+    if (!visualAid || !url) return;
+    setBoardActive();
+    if (visualSvg){
+      // Replace SVG slot with an <img>. Constraint: object-fit so very tall/wide
+      // photos still display proportionally in the popup area.
+      const safeUrl = String(url).replace(/"/g, '%22');
+      const safeAlt = String(caption || '').replace(/"/g, '&quot;').slice(0, 200);
+      visualSvg.innerHTML = `<img src="${safeUrl}" alt="${safeAlt}" loading="eager" style="max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px;background:#fff;">`;
+    }
+    if (visualLabel){
+      const cap = String(caption || '').slice(0, 200);
+      const attr = String(attribution || '').slice(0, 40);
+      visualLabel.textContent = attr ? `${cap} — ${attr}` : cap;
+    }
     visualAid.classList.add('active');
   }
 
@@ -445,7 +468,8 @@
     writeWord:     (p) => writeWord((p && (p.word ?? p.text)) ?? ''),
     writeLetter:   (p) => writeLetter((p && (p.letter ?? p.text)) ?? ''),
     drawEquation:  (p) => drawEquation((p && (p.text ?? p.equation)) ?? ''),
-    showVisual:    (p) => showVisual((p && (p.topic ?? p.text)) ?? ''),
+    showVisual:    (p) => showVisual((p && (p.topic ?? p.subject ?? p.text)) ?? ''),
+    showLiveImage: (p) => showLiveImage(p || {}),
     clearBoard:    () => clearBoard(),
     // Nigel canvas
     clearNigelCanvas,

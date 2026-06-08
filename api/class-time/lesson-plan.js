@@ -71,6 +71,23 @@ async function getRecentTopicHistory(childId){
   } catch(e){ return []; }
 }
 
+// v142: returns true if today's lesson has already been completed at least once.
+// Used to force a fresh "second period" lesson when Nigel returns to Class Time
+// later the same day.
+async function isLessonCompletedToday(childId, dateET){
+  try {
+    // ET day boundary expressed in UTC (rough: take date+00:00 ET → +04 UTC at EST or +05 EDT;
+    // simpler: just check the last ~26h window to cover the ET day reliably)
+    const since = new Date(Date.now() - 26 * 3600 * 1000).toISOString();
+    const q = `select=created_at,payload&child_id=eq.${childId}&event_type=eq.class_time_complete&created_at=gte.${encodeURIComponent(since)}&limit=5`;
+    const rows = await sbSelect('ha_events', q);
+    if (!rows || rows.length === 0) return false;
+    // Filter to events whose payload.lesson_date matches today (ET) to be precise
+    const matchingToday = rows.filter(r => r.payload && r.payload.lesson_date === dateET);
+    return matchingToday.length > 0;
+  } catch(_){ return false; }
+}
+
 async function getRecentLessons(){
   try {
     return await sbSelect('ha_class_time_lessons', 'select=date,lesson&order=date.desc&limit=7');
@@ -108,14 +125,14 @@ function fallbackPlan(date){
     return Math.floor((d - start) / 86400000);
   })();
   const pool = [
-    { id:'addition-10', skill:'math', title:'Addition within 10', focus:'7+3, 6+4, 8+2', tools:['drawDots','drawTenFrame','drawEquation'] },
-    { id:'count-by-2', skill:'math', title:'Counting by 2s', focus:'2,4,6,8,10', tools:['drawNumber','drawDots'] },
-    { id:'sight-words', skill:'reading', title:'Sight words', focus:'the, and, was, said', tools:['writeWord'] },
-    { id:'letter-sounds', skill:'reading', title:'Letter sounds', focus:'b, d, p, q', tools:['writeLetter'] },
-    { id:'living-things', skill:'science', title:'Living things', focus:'plants, animals', tools:['showVisual'] },
-    { id:'subtract-5', skill:'math', title:'Subtraction within 5', focus:'5-2, 4-1, 3-3', tools:['drawTenFrame','drawEquation'] },
-    { id:'rhyming', skill:'reading', title:'Rhyming words', focus:'cat/hat, dog/log', tools:['writeWord'] },
-    { id:'maryland', skill:'social', title:'Maryland symbols', focus:'flag, oriole, blue crab', tools:['showVisual'] }
+    { id:'addition-10', skill:'math', title:'Addition within 10', focus:'7+3, 6+4, 8+2', tools:['drawDots','drawTenFrame','drawEquation'], why_chosen:"warm-up math you've done before" },
+    { id:'count-by-2', skill:'math', title:'Counting by 2s', focus:'2,4,6,8,10', tools:['drawNumber','drawDots'], why_chosen:'skip counting builds multiplication intuition' },
+    { id:'sight-words', skill:'reading', title:'Sight words', focus:'the, and, was, said', tools:['writeWord'], why_chosen:'reading fluency starts with sight words' },
+    { id:'letter-sounds', skill:'reading', title:'Letter sounds', focus:'b, d, p, q', tools:['writeLetter'], why_chosen:'tricky letters that look similar' },
+    { id:'living-things', skill:'science', title:'Living things', focus:'plants, animals', tools:['showVisual'], why_chosen:'2nd grade life science staple' },
+    { id:'subtract-5', skill:'math', title:'Subtraction within 5', focus:'5-2, 4-1, 3-3', tools:['drawTenFrame','drawEquation'], why_chosen:'easier subtraction to build confidence' },
+    { id:'rhyming', skill:'reading', title:'Rhyming words', focus:'cat/hat, dog/log', tools:['writeWord'], why_chosen:'phonemic awareness practice' },
+    { id:'maryland', skill:'social', title:'Maryland symbols', focus:'flag, oriole, blue crab', tools:['showVisual'], why_chosen:'connecting to your home state' }
   ];
   const startIdx = doy % pool.length;
   const topics = [];
@@ -139,7 +156,7 @@ His teacher Ms. Humphrey will run the class. She uses a digital board where she 
 - drawTenFrame(filled) — ten-frame with N filled (0-10)
 - writeWord(word) / writeLetter(letter) — handwriting
 - drawEquation(text) — math equation like "7 + 3 = ?"
-- showVisual(topic) — picture, ONE of: ${VALID_VISUALS.join(', ')}
+- showVisual(subject) — pops up a LIVE photo from Wikipedia for ANY educational subject (people, places, animals, plants, machines, historical events). Examples: "Maryland State House", "Benjamin Banneker", "bald eagle", "photosynthesis", "blue crab"
 - clearBoard() — wipe
 
 Design 4 topics that fit a 7-minute class (about 90 seconds each). Each topic must:
@@ -147,8 +164,11 @@ Design 4 topics that fit a 7-minute class (about 90 seconds each). Each topic mu
 - Be appropriate for a 7yo 2nd grader, depth over breadth
 - Include 'focus' — a few concrete examples she'll use
 - Include 'tools' — which board tools she'll actually use (subset of: drawNumber, drawDots, drawTenFrame, writeWord, writeLetter, drawEquation, showVisual)
+- Include 'why_chosen' — ONE warm sentence (max 20 words) explaining WHY this topic is right for Nigel TODAY, in Ms. Humphrey's voice. Reference his progress, recent work, or a skill stretch. Examples: "You nailed addition within 10 yesterday — let's stretch into making tens." / "We haven't touched rhyming this week and it's how strong readers grow."
 
 Mix subjects. Don't do 4 math topics. Aim for 2 math + 1 reading + 1 science/social.
+
+When a topic is science, history, social studies, or geography, prefer 'showVisual' in its tools so Nigel can see a live photo (e.g. "Annapolis State House", "George Washington", "monarch butterfly"). Don't pick generic 'flag' — pick the specific subject the topic teaches.
 
 Today is ${ctx.dayOfWeek}, ${ctx.date}.
 
@@ -162,7 +182,7 @@ Respond ONLY with valid JSON, no preamble, no markdown:
 {
   "theme": "short phrase like 'Number sense + sight words' or 'Maryland day'",
   "topics": [
-    { "id": "kebab-case-id", "skill": "math|reading|science|social", "title": "Short title", "focus": "Concrete examples", "tools": ["toolName1","toolName2"] }
+    { "id": "kebab-case-id", "skill": "math|reading|science|social", "title": "Short title", "focus": "Concrete examples", "tools": ["toolName1","toolName2"], "why_chosen": "Warm one-sentence reason in Ms. Humphrey's voice" }
   ]
 }
 
@@ -176,14 +196,15 @@ function sanitizeLesson(raw, date){
   // Force exactly 4
   topics = topics.slice(0, 4);
   while (topics.length < 4){
-    topics.push({ id: `extra-${topics.length}`, skill:'reading', title:'Quick review', focus:'short recap', tools:['writeWord'] });
+    topics.push({ id: `extra-${topics.length}`, skill:'reading', title:'Quick review', focus:'short recap', tools:['writeWord'], why_chosen:'a quick warm-up to keep momentum' });
   }
   topics = topics.map((t, i) => ({
     id: String(t.id || `topic-${i}`).slice(0, 40),
     skill: ['math','reading','science','social'].includes(t.skill) ? t.skill : 'reading',
     title: String(t.title || 'Topic').slice(0, 60),
     focus: String(t.focus || '').slice(0, 200),
-    tools: Array.isArray(t.tools) ? t.tools.filter(x => VALID_TOOLS.includes(x)).slice(0, 4) : []
+    tools: Array.isArray(t.tools) ? t.tools.filter(x => VALID_TOOLS.includes(x)).slice(0, 4) : [],
+    why_chosen: String(t.why_chosen || '').slice(0, 220)
   }));
   return {
     date,
@@ -235,7 +256,19 @@ async function generateWithHaiku(ctx){
 }
 
 async function getOrGenerateLesson({ date, childId, force }){
-  if (!force){
+  // v142: if the cached lesson for today has already been completed, force a
+  // fresh "second period" lesson. This is the "newly curated each visit"
+  // behavior — but only kicks in after Nigel finishes the morning lesson.
+  let effectiveForce = force;
+  if (!effectiveForce){
+    const alreadyDone = await isLessonCompletedToday(childId, date);
+    if (alreadyDone){
+      console.log('[lesson-plan] today already completed → forcing fresh lesson');
+      effectiveForce = true;
+    }
+  }
+
+  if (!effectiveForce){
     const cached = await getCachedLesson(date);
     if (cached) return cached;
   }
@@ -264,7 +297,7 @@ async function getOrGenerateLesson({ date, childId, force }){
 
   if (!lesson) lesson = fallbackPlan(date);
 
-  // Cache (best-effort)
+  // Cache (best-effort). Overwrites prior cache when regenerated.
   await cacheLesson(date, lesson);
 
   return lesson;
