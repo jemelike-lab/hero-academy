@@ -1072,9 +1072,13 @@
     const guess = parseInt($('submitInput').value);
     if (isNaN(guess)) return;
     if (guess === r.answer) {
+      // v152 fix: setHumphreyMessage() clears the feedback element as part of
+      // its own "fresh question" setup. So we MUST call it FIRST, then set the
+      // feedback text after — otherwise the feedback gets wiped instantly and
+      // Nigel sees no acknowledgment that his answer was right.
+      setHumphreyMessage(`Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name} is ready to serve!`);
       $('feedback').textContent = `Yes — ${r.ingredients.map(i => i.count).join(' + ')} = ${r.answer}!`;
       $('feedback').className = 'feedback correct';
-      setHumphreyMessage(`Yes — ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. The ${r.name} is ready to serve!`);
       $('submitArea').classList.remove('visible');
       $('strategyReveal').classList.remove('visible');
       // Advance to next recipe
@@ -1087,9 +1091,10 @@
         }
       }, 2800);
     } else {
+      // Same fix — Humphrey message first, then feedback so it survives.
+      setHumphreyMessage(`Let's count together. ${r.ingredients.map(i => i.count).join(' plus ')}.`);
       $('feedback').textContent = `Hmm — that's ${guess}, not quite right. Let's count together: ${r.ingredients.map(i => i.count).join(' + ')}. Try again.`;
       $('feedback').className = 'feedback wrong';
-      setHumphreyMessage(`Let's count together. ${r.ingredients.map(i => i.count).join(' plus ')}.`);
     }
   }
 
