@@ -462,13 +462,15 @@
   NS.ClassTimeBoard = {
     mount,
     // Tools (each accepts a single object payload from ConvAI)
-    drawNumber:    (p) => drawNumber((p && (p.n ?? p.number)) ?? 0),
-    drawDots:      (p) => drawDots((p && (p.count ?? p.n)) ?? 0),
-    drawTenFrame:  (p) => drawTenFrame((p && (p.filled ?? p.n ?? p.count)) ?? 0),
-    writeWord:     (p) => writeWord((p && (p.word ?? p.text)) ?? ''),
-    writeLetter:   (p) => writeLetter((p && (p.letter ?? p.text)) ?? ''),
-    drawEquation:  (p) => drawEquation((p && (p.text ?? p.equation)) ?? ''),
-    showVisual:    (p) => showVisual((p && (p.topic ?? p.subject ?? p.text)) ?? ''),
+    // v154: maximally permissive parameter extraction — the agent may use
+    // any of: filled, count, n, number, value, dots, etc.
+    drawNumber:    (p) => drawNumber((p && (p.n ?? p.number ?? p.value ?? p.count)) ?? 0),
+    drawDots:      (p) => drawDots((p && (p.count ?? p.n ?? p.dots ?? p.value ?? p.number)) ?? 0),
+    drawTenFrame:  (p) => drawTenFrame((p && (p.filled ?? p.n ?? p.count ?? p.value ?? p.number)) ?? 0),
+    writeWord:     (p) => writeWord((p && (p.word ?? p.text ?? p.value)) ?? ''),
+    writeLetter:   (p) => writeLetter((p && (p.letter ?? p.text ?? p.char ?? p.value)) ?? ''),
+    drawEquation:  (p) => drawEquation((p && (p.text ?? p.equation ?? p.eq ?? p.value)) ?? ''),
+    showVisual:    (p) => showVisual((p && (p.topic ?? p.subject ?? p.text ?? p.value)) ?? ''),
     showLiveImage: (p) => showLiveImage(p || {}),
     clearBoard:    () => clearBoard(),
     // Nigel canvas

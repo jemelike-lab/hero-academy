@@ -199,12 +199,12 @@
     }
 
     const clientTools = {
-      drawNumber:   (p) => { NS.ClassTimeBoard.drawNumber(p);   const v = p?.n ?? p?.number ?? p?.value ?? '?'; console.log('[class-time] drawNumber', p); return `drew number ${v} on the board`; },
-      drawDots:     (p) => { NS.ClassTimeBoard.drawDots(p);     const v = p?.count ?? p?.n ?? p?.dots ?? '?'; console.log('[class-time] drawDots', p); return `drew ${v} dots on the board`; },
-      drawTenFrame: (p) => { NS.ClassTimeBoard.drawTenFrame(p); const v = p?.filled ?? p?.n ?? p?.count ?? '?'; console.log('[class-time] drawTenFrame', p); return `drew ten frame with ${v} filled circles on the board — verify this matches what you said`; },
-      writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    const v = p?.word ?? p?.text ?? '?'; console.log('[class-time] writeWord', p); return `wrote "${v}" on the board`; },
-      writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  const v = p?.letter ?? p?.char ?? '?'; console.log('[class-time] writeLetter', p); return `wrote letter "${v}" on the board`; },
-      drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); const v = p?.equation ?? p?.eq ?? p?.text ?? '?'; console.log('[class-time] drawEquation', p); return `drew equation "${v}" on the board`; },
+      drawNumber:   (p) => { NS.ClassTimeBoard.drawNumber(p);   const v = p?.n ?? p?.number ?? p?.value ?? p?.count ?? '?'; console.log('[class-time] drawNumber', p); return `drew number ${v} on the board`; },
+      drawDots:     (p) => { NS.ClassTimeBoard.drawDots(p);     const v = p?.count ?? p?.n ?? p?.dots ?? p?.value ?? p?.number ?? '?'; console.log('[class-time] drawDots', p); return `drew ${v} dots on the board`; },
+      drawTenFrame: (p) => { NS.ClassTimeBoard.drawTenFrame(p); const v = p?.filled ?? p?.n ?? p?.count ?? p?.value ?? p?.number ?? '?'; console.log('[class-time] drawTenFrame', p); return `drew ten frame with ${v} filled circles on the board — verify this matches what you said`; },
+      writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    const v = p?.word ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] writeWord', p); return `wrote "${v}" on the board`; },
+      writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  const v = p?.letter ?? p?.char ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] writeLetter', p); return `wrote letter "${v}" on the board`; },
+      drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); const v = p?.equation ?? p?.eq ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] drawEquation', p); return `drew equation "${v}" on the board`; },
       // v142: showVisual is now async — fetch a live Wikipedia image, fall back to SVG
       showVisual:   async (p) => {
         const subject = String(p?.subject ?? p?.topic ?? p?.text ?? '').trim();
