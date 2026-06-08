@@ -522,11 +522,14 @@
     }
 
     function boot() {
-      // Suppress the global Humphrey on this page — we have the embedded tab.
+      // Suppress the global Humphrey VISUAL on this page — Explorer's Hall
+      // has its own embedded Humphrey tab. But keep audio ENABLED so the
+      // expedition's _tts() calls actually produce sound. (v151: audioEnabled
+      // was false, which gate-blocked ALL TTS at humphrey.js:1042.)
       if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
         try {
           window.HeroAcademy.Humphrey.init({
-            position: 'bottom-left', audioEnabled: false, kidName: 'Nigel',
+            position: 'bottom-left', audioEnabled: true, kidName: 'Nigel',
           });
           window.HeroAcademy.Humphrey.hide();
         } catch (_) {}
@@ -563,6 +566,19 @@
             onComplete: function (res) {
               // Refresh the topbar count when a new stamp lands.
               if (res && res.wasNewStamp) refreshPassportCount();
+              // v151: mark zone complete for Today's Mission checkmark.
+              try {
+                var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+                var df = JSON.parse(localStorage.getItem(dk) || '{}');
+                df['explorer'] = true;
+                localStorage.setItem(dk, JSON.stringify(df));
+              } catch (_) {}
+              try {
+                if (window.HeroAcademy && window.HeroAcademy.TodayMission &&
+                    typeof window.HeroAcademy.TodayMission.markVisited === 'function') {
+                  window.HeroAcademy.TodayMission.markVisited('explorer');
+                }
+              } catch (_) {}
             },
           });
           window.__currentExpedition = exp;
