@@ -875,9 +875,22 @@
 
   function startIdleWatcher(thresholdMs = 45000, event = 'idle-too-long') {
     stopIdleWatcher();
+    // v147: fire() is the timer callback. Before queuing the idle prompt,
+    // check whether Humphrey is currently speaking or has anything queued.
+    // Without this guard, a long auto-read (Discovery Dome's fact + question +
+    // four choices easily exceeds 15s) gets interrupted mid-sentence by an
+    // idle nudge with priority:'high' that barges-in and stops the read.
+    // If she's busy, we re-arm a short re-check instead of firing.
+    const fire = () => {
+      if (state.speaking || (state.queue && state.queue.length > 0)) {
+        state.idleTimer = setTimeout(fire, 3000);
+        return;
+      }
+      say(event);
+    };
     const reset = () => {
       clearTimeout(state.idleTimer);
-      state.idleTimer = setTimeout(() => say(event), thresholdMs);
+      state.idleTimer = setTimeout(fire, thresholdMs);
     };
     state._idleResetFn = reset;
     ['pointerdown', 'keydown', 'touchstart'].forEach((evt) =>

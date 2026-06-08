@@ -523,7 +523,10 @@
         return;
       }
       showCard(session.queue[0]);
-      setupHumphreyIdleWatcher();
+      // v147: idle watcher removed. Discovery Dome auto-reads everything;
+      // an idle nudge added nothing and was interrupting reads (the 15s
+      // threshold was shorter than fact+question+choices read time).
+      // Humphrey speaks only on Humphrey-button tap now.
       wireHumphreyButton();
       maybeTopUpDiscoveryPool();
     }).catch(function () {
@@ -533,7 +536,7 @@
         return;
       }
       showCard(session.queue[0]);
-      setupHumphreyIdleWatcher();
+      // v147: idle watcher removed — see note above.
       wireHumphreyButton();
     });
   }
