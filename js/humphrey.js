@@ -964,24 +964,6 @@
 
   function speak(utterance) {
     return new Promise((resolve) => {
-      // v143: Pre-unlock guard. If audio is intended (enabled, not muted) but
-      // Chrome hasn't been unlocked yet on THIS document (no gesture since
-      // page nav), defer the WHOLE utterance — bubble + audio — until the
-      // first gesture instead of showing a silent bubble that fades before
-      // the audio gate ever opens. This was the Letter Lab regression: nav
-      // from home → letter-lab.html resets audioUnlocked to false, then
-      // letter-lab.js fires humphreySay() immediately on render and the
-      // welcome silently dropped. We resolve the speak promise immediately
-      // so pump() drains state.speaking; drainPendingUnlock() re-queues
-      // the most recent deferred utterance on first gesture.
-      if (state.cfg.audioEnabled && !isMuted() && !state.audioUnlocked) {
-        panelLog('DEFER pre-unlock: ' + utterance.event);
-        debug('speak deferred until audio unlock:', utterance.event);
-        state.pendingUnlockUtterance = utterance;
-        resolve();
-        return;
-      }
-
       // Build #voicefix: every new utterance must hard-stop any prior audio
       // before starting its own. Otherwise, when consecutive utterances land
       // on different engines (tryTTS on the warmed Audio element vs tryWebSpeech
@@ -1038,15 +1020,31 @@
 
       panelLog('speak gate: audioEnabled=' + state.cfg.audioEnabled +
                ' muted=' + isMuted() + ' unlocked=' + state.audioUnlocked);
-      if (!state.cfg.audioEnabled || isMuted() || !state.audioUnlocked) {
-        panelLog('SKIP audio (gate failed)');
+      // Muted / disabled = no audio attempt at all (correct silent path).
+      if (!state.cfg.audioEnabled || isMuted()) {
+        panelLog('SKIP audio (disabled or muted)');
         return;
       }
 
+      // v144: ALWAYS attempt playback, even when state.audioUnlocked is false.
+      // Installed PWAs on Android Chrome get autoplay grace via the Media
+      // Engagement Index — the previous v143 gate refused to even try, so
+      // on Letter Lab entry the kid saw a bubble with no audio. We trust
+      // playAudio to handle its own rejection: if play() actually fails
+      // (true cold browser w/ no MEI), we stash this utterance and replay
+      // it on the next user gesture via drainPendingUnlock(). The bubble
+      // stays visible during this attempt — same UX as today; the only
+      // difference is that successful PWA playback now happens immediately.
       playAudio(utterance).then((played) => {
-        if (!played) { panelLog('audio chain returned false (silent fallthrough)'); return; }
-        // If audio finishes earlier than display duration, leave the bubble up.
-        // If audio runs longer, extend display until audio ends.
+        if (played) return;
+        panelLog('audio chain returned false');
+        // Defer for retry only if we never unlocked. If audio was unlocked
+        // but TTS still failed (network, etc), don't loop — let the bubble
+        // fade and move on.
+        if (!state.audioUnlocked && !state.pendingUnlockUtterance) {
+          panelLog('audio failed pre-unlock → stashing for next gesture');
+          state.pendingUnlockUtterance = utterance;
+        }
       }).catch((err) => { panelLog('playAudio threw: ' + (err && err.message)); });
     });
   }
