@@ -149,11 +149,89 @@
     <button class="ha-today-reader-close" id="ha-today-reader-close" aria-label="Close">×</button>
     <h2 id="ha-today-reader-title"></h2>
     <div id="ha-today-reader-body"></div>
-    <div class="ha-today-reader-questions" id="ha-today-reader-questions" hidden>
-      <h3>Think about it</h3>
-      <ol id="ha-today-reader-qlist"></ol>
+    <!-- v149: interactive comprehension-question surface. Filled by JS once
+         body finishes reading. Each question shows the question text, a
+         "Question N of M" counter, four .answer-btn buttons (so they pick
+         up the existing .answer-btn.is-being-read pulse from humphrey.css),
+         a feedback row, and a Next button that surfaces after the answer. -->
+    <div class="ha-today-questions" id="ha-today-questions" hidden>
+      <div class="ha-today-q-counter" id="ha-today-q-counter"></div>
+      <div class="ha-today-q-text" id="ha-today-q-text"></div>
+      <div class="ha-today-choices" id="ha-today-choices"></div>
+      <div class="ha-today-q-feedback" id="ha-today-q-feedback"></div>
+      <button class="ha-today-q-next" id="ha-today-q-next" hidden>Next →</button>
     </div>
   </div>
+
+  <style>
+    /* v149: comprehension MCQ styling. Buttons use the .answer-btn class
+       so they inherit the highlight-while-reading pulse from humphrey.css. */
+    .ha-today-questions {
+      margin-top: 28px; padding: 22px;
+      background: rgba(20, 184, 212, 0.06);
+      border: 1px solid rgba(20, 184, 212, 0.22);
+      border-radius: 18px;
+      scroll-margin-top: 20px;
+    }
+    .ha-today-q-counter {
+      font: 600 13px/1.2 'Fredoka', sans-serif;
+      color: #14b8d4; letter-spacing: 0.06em; text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .ha-today-q-text {
+      font: 700 22px/1.35 'Fredoka', sans-serif;
+      color: #1a3140; margin-bottom: 18px;
+    }
+    .ha-today-choices {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-bottom: 14px;
+    }
+    .ha-today-choices .answer-btn {
+      background: #fff;
+      color: #1a3140;
+      border: 2px solid #14b8d4;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font: 600 16px/1.2 'Nunito', sans-serif;
+      cursor: pointer;
+      transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 2px 0 rgba(20, 184, 212, 0.35);
+      text-align: center;
+    }
+    .ha-today-choices .answer-btn:hover { background: rgba(20, 184, 212, 0.08); }
+    .ha-today-choices .answer-btn:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(20, 184, 212, 0.35); }
+    .ha-today-choices .answer-btn:disabled { cursor: default; opacity: 0.7; }
+    .ha-today-choices .answer-btn.is-correct {
+      background: #2ec27e; color: #fff; border-color: #1f7a3a;
+      box-shadow: 0 2px 0 #155a28;
+    }
+    .ha-today-choices .answer-btn.is-wrong {
+      background: #ef4444; color: #fff; border-color: #b91c1c;
+      box-shadow: 0 2px 0 #7a1414;
+    }
+    .ha-today-choices .answer-btn.show-correct {
+      outline: 4px solid #ffd147; outline-offset: 2px;
+    }
+    .ha-today-q-feedback {
+      min-height: 22px; text-align: center;
+      font: 700 15px/1.3 'Fredoka', sans-serif;
+      margin-bottom: 8px;
+    }
+    .ha-today-q-feedback.is-correct { color: #1f7a3a; }
+    .ha-today-q-feedback.is-wrong   { color: #b91c1c; }
+    .ha-today-q-next {
+      display: block; margin: 4px auto 0;
+      background: #14b8d4; color: #fff;
+      border: none; border-radius: 999px;
+      padding: 10px 22px; font: 700 14px/1 'Fredoka', sans-serif;
+      letter-spacing: 0.04em; cursor: pointer;
+      box-shadow: 0 3px 0 #0b6478;
+    }
+    .ha-today-q-next:active { transform: translateY(1px); box-shadow: 0 1px 0 #0b6478; }
+    @media (max-width: 520px) {
+      .ha-today-choices { grid-template-columns: 1fr; }
+    }
+  </style>
 
   <button class="humphrey-btn" id="humphreyBtn" aria-label="Talk to Miss Humphrey">
     <span class="humphrey-pulse"></span>
@@ -173,6 +251,7 @@
   <script src="js/humphrey-chat.js"></script>
   <script src="js/humphrey-memory.js"></script>
   <script src="js/humphrey-qna.js"></script>
+  <script src="js/humphrey-choices.js"></script>
 
   <!-- Content-of-One engine (Swing 3) -->
   <script src="js/daily-content.js"></script>
@@ -206,8 +285,13 @@
       const closeBtn = document.getElementById('ha-today-reader-close');
       const rTitle   = document.getElementById('ha-today-reader-title');
       const rBody    = document.getElementById('ha-today-reader-body');
-      const rQwrap   = document.getElementById('ha-today-reader-questions');
-      const rQlist   = document.getElementById('ha-today-reader-qlist');
+      // v149 surfaces
+      const qWrap    = document.getElementById('ha-today-questions');
+      const qCounter = document.getElementById('ha-today-q-counter');
+      const qText    = document.getElementById('ha-today-q-text');
+      const qChoices = document.getElementById('ha-today-choices');
+      const qFeedback = document.getElementById('ha-today-q-feedback');
+      const qNext    = document.getElementById('ha-today-q-next');
 
       if (!window.HeroAcademy || !window.HeroAcademy.DailyContent) return;
       const result = await window.HeroAcademy.DailyContent.get('story');
@@ -219,6 +303,10 @@
       previewEl.textContent = firstPara;
       card.hidden = false;
 
+      // Track the multi-choice session state so the close handler and the
+      // Next button know what to do.
+      let qSession = null;
+
       ctaBtn.addEventListener('click', function () {
         rTitle.textContent = s.title || "Today's Adventure";
         rBody.innerHTML = '';
@@ -228,45 +316,49 @@
           p.textContent = para.trim();
           rBody.appendChild(p);
         });
-        if (Array.isArray(s.comprehension_questions) && s.comprehension_questions.length) {
-          rQlist.innerHTML = '';
-          s.comprehension_questions.forEach(function (q) {
-            const li = document.createElement('li');
-            li.textContent = q.q;
-            rQlist.appendChild(li);
-          });
-          rQwrap.hidden = false;
-        }
+        // Reset the question surface — it'll be populated in Phase B once
+        // the body finishes reading.
+        qWrap.hidden = true;
+        qChoices.innerHTML = '';
+        qFeedback.textContent = '';
+        qFeedback.className = 'ha-today-q-feedback';
+        qNext.hidden = true;
+
         reader.hidden = false;
         window.scrollTo(0, 0);
-        // Fire-and-forget telemetry: mark today's story as surfaced
         window.HeroAcademy.DailyContent.markUsed('story');
 
-        // v148: actually READ the story to Nigel. Previously this fired a
-        // single broken H.say({obj}) call (wrong signature — event arg was
-        // an object, so it resolved to CATALOG['_default'] and Humphrey
-        // spoke a generic fallback line instead of the intro AND the body
-        // was never read at all). Now we queue the intro, every paragraph
-        // of the body, and (if present) the comprehension questions as
-        // separate H.say('try-again-reading', { text }) calls. Humphrey's
-        // built-in queue plays them serially. Paragraphs longer than the
-        // 500-char TTS cap are split on sentence boundaries first.
-        try {
-          const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
-          if (H && typeof H.say === 'function') {
-            const chunks = buildReadChunks(s);
-            chunks.forEach(function (chunk) {
-              H.say('try-again-reading', {
-                kidName: 'Nigel',
-                text: chunk,
-                expression: 'encouraging',
-              });
-            });
-          }
-        } catch (_) {}
+        // v149 — two-phase read:
+        //   Phase A: queue intro + body paragraphs as separate H.say calls.
+        //   Phase B: when Phase A's last promise resolves, scroll the
+        //            question surface into view and start the interactive
+        //            multi-choice loop using HumphreyChoices.speakWithHighlights.
+        // Falls back to v148 read-only behaviour for old-shape data (no
+        // choices) — the cron has to regenerate today's story before the
+        // interactive UI lights up.
+        const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        if (!H || typeof H.say !== 'function') return;
+
+        const bodyChunks = buildBodyChunks(s);
+        let lastPromise = Promise.resolve();
+        bodyChunks.forEach(function (chunk) {
+          lastPromise = H.say('try-again-reading', {
+            kidName: 'Nigel',
+            text: chunk,
+            expression: 'encouraging',
+          });
+        });
+
+        // After the body, kick off Phase B.
+        if (lastPromise && typeof lastPromise.then === 'function') {
+          lastPromise.then(function () { startQuestionPhase(s); })
+                     .catch(function () { startQuestionPhase(s); });
+        } else {
+          startQuestionPhase(s);
+        }
       });
 
-      // v148: split a paragraph or any long line into ≤450-char chunks on
+      // v149: split a paragraph or any long line into ≤450-char chunks on
       // sentence boundaries. The TTS proxy caps at 500 chars per request;
       // 450 leaves a margin for the punctuation we re-append.
       function splitForTts(text) {
@@ -282,7 +374,6 @@
           if (!sentence) return;
           if ((buf + ' ' + sentence).trim().length > MAX) {
             if (buf) out.push(buf.trim());
-            // If a single sentence still exceeds MAX, hard-split on words.
             if (sentence.length > MAX) {
               const words = sentence.split(/\s+/);
               let line = '';
@@ -306,31 +397,204 @@
         return out;
       }
 
-      function buildReadChunks(story) {
+      // v149: body-only chunks (intro + paragraphs). Questions are handled
+      // by the interactive Phase B loop, not queued upfront.
+      function buildBodyChunks(story) {
         const out = [];
         out.push("I wrote a story just for you today, Nigel. Listen along.");
-        const paragraphs = (story.body || '').split('\n\n');
-        paragraphs.forEach(function (para) {
+        (story.body || '').split('\n\n').forEach(function (para) {
           splitForTts(para).forEach(function (c) { out.push(c); });
         });
-        if (Array.isArray(story.comprehension_questions) && story.comprehension_questions.length) {
-          out.push("Now let's think about it.");
-          story.comprehension_questions.forEach(function (q) {
-            if (q && q.q) splitForTts(q.q).forEach(function (c) { out.push(c); });
+        return out;
+      }
+
+      // -------- Phase B: interactive comprehension Q&A --------------------
+      function startQuestionPhase(story) {
+        const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        if (!H) return;
+
+        const all = Array.isArray(story.comprehension_questions) ? story.comprehension_questions : [];
+        // Only questions with proper MCQ shape go into the interactive flow.
+        // Old-shape items (just q + a) fall back to v148 read-only behaviour.
+        const mcq = all.filter(function (q) {
+          return q && typeof q.q === 'string' &&
+                 Array.isArray(q.choices) && q.choices.length >= 2 &&
+                 typeof q.answer_index === 'number' &&
+                 q.answer_index >= 0 && q.answer_index < q.choices.length;
+        });
+
+        if (mcq.length === 0) {
+          // Backward compat: today's story (generated under the old schema)
+          // has no choices. Queue the questions as text-only reads.
+          if (all.length > 0) {
+            H.say('try-again-reading', { kidName: 'Nigel', text: "Now let's think about it.", expression: 'encouraging' });
+            all.forEach(function (q) {
+              if (q && q.q) splitForTts(q.q).forEach(function (c) {
+                H.say('try-again-reading', { kidName: 'Nigel', text: c, expression: 'encouraging' });
+              });
+            });
+          }
+          return;
+        }
+
+        qSession = { questions: mcq, idx: 0, answeredCorrect: 0 };
+        qWrap.hidden = false;
+        // Pull the question surface into view so Nigel knows where to look.
+        setTimeout(function () {
+          try { qWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
+        }, 250);
+        // Brief redirect line so Nigel knows we're switching from reading
+        // to thinking. Spoken FIRST, then the question fires after.
+        H.say('try-again-reading', {
+          kidName: 'Nigel',
+          text: "Great listening, Nigel. Now look at the questions below — tap the right answer for each.",
+          expression: 'encouraging',
+        });
+        presentQuestion();
+      }
+
+      function presentQuestion() {
+        if (!qSession) return;
+        const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        const HC = window.HeroAcademy && window.HeroAcademy.HumphreyChoices;
+        const i = qSession.idx;
+        const total = qSession.questions.length;
+        if (i >= total) { finishQuestionPhase(); return; }
+        const q = qSession.questions[i];
+
+        qCounter.textContent = 'Question ' + (i + 1) + ' of ' + total;
+        qText.textContent = q.q;
+        qFeedback.textContent = '';
+        qFeedback.className = 'ha-today-q-feedback';
+        qNext.hidden = true;
+        qChoices.innerHTML = '';
+
+        q.choices.forEach(function (choice, choiceIdx) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'answer-btn';
+          btn.textContent = String(choice);
+          btn.dataset.choiceIdx = String(choiceIdx);
+          btn.addEventListener('click', function () { handleChoiceTap(choiceIdx, btn); });
+          qChoices.appendChild(btn);
+        });
+
+        // Use HumphreyChoices.speakWithHighlights so each choice button
+        // pulses while its TTS audio plays. Matches Discovery Dome's UX.
+        if (HC && typeof HC.speakWithHighlights === 'function') {
+          HC.speakWithHighlights({
+            event: 'try-again-reading',
+            questionText: q.q,
+            choices: q.choices.map(String),
+            container: '#ha-today-choices',
+            choiceSelector: '.answer-btn',
+            expression: 'encouraging',
+          });
+        } else if (H && typeof H.say === 'function') {
+          // Fallback if humphrey-choices.js failed to load — just read
+          // question + choices serially, no highlight.
+          H.say('try-again-reading', { kidName: 'Nigel', text: q.q, expression: 'encouraging' });
+          q.choices.forEach(function (c) {
+            H.say('try-again-reading', { kidName: 'Nigel', text: String(c), expression: 'encouraging' });
           });
         }
-        return out;
+      }
+
+      function handleChoiceTap(pickedIdx, btn) {
+        if (!qSession) return;
+        const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        const HC = window.HeroAcademy && window.HeroAcademy.HumphreyChoices;
+        // Cancel any in-flight choice readout so the next utterance comes
+        // through cleanly without barging in mid-choice.
+        try { if (HC && HC.cancel) HC.cancel(); } catch (_) {}
+
+        const q = qSession.questions[qSession.idx];
+        const correctIdx = q.answer_index;
+        const btns = qChoices.querySelectorAll('.answer-btn');
+        btns.forEach(function (b) { b.disabled = true; b.classList.remove('is-being-read'); });
+
+        if (pickedIdx === correctIdx) {
+          btn.classList.add('is-correct');
+          qFeedback.textContent = "Yes — that's right!";
+          qFeedback.className = 'ha-today-q-feedback is-correct';
+          qSession.answeredCorrect++;
+          if (H) {
+            H.say('correct-answer-reading', {
+              kidName: 'Nigel',
+              text: "Yes — " + String(q.choices[correctIdx]) + ". That's right.",
+              expression: 'cheering',
+              priority: 'high',
+            });
+          }
+        } else {
+          btn.classList.add('is-wrong');
+          // Highlight the correct one so he learns it.
+          btns.forEach(function (b) {
+            if (parseInt(b.dataset.choiceIdx, 10) === correctIdx) {
+              b.classList.add('show-correct');
+            }
+          });
+          qFeedback.textContent = "Not quite — the right answer is: " + String(q.choices[correctIdx]);
+          qFeedback.className = 'ha-today-q-feedback is-wrong';
+          if (H) {
+            H.say('wrong-answer-reading', {
+              kidName: 'Nigel',
+              text: "Not quite. The answer is " + String(q.choices[correctIdx]) + ".",
+              expression: 'concerned',
+              priority: 'high',
+            });
+          }
+        }
+        // Surface the Next button so Nigel paces himself instead of being
+        // auto-advanced mid-thought.
+        qNext.textContent = (qSession.idx + 1 >= qSession.questions.length) ? 'See how I did →' : 'Next question →';
+        qNext.hidden = false;
+      }
+
+      qNext.addEventListener('click', function () {
+        if (!qSession) return;
+        qSession.idx++;
+        presentQuestion();
+      });
+
+      function finishQuestionPhase() {
+        if (!qSession) return;
+        const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+        const got = qSession.answeredCorrect;
+        const total = qSession.questions.length;
+        qCounter.textContent = 'All done';
+        qText.textContent = 'You answered ' + got + ' of ' + total + ' correctly.';
+        qChoices.innerHTML = '';
+        qFeedback.textContent = '';
+        qFeedback.className = 'ha-today-q-feedback';
+        qNext.hidden = true;
+        if (H) {
+          const text = (got === total)
+            ? "Perfect score, Nigel. You were really listening."
+            : ("Good work, Nigel. You got " + got + " out of " + total + ".");
+          H.say('correct-answer-reading', {
+            kidName: 'Nigel',
+            text: text,
+            expression: 'cheering',
+            priority: 'high',
+          });
+        }
+        qSession = null;
       }
 
       closeBtn.addEventListener('click', function () {
         reader.hidden = true;
         // v148: silence any in-flight or queued story read so closing the
-        // overlay actually stops Humphrey. Without this she keeps narrating
-        // an invisible story to the home screen.
+        // overlay actually stops Humphrey.
+        try {
+          const HC = window.HeroAcademy && window.HeroAcademy.HumphreyChoices;
+          if (HC && HC.cancel) HC.cancel();
+        } catch (_) {}
         try {
           const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
           if (H && typeof H.stop === 'function') H.stop();
         } catch (_) {}
+        qSession = null;
       });
     })();
   </script>

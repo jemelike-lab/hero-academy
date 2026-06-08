@@ -108,9 +108,9 @@ Return ONE valid JSON object, no markdown fences, no preamble. Exact schema:
     "title": "string, 2-6 words",
     "body": "string, 200-300 words, broken into 4-6 paragraphs separated by \\n\\n, featuring Nigel as protagonist",
     "comprehension_questions": [
-      { "q": "string", "a": "string" },
-      { "q": "string", "a": "string" },
-      { "q": "string", "a": "string" }
+      { "q": "string — clear question grounded in the story", "choices": ["short string","short string","short string","short string"], "answer_index": 0 },
+      { "q": "string", "choices": ["string","string","string","string"], "answer_index": 1 },
+      { "q": "string", "choices": ["string","string","string","string"], "answer_index": 2 }
     ],
     "theme_word": "string — one word that anchors the story (e.g. 'persistence', 'friendship', 'curiosity')"
   },
@@ -132,6 +132,14 @@ Return ONE valid JSON object, no markdown fences, no preamble. Exact schema:
     ]
   }
 }
+
+COMPREHENSION QUESTIONS — important details:
+- Generate exactly 3 questions. Each is multiple choice with 4 short choices (1-4 words each).
+- One choice is the correct answer, taken directly from the story.
+- The other three are plausible distractors — related to the story's people/places/objects/actions but factually wrong about THIS question.
+- Distractors must not be obviously silly (no jokes, no totally unrelated nouns) — they should feel like reasonable guesses a 2nd-grader might make if they weren't paying attention.
+- `answer_index` is the 0-based index of the correct choice in the `choices` array.
+- Vary which index is correct across the three questions (don't always put it first).
 
 Generate today's content. Make it specific, warm, and recognizably about Nigel's actual life.`;
 }
@@ -208,6 +216,22 @@ export default async function handler(req, res) {
     }
     if (!Array.isArray(content.math_problems) || content.math_problems.length < 3) {
       return res.status(500).json({ error: 'math_problems_too_few' });
+    }
+    // v149: validate comprehension question shape so story-lab's MCQ UI gets
+    // well-formed data. We accept >=2 choices and answer_index in range.
+    const cqs = (content.story && content.story.comprehension_questions) || [];
+    for (let i = 0; i < cqs.length; i++) {
+      const q = cqs[i];
+      if (!q || typeof q.q !== 'string') {
+        return res.status(500).json({ error: `comprehension_question_${i}_missing_q` });
+      }
+      if (!Array.isArray(q.choices) || q.choices.length < 2) {
+        return res.status(500).json({ error: `comprehension_question_${i}_choices_invalid` });
+      }
+      if (typeof q.answer_index !== 'number' ||
+          q.answer_index < 0 || q.answer_index >= q.choices.length) {
+        return res.status(500).json({ error: `comprehension_question_${i}_answer_index_invalid` });
+      }
     }
 
     // Write all four payloads
