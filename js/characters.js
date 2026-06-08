@@ -144,15 +144,18 @@
     return eligible[Math.floor(Math.random() * eligible.length)];
   }
 
-  // --- Speech (Web Speech, v0.1) ---------------------------------------
+  // --- Speech (Humphrey only — no Web Speech fallback) -----------------
+  // v145: Surprise Squad voice lines used to fall through to window.speechSynthesis,
+  // which played whatever default voice the OS handed Chrome (Android system voice
+  // on the Galaxy Tab, Samantha on iOS, etc.). That was the "random voice swap"
+  // Nigel kept hearing. We now route everything through Ms. Humphrey's TTS; if
+  // she isn't loaded for any reason, the popup stays silent. Silence is correct
+  // here — a stray default-voice utterance is worse than no audio.
   function speakLine(text) {
-    try {
-      if (!window.speechSynthesis) return;
-      // Don't stomp on Miss Humphrey mid-sentence
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1; u.pitch = 1.15; u.volume = 0.95;
-      window.speechSynthesis.speak(u);
-    } catch (e) {}
+    const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+    if (H && typeof H.say === 'function') {
+      try { H.say('quick-praise', { kidName: 'Nigel', text: text }); } catch (e) {}
+    }
   }
 
   // --- Overlay scaffolding ---------------------------------------------

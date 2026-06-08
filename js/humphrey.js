@@ -39,7 +39,12 @@
     maxDurationMs: 12000,
     assetBase: '/assets/humphrey/',
     ttsEndpoint: '/api/humphrey/tts',    // Vercel serverless → ElevenLabs TTS
-    fallbackToWebSpeech: true,
+    // v145: HARD OFF. Falling back to window.speechSynthesis on a TTS failure
+    // played a different default voice on every device (Galaxy Tab system voice,
+    // iOS Samantha, etc.) which read as Ms. Humphrey "randomly switching." A
+    // missed utterance is now silent — the on-screen panelLog + console.error
+    // at the failure sites still surface the cause for diagnosis.
+    fallbackToWebSpeech: false,
     skipPrerendered: true,             // pre-rendered MP3s don't exist yet; skip 1.5s wait
     debug: false,
     // 1.3 — Auto-welcome: each page passes its own event key. After the first

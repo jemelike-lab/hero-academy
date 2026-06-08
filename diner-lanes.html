@@ -137,17 +137,15 @@ let state = {
 };
 
 // === Voice ===
-// Resolved: now delegates to Ms. Humphrey's ElevenLabs voice when loaded.
+// v145: Humphrey-only. If she isn't loaded yet (SW install window), we go
+// silent rather than fall through to window.speechSynthesis with the OS
+// default voice — that was the audible "voice swap" symptom.
 function speak(text) {
   if (state.muted) return;
-  if (window.HeroAcademy && window.HeroAcademy.Humphrey && typeof window.HeroAcademy.Humphrey.say === 'function') {
-    try { window.HeroAcademy.Humphrey.say('try-again-reading', { kidName: 'Nigel', text: text }); return; } catch (e) {}
+  const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+  if (H && typeof H.say === 'function') {
+    try { H.say('try-again-reading', { kidName: 'Nigel', text: text }); } catch (e) {}
   }
-  if (!window.speechSynthesis) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.95; u.pitch = 1.05; u.volume = 0.9;
-  speechSynthesis.speak(u);
 }
 
 class DinerScene extends Phaser.Scene {

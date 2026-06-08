@@ -586,31 +586,27 @@
   const $ = (id) => document.getElementById(id);
 
   // ----- TTS routing -----
+  // v145: Route through Humphrey.say instead of fetching /api/humphrey/tts and
+  // building our own `new Audio(url)`. The fresh element pattern was getting
+  // silently rejected by Android Chrome's autoplay policy on the Galaxy Tab —
+  // see humphrey.js:1198 comment. Humphrey owns the gesture-warmed audio
+  // element and reuses it across utterances, which is the only reliable
+  // pattern on Android Chrome PWA.
   async function tts(text) {
-    if (state.currentAudio) {
-      try { state.currentAudio.pause(); } catch (_) {}
-      state.currentAudio = null;
+    if (!text) return null;
+    const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+    if (!H || typeof H.say !== 'function') {
+      setTimeout(stopPulse, 2500);
+      return null;
     }
     try {
-      const resp = await fetch('/api/humphrey/tts', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      if (!resp.ok) throw new Error('TTS ' + resp.status);
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      state.currentAudio = audio;
-      audio.addEventListener('ended', () => {
-        URL.revokeObjectURL(url);
-        if (state.currentAudio === audio) state.currentAudio = null;
-        stopPulse();
-      });
-      await audio.play().catch(() => {});
-      return audio;
+      // priority:'high' barges-in any in-flight utterance, preserving the
+      // prior behavior where we paused state.currentAudio before speaking.
+      const p = H.say('cauldron-step', { kidName: 'Nigel', text: String(text), priority: 'high' });
+      // Humphrey.say resolves when she's done — stop the local pulse then.
+      Promise.resolve(p).then(stopPulse).catch(stopPulse);
+      return p;
     } catch (e) {
-      // Fall back to silent — pulse will time out anyway
       setTimeout(stopPulse, 2500);
       return null;
     }

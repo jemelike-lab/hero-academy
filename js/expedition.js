@@ -88,49 +88,28 @@
     this._destroyed = false;
   }
 
-  // -- TTS routing (mirrors v125 Cauldron + v126/127 Explorer's Hall) --------
+  // -- TTS routing -----------------------------------------------------------
+  // v145: Route through Humphrey.say instead of fetching /api/humphrey/tts and
+  // building our own `new Audio(url)`. The fresh-element pattern was getting
+  // silently rejected by Android Chrome's autoplay policy on the Galaxy Tab —
+  // see humphrey.js:1198 comment. Humphrey owns the gesture-warmed audio
+  // element. Pulse UI remains expedition-local.
   Expedition.prototype._tts = function (text) {
     if (!text || this._destroyed) return Promise.resolve(null);
     var self = this;
-    // Interrupt any in-flight audio.
-    if (this.currentAudio) {
-      try { this.currentAudio.pause(); } catch (_) {}
-      this.currentAudio = null;
+    var H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+    if (!H || typeof H.say !== 'function') {
+      setTimeout(function () { if (!self._destroyed) self._stopPulse(); }, 2500);
+      return Promise.resolve(null);
     }
     this._startPulse();
-    return fetch('/api/humphrey/tts', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: String(text) }),
-    })
-      .then(function (r) { if (!r.ok) throw new Error('tts ' + r.status); return r.blob(); })
-      .then(function (blob) {
-        if (self._destroyed) return null;
-        var url = URL.createObjectURL(blob);
-        var audio = new Audio(url);
-        self.currentAudio = audio;
-        audio.addEventListener('ended', function () {
-          URL.revokeObjectURL(url);
-          if (self.currentAudio === audio) self.currentAudio = null;
-          self._stopPulse();
-        });
-        audio.addEventListener('error', function () {
-          URL.revokeObjectURL(url);
-          if (self.currentAudio === audio) self.currentAudio = null;
-          self._stopPulse();
-        });
-        return audio.play().catch(function () {
-          // Autoplay may be blocked on first paint — keep the pulse so the
-          // child knows to tap Humphrey to hear it.
-          return null;
-        });
-      })
-      .catch(function () {
-        // Network/model error — drop the pulse after a beat so the UI doesn't
-        // appear stuck on the very first phase.
-        setTimeout(function () { self._stopPulse(); }, 2500);
-        return null;
-      });
+    // priority:'high' interrupts any in-flight Humphrey utterance, matching
+    // the prior behavior where we paused this.currentAudio explicitly.
+    return Promise.resolve(
+      H.say('expedition-narration', { kidName: 'Nigel', text: String(text), priority: 'high' })
+    )
+      .then(function () { if (!self._destroyed) self._stopPulse(); })
+      .catch(function () { if (!self._destroyed) self._stopPulse(); });
   };
 
   Expedition.prototype._startPulse = function () {

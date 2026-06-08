@@ -815,23 +815,15 @@
   }
 
   // ====================== Helpers ======================
+  // v145: Humphrey-only. Removed window.speechSynthesis fallback — a missed
+  // utterance is silent, not swapped to the OS default voice.
   function sayHumphrey(eventName, fallbackText){
     if (state.muted) return;
     try {
       if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
         window.HeroAcademy.Humphrey.say(eventName, { kidName: 'Nigel', text: fallbackText });
-        return;
       }
     } catch(e){}
-    // Fallback to local TTS only if Humphrey isn't loaded
-    if (window.speechSynthesis && fallbackText) {
-      try {
-        speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(fallbackText);
-        u.rate = 0.96; u.pitch = 1.05;
-        speechSynthesis.speak(u);
-      } catch(e){}
-    }
   }
 
   function recordPractice(itemId, eventType, correct){
