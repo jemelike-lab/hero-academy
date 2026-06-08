@@ -964,6 +964,24 @@
 
   function speak(utterance) {
     return new Promise((resolve) => {
+      // v143: Pre-unlock guard. If audio is intended (enabled, not muted) but
+      // Chrome hasn't been unlocked yet on THIS document (no gesture since
+      // page nav), defer the WHOLE utterance — bubble + audio — until the
+      // first gesture instead of showing a silent bubble that fades before
+      // the audio gate ever opens. This was the Letter Lab regression: nav
+      // from home → letter-lab.html resets audioUnlocked to false, then
+      // letter-lab.js fires humphreySay() immediately on render and the
+      // welcome silently dropped. We resolve the speak promise immediately
+      // so pump() drains state.speaking; drainPendingUnlock() re-queues
+      // the most recent deferred utterance on first gesture.
+      if (state.cfg.audioEnabled && !isMuted() && !state.audioUnlocked) {
+        panelLog('DEFER pre-unlock: ' + utterance.event);
+        debug('speak deferred until audio unlock:', utterance.event);
+        state.pendingUnlockUtterance = utterance;
+        resolve();
+        return;
+      }
+
       // Build #voicefix: every new utterance must hard-stop any prior audio
       // before starting its own. Otherwise, when consecutive utterances land
       // on different engines (tryTTS on the warmed Audio element vs tryWebSpeech
@@ -1369,6 +1387,31 @@
     }, 250);
   }
 
+  /**
+   * v143 — Replays the most recent utterance that was deferred because
+   * audio wasn't unlocked yet. Called from the unlock callback right after
+   * maybeAutoWelcome(). We replay only the LAST deferred utterance (not
+   * a queue) because anything older is stale by the time the user finally
+   * tapped — if Letter Lab fired three say()s before unlock, the user only
+   * needs to hear the current one. 250ms gives the audio primer a beat
+   * to warm the element before re-speak().
+   */
+  function drainPendingUnlock() {
+    if (!state.pendingUnlockUtterance) return;
+    const utterance = state.pendingUnlockUtterance;
+    state.pendingUnlockUtterance = null;
+    panelLog('drainPendingUnlock firing: ' + utterance.event);
+    debug('drainPendingUnlock replaying:', utterance.event);
+    setTimeout(function () {
+      // Push directly onto the queue head and pump — we already built the
+      // utterance via resolveUtterance() in the first say() call, so we
+      // skip rebuild and let speak() handle it cleanly now that the gate
+      // will pass.
+      state.queue.unshift(utterance);
+      pump();
+    }, 250);
+  }
+
   function setupAudioUnlock() {
     const unlock = (ev) => {
       panelLog('gesture ' + (ev && ev.type) + ' (unlocked=' + state.audioUnlocked + ')');
@@ -1379,6 +1422,9 @@
       debug('audio unlocked (synchronous flag set in user gesture)');
       // 1.3 — Auto-welcome on first gesture, once per day per page.
       try { maybeAutoWelcome(); } catch (e) { debug('autoWelcome err', e); }
+      // v143 — Drain any speak() that fired before this gesture (Letter Lab
+      // and any other zone that calls Humphrey.say() on initial render).
+      try { drainPendingUnlock(); } catch (e) { debug('drainPendingUnlock err', e); }
       try {
         // Create ONE reusable <audio> element and warm it synchronously inside
         // this gesture. Android Chrome's autoplay policy is tracked per

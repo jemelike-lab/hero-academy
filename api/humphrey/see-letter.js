@@ -30,12 +30,34 @@ const HAIKU_MODEL = 'claude-haiku-4-5';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MEDIA_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
+// v143: Canvas PNG composites (Nigel's strokes + Humphrey's demo layer) can
+// run past the 1MB default and into the multi-MB range. Raise to 8MB so the
+// Vercel parser doesn't silently drop the body before our handler sees it.
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '8mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST only' });
   }
 
   let body = req.body;
+  // v143: When Vercel's parser doesn't recognize the content-type or runs
+  // into edge cases on tablet PWA fetches, req.body can land as a Buffer
+  // or undefined instead of the parsed object. Handle both fallbacks
+  // before declaring the image missing — otherwise we 400 a valid request.
+  if (Buffer.isBuffer(body)) {
+    try { body = JSON.parse(body.toString('utf8')); }
+    catch (e) {
+      console.log('[see-letter] body was Buffer but JSON.parse failed; len=', body.length);
+      body = {};
+    }
+  }
   if (typeof body === 'string') {
     try { body = JSON.parse(body); } catch (_) { body = {}; }
   }
@@ -48,12 +70,17 @@ export default async function handler(req, res) {
   const targetKind = String(body.target_kind || 'upper').trim().toLowerCase();
   const ALLOWED_KINDS = new Set(['upper', 'lower', 'digit', 'multi-digit']);
   if (!rawImage || typeof rawImage !== 'string') {
+    // v143 diagnostic: surface which 400 fired so the next test reveals the cause.
+    console.log('[see-letter] 400 no_image — typeof body.image=', typeof rawImage,
+      'body keys=', Object.keys(body || {}).join(','));
     return res.status(400).json({ error: 'no_image' });
   }
   if (!targetLetter || !/^[A-Za-z0-9]{1,3}$/.test(targetLetter)) {
+    console.log('[see-letter] 400 no_letter — received=', JSON.stringify(targetLetter));
     return res.status(400).json({ error: 'no_letter' });
   }
   if (!ALLOWED_KINDS.has(targetKind)) {
+    console.log('[see-letter] 400 bad_kind — received=', JSON.stringify(targetKind));
     return res.status(400).json({ error: 'bad_kind', detail: targetKind });
   }
 
@@ -65,6 +92,7 @@ export default async function handler(req, res) {
     imageData = dataUrlMatch[2];
   }
   if (!ALLOWED_MEDIA_TYPES.has(mediaType)) {
+    console.log('[see-letter] 400 unsupported_media_type — received=', JSON.stringify(mediaType));
     return res.status(400).json({ error: 'unsupported_media_type', detail: mediaType });
   }
   const approxBytes = (imageData.length * 3) / 4;
