@@ -310,6 +310,19 @@
     outline: 4px solid var(--fire-amber);
     outline-offset: 2px;
   }
+  /* v146: Skip-to-next-recipe button. Lower-key styling than answer-btn so it
+     doesn't compete for attention with the primary question UI. */
+  .skip-btn {
+    display: block; margin: 12px auto 0;
+    background: transparent; color: var(--parchment);
+    border: 1px dashed rgba(214, 184, 137, 0.55);
+    border-radius: 10px; padding: 6px 14px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+    opacity: 0.72; cursor: pointer;
+    transition: opacity 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .skip-btn:hover { opacity: 1; background: rgba(214, 184, 137, 0.08); }
+  .skip-btn:active { transform: translateY(1px); }
   .feedback { font-size: 14px; min-height: 18px; text-align: center; font-weight: 600; }
   .feedback.correct { color: #2e6b27; }
   .feedback.wrong { color: #c0392b; }
@@ -530,6 +543,11 @@
   <div class="strategy-reveal" id="strategyReveal">
     <div class="strategy-eq" id="strategyEq"></div>
   </div>
+  <!-- v146: Skip-to-next-question button. Hidden until the play loop starts;
+       hidden again during 'boot' and 'complete' phases. Skipping advances to
+       the next recipe (not the next micro-question) so Nigel cleanly moves
+       past a recipe he's stuck on without grinding through every bunch. -->
+  <button type="button" class="skip-btn" id="skipQuestionBtn" hidden>Skip ▶</button>
 </section>
 
 <!-- Today's Special overlay (5 AI word problems from daily cron) -->
@@ -861,6 +879,9 @@
     r.ingredients.forEach(ing => { state.ingredientCounts[ing.veggie.id] = 0; });
     renderRecipeHeader();
     renderTenFrames();
+    // v146: show the Skip button now that a real recipe is live. Hidden in
+    // boot/complete phases by startComplete() and the initial hidden attribute.
+    showSkip();
     // Brief recipe intro
     const intro = `Tonight's recipe: ${r.name}. ${r.prompt}`;
     setHumphreyMessage(intro);
@@ -1070,6 +1091,30 @@
 
   function startComplete() {
     state.phase = 'complete';
+
+    // v146: Mark zone complete for Today's Mission so the bullseye 🎯 flips
+    // to a checkmark ✅. The mission system gates completion on
+    // `zoneProgress[zone] > baseline[zone]`; bumping the local app state and
+    // firing the RPC together satisfies both the home-page render and the
+    // parent-dashboard recall.
+    try {
+      var rawState = localStorage.getItem('hero_academy_state_v1');
+      var appState = rawState ? JSON.parse(rawState) : {};
+      appState.zoneProgress = appState.zoneProgress || {};
+      var prev = appState.zoneProgress['number-lab'] || 0;
+      appState.zoneProgress['number-lab'] = Math.min(100, prev + 15);
+      localStorage.setItem('hero_academy_state_v1', JSON.stringify(appState));
+    } catch (_) {}
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.TodayMission &&
+          typeof window.HeroAcademy.TodayMission.markVisited === 'function') {
+        window.HeroAcademy.TodayMission.markVisited('number-lab');
+      }
+    } catch (_) {}
+
+    // Hide the skip button — there's nothing left to skip past.
+    hideSkip();
+
     $('recipeName').textContent = "That's the whole menu!";
     $('recipeSub').textContent = 'Beautiful work in my kitchen today.';
     $('recipeProgress').innerHTML = '';
@@ -1079,6 +1124,31 @@
     $('strategyReveal').classList.remove('visible');
     emptyBasket('Service complete');
   }
+
+  // v146: Skip button — advances past the current recipe without requiring
+  // a correct answer on the remaining bunches/bridge/cross/submit. Gives
+  // Nigel an out when he's stuck without forcing him to grind through.
+  function showSkip()   { var b = $('skipQuestionBtn'); if (b) b.hidden = false; }
+  function hideSkip()   { var b = $('skipQuestionBtn'); if (b) b.hidden = true; }
+  function onSkipTap() {
+    if (state.phase === 'complete' || state.phase === 'boot') return;
+    state.currentRecipeIdx++;
+    if (state.currentRecipeIdx >= state.recipes.length) {
+      startComplete();
+    } else {
+      // Clear in-progress submit UI before the next recipe boots.
+      $('submitArea').classList.remove('visible');
+      $('strategyReveal').classList.remove('visible');
+      $('feedback').textContent = '';
+      $('feedback').className = 'feedback';
+      startRecipe();
+    }
+  }
+  (function wireSkipButton() {
+    var btn = $('skipQuestionBtn');
+    if (!btn) return;
+    btn.addEventListener('click', onSkipTap);
+  })();
 
   // ===================================================================
   // Recipe fetching (from /api/cauldron-recipes — Haiku-generated, fresh per visit)
@@ -1451,6 +1521,7 @@ document.addEventListener('DOMContentLoaded', boot);
 <script src="/js/telemetry.js"></script>
 <script src="https://unpkg.com/@elevenlabs/client@1.9.0/dist/lib.iife.js" defer></script>
 <script src="/js/daily-content.js"></script>
+<script src="/js/break-timer.js" defer></script>
 <div id="ccVoiceOverlay" class="cc-voice-overlay" hidden>
   <div class="cc-voice-card">
     <div class="cc-voice-eyebrow">Talking with Ms. Humphrey</div>
