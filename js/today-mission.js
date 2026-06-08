@@ -283,12 +283,16 @@
 
   function stepDone(step, mission) {
     if (!step || !step.zone_id) return false;
-    // v99: letter-lab tracks completion via its own localStorage flag, not
-    // via zoneProgress (which is scoped to skill-based zones with Telemetry
-    // RPCs). Set once Nigel finishes a 3-letter session.
+    // v99: letter-lab tracks completion via its own localStorage flag.
     if (step.zone_id === 'letter-lab') {
       return !!readJSON('ha_letter_lab_' + todayKey());
     }
+    // v151: universal completion flag — set by each zone page on session
+    // finish. Fixes the "zoneProgress at cap 100 == baseline" bug where
+    // the checkmark never appeared for kids who'd played many sessions.
+    var doneFlags = readJSON('ha_zone_done_' + todayKey()) || {};
+    if (doneFlags[step.zone_id]) return true;
+
     var zp = (ctx.state && ctx.state.zoneProgress) || {};
     var base = (mission.baseline && mission.baseline[step.zone_id]) || 0;
     var cur = zp[step.zone_id] || 0;

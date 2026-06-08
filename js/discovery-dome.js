@@ -369,6 +369,18 @@
     g.zonesCompletedToday = Math.min(3, (g.zonesCompletedToday || 0) + 1);
     saveGlobalState(g);
 
+    // v151: cap-proof completion flag for Today's Mission checkmark.
+    try {
+      var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+      var df = JSON.parse(localStorage.getItem(dk) || '{}');
+      df['discovery'] = true;
+      localStorage.setItem(dk, JSON.stringify(df));
+    } catch (_) {}
+    try {
+      if (NS.TodayMission && typeof NS.TodayMission.markVisited === 'function') {
+        NS.TodayMission.markVisited('discovery');
+      }
+    } catch (_) {}
     // Session summary into Ms. Humphrey's memory so she remembers what they
     // covered. Powers "what did we do yesterday" recall later.
     persistSessionSummary(passed, total);

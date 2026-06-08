@@ -389,6 +389,19 @@
 
     burstConfetti();
 
+    // v151: cap-proof completion flag for Today's Mission checkmark.
+    try {
+      var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+      var df = JSON.parse(localStorage.getItem(dk) || '{}');
+      df['writing'] = true;
+      localStorage.setItem(dk, JSON.stringify(df));
+    } catch (_) {}
+    try {
+      if (NS.TodayMission && typeof NS.TodayMission.markVisited === 'function') {
+        NS.TodayMission.markVisited('writing');
+      }
+    } catch (_) {}
+
     // Character progression — may unlock the next episode in an arc.
     if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
       setTimeout(function () {

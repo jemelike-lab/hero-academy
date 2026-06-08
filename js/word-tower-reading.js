@@ -216,6 +216,19 @@
           : "Good work, Nigel. Some of those were tricky and you stuck with it. That is what real readers do.");
     say(line, { event: 'correct-answer-reading' });
     burstConfetti();
+    // v151: mark zone complete for Today's Mission checkmark.
+    try {
+      var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+      var df = JSON.parse(localStorage.getItem(dk) || '{}');
+      df['word-tower'] = true;
+      localStorage.setItem(dk, JSON.stringify(df));
+    } catch (_) {}
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.TodayMission &&
+          typeof window.HeroAcademy.TodayMission.markVisited === 'function') {
+        window.HeroAcademy.TodayMission.markVisited('word-tower');
+      }
+    } catch (_) {}
     // Character progression — may surface an episode unlock.
     if (NS.Characters && typeof NS.Characters.recordSessionComplete === 'function') {
       setTimeout(function () {
