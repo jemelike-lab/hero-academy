@@ -138,7 +138,7 @@ COMPREHENSION QUESTIONS — important details:
 - One choice is the correct answer, taken directly from the story.
 - The other three are plausible distractors — related to the story's people/places/objects/actions but factually wrong about THIS question.
 - Distractors must not be obviously silly (no jokes, no totally unrelated nouns) — they should feel like reasonable guesses a 2nd-grader might make if they weren't paying attention.
-- `answer_index` is the 0-based index of the correct choice in the `choices` array.
+- The answer_index field is the 0-based index of the correct choice in the choices array.
 - Vary which index is correct across the three questions (don't always put it first).
 
 Generate today's content. Make it specific, warm, and recognizably about Nigel's actual life.`;
