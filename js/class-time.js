@@ -596,6 +596,39 @@
     } catch(e){}
   }
 
+
+  // ---------- Progress save (v163) ----------
+  // Fires on exit, beforeunload, and visibilitychange so interrupted
+  // sessions don't lose completed courses.
+  function saveCurrentCourseProgress(reason){
+    if (!state.lesson || state.completed || state.inBreak) return;
+    const courseOrder = state.currentCourseIdx + 1;
+    const subject = state.lesson?.subject || 'unknown';
+    const topicIds = (state.lesson?.topics || []).map(t => t.id);
+    const payload = JSON.stringify({
+      child_id: CHILD_ID,
+      date: state.today,
+      course_order: courseOrder,
+      subject,
+      topics_covered: topicIds
+    });
+    // Use sendBeacon for reliability during page unload
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      navigator.sendBeacon('/api/class-time/record-course', blob);
+      console.log('[class-time] beacon save course', courseOrder, reason);
+    } else {
+      // Fallback: fire-and-forget fetch
+      fetch('/api/class-time/record-course', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+      console.log('[class-time] fetch save course', courseOrder, reason);
+    }
+  }
+
   // ---------- Course lifecycle ----------
   async function startCourse(idx){
     const course = state.dayPlan?.courses?.[idx];
@@ -821,6 +854,8 @@
   async function exit(){
     if (!state.completed) {
       state.completed = true;
+      // v163: save the current course before leaving so progress isn't lost
+      saveCurrentCourseProgress('exit');
       try { if (state.conversation) await state.conversation.endSession(); } catch(e){}
       clearInterval(state.timerInterval);
       clearInterval(state.captureInterval);
@@ -861,6 +896,20 @@
     if (resumeBtn) resumeBtn.addEventListener('click', resumeFromBreak);
     const capBack = $('cap-back-btn');
     if (capBack) capBack.addEventListener('click', exitToHome);
+
+    // v163: Save progress when page is unloading or going to background
+    window.addEventListener('beforeunload', () => {
+      saveCurrentCourseProgress('beforeunload');
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        saveCurrentCourseProgress('visibilitychange');
+      }
+    });
+    // Android PWA: pagehide fires more reliably than beforeunload
+    window.addEventListener('pagehide', () => {
+      saveCurrentCourseProgress('pagehide');
+    });
 
     // 5. Resume: find first incomplete course
     const startIdx = findFirstIncompleteCourse();

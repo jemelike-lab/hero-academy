@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'hero-academy-v162';
+const CACHE_VERSION = 'hero-academy-v163';
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -96,6 +96,10 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   var url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
+  // v163: NEVER cache API responses — they must always hit the network.
+  // The course-progress endpoint was getting cached as empty, causing
+  // Class Time to lose progress on reload.
+  if (url.pathname.startsWith("/api/")) return;
   var isHTML = e.request.mode === "navigate" ||
                (e.request.destination === "document") ||
                url.pathname.endsWith(".html") ||
