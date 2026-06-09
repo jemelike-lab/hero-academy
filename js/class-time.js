@@ -1,39 +1,63 @@
 // js/class-time.js
-// Class Time orchestrator: lesson plan + ConvAI + 7-min timer + auto-vision-capture.
+// v158 — Class Time v2: full school day = 4 courses × 7-10 min, 15-min breaks
+// between courses, subject-aware board mode, resumable on reload.
+//
+// Each course is its own ConvAI conversation with course-specific dynamic
+// variables and a subject-aware opener. The existing per-class state machine
+// (topic pips, auto-vision capture, topic-watcher, completion) is reused
+// inside each course. Breaks are a full-screen overlay with a 15-min
+// countdown + stretch prompt + chime + Resume button.
+//
+// Day plan comes from /api/class-time/lesson-plan-day (Haiku-generated,
+// Supabase-cached). Course completion is persisted via
+// /api/class-time/record-course so reloading mid-day resumes at the right
+// course.
 (function(){
   'use strict';
   const NS = window.HeroAcademy = window.HeroAcademy || {};
 
   const AGENT_ID = 'agent_5901kssbzjm1e0yvd0kdwxa3r49m';
-  const SESSION_DURATION_SEC = 7 * 60; // 7 minutes
   const AUTO_CAPTURE_INTERVAL_MS = 8000;
   const CAPTURE_AFTER_STOP_MS = 2500;
   const CHILD_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
+  const BREAK_MS = 15 * 60 * 1000;       // 15-minute breaks between courses
+  const COURSES_PER_DAY = 4;
+  const DEFAULT_COURSE_MIN = 8;          // safety default if plan omits target_minutes
 
   // ---------- DOM ----------
   const $ = (id) => document.getElementById(id);
 
   // ---------- State ----------
   const state = {
-    lesson: null,
+    // Day-level
+    dayPlan: null,                       // { date, theme, courses: [...] }
+    courseProgress: [],                  // array of { course_order, subject, completed_at? }
+    currentCourseIdx: 0,                 // 0-3
+    inBreak: false,
+    breakEndsAt: null,
+    breakInterval: null,
+    // Per-course (reset by startCourse)
+    lesson: null,                        // legacy alias — current course shaped like old lesson
     currentTopicIdx: 0,
-    timeRemainingSec: SESSION_DURATION_SEC,
+    timeRemainingSec: DEFAULT_COURSE_MIN * 60,
     timerInterval: null,
     conversation: null,
     sdkConversationCtor: null,
-    started: false,
-    completed: false,
     captureInterval: null,
     lastCaptureAt: 0,
     pendingPostCapture: null,
     lastVisionText: '',
     stopCaptureWatcher: null,
+    topicWatcherInterval: null,
+    topicStartedAt: 0,
+    topicNudged: false,
+    sessionStartedAt: null,
+    transcript: [],                      // accumulated across all courses for Saturday email
+    // Misc
+    completed: false,                    // true once full DAY is done
     isMuted: false,
     voiceEventLogged: false,
-    today: ymdLocal(new Date()),
-    sessionStartedAt: null,
-    // v142
-    transcript: []
+    today: ymdLocal(new Date())
   };
 
   function ymdLocal(d){
@@ -60,142 +84,187 @@
     }
   }
 
-  async function fetchLessonPlan(){
-    const today = state.today;
+  async function fetchDayPlan(){
     try {
-      const r = await jsonFetch(`/api/class-time/lesson-plan?date=${today}&child_id=${CHILD_ID}`);
-      if (r && r.lesson) return r.lesson;
+      const r = await jsonFetch(`/api/class-time/lesson-plan-day?date=${state.today}&child_id=${CHILD_ID}`);
+      if (r && r.plan && Array.isArray(r.plan.courses)) return r.plan;
     } catch(e){
-      console.warn('[class-time] lesson plan fetch failed, using fallback', e);
+      console.warn('[class-time] day plan fetch failed, using local fallback', e);
     }
-    return fallbackLessonPlan();
+    return fallbackDayPlan();
   }
 
-  function fallbackLessonPlan(){
-    // Deterministic 4-topic plan if API fails — rotates by day-of-year
-    const doy = (() => {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), 0, 0);
-      return Math.floor((now - start) / 86400000);
-    })();
-    const pool = [
-      { id:'addition-10', skill:'math', title:'Addition within 10', focus:'7+3, 6+4, 8+2', tools:['drawDots','drawTenFrame','drawEquation'] },
-      { id:'count-by-2', skill:'math', title:'Counting by 2s', focus:'2,4,6,8,10', tools:['drawNumber','drawDots'] },
-      { id:'sight-words', skill:'reading', title:'Sight words', focus:'the, and, was, said', tools:['writeWord'] },
-      { id:'letter-sounds', skill:'reading', title:'Letter sounds', focus:'b, d, p, q', tools:['writeLetter'] },
-      { id:'living-things', skill:'science', title:'Living things', focus:'plants, animals', tools:['showVisual'] },
-      { id:'subtract-5', skill:'math', title:'Subtraction within 5', focus:'5-2, 4-1, 3-3', tools:['drawTenFrame','drawEquation'] },
-      { id:'rhyming', skill:'reading', title:'Rhyming words', focus:'cat/hat, dog/log', tools:['writeWord'] },
-      { id:'maryland', skill:'social', title:'Maryland symbols', focus:'flag, oriole, blue crab', tools:['showVisual'] }
-    ];
-    const startIdx = doy % pool.length;
-    const topics = [];
-    for (let i = 0; i < 4; i++) topics.push(pool[(startIdx + i) % pool.length]);
+  async function fetchCourseProgress(){
+    try {
+      const r = await jsonFetch(`/api/class-time/course-progress?date=${state.today}&child_id=${CHILD_ID}`);
+      if (r && Array.isArray(r.progress)) return r.progress;
+    } catch(e){
+      console.warn('[class-time] progress fetch failed (assuming none)', e);
+    }
+    return [];
+  }
+
+  async function recordCourseComplete(courseOrder, subject, topicsCovered){
+    try {
+      await fetch('/api/class-time/record-course', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          child_id: CHILD_ID,
+          date: state.today,
+          course_order: courseOrder,
+          subject,
+          topics_covered: topicsCovered
+        })
+      });
+    } catch(e){
+      console.warn('[class-time] record-course failed (continuing)', e);
+    }
+  }
+
+  function fallbackDayPlan(){
+    // If both endpoint AND Haiku fail, hand back a deterministic 4-course day.
+    // Matches the shape of /api/class-time/lesson-plan-day.
     return {
       date: state.today,
-      topics,
-      theme: 'Daily review',
-      source: 'fallback'
+      theme: 'Daily practice',
+      source: 'client-fallback',
+      courses: [
+        { order:1, subject:'math',    subject_label:'Math',           board_mode:'drawing', target_minutes:8,  why_chosen:'Warm up with math.', image_keywords:[],
+          topics:[
+            {id:'add-10', title:'Addition within 10', focus:'7+3, 6+4, 8+2', tools:['drawDots','drawTenFrame','drawEquation']},
+            {id:'count-2', title:'Counting by 2s', focus:'2,4,6,8,10', tools:['drawNumber','drawDots']}
+          ]},
+        { order:2, subject:'reading', subject_label:'Reading',        board_mode:'mixed',   target_minutes:9,  why_chosen:'Practice reading fluency.', image_keywords:['butterfly'],
+          topics:[
+            {id:'sight', title:'Sight words', focus:'the, and, was, said', tools:['writeWord']}
+          ]},
+        { order:3, subject:'spelling',subject_label:'Spelling',       board_mode:'drawing', target_minutes:8,  why_chosen:'Spell common short words.', image_keywords:[],
+          topics:[
+            {id:'cvc', title:'CVC words', focus:'cat, dog, sun, pig', tools:['writeWord']}
+          ]},
+        { order:4, subject:'science', subject_label:'Science',        board_mode:'image',   target_minutes:10, why_chosen:'Look at the natural world.', image_keywords:['butterfly','caterpillar','cocoon'],
+          topics:[
+            {id:'life-cycle', title:'Butterfly life cycle', focus:'egg → caterpillar → cocoon → butterfly', tools:['showVisual']}
+          ]}
+      ]
     };
   }
 
-  // ---------- Voice cap UI ----------
+  function findFirstIncompleteCourse(){
+    const doneOrders = new Set();
+    for (const row of (state.courseProgress || [])){
+      if (row && row.completed_at && row.course_order){
+        doneOrders.add(row.course_order);
+      }
+    }
+    for (let i = 1; i <= COURSES_PER_DAY; i++){
+      if (!doneOrders.has(i)) return i - 1;
+    }
+    return COURSES_PER_DAY; // all done
+  }
+
   function showVoiceCap(){
-    const cap = $('voice-cap-msg');
-    if (cap) cap.classList.add('show');
     $('boot-overlay').style.display = 'none';
+    $('voice-cap-msg').classList.add('show');
   }
 
   function exitToHome(){
-    location.href = 'index.html';
+    location.href = '/index.html';
   }
 
   // ---------- Timer ----------
   function startTimer(){
-    state.sessionStartedAt = Date.now();
+    clearInterval(state.timerInterval);
+    const minutes = state.lesson?.target_minutes || DEFAULT_COURSE_MIN;
+    state.timeRemainingSec = minutes * 60;
     updateTimerDisplay();
     state.timerInterval = setInterval(() => {
       state.timeRemainingSec--;
       updateTimerDisplay();
-      // Update dynamic variable for Humphrey
-      if (state.timeRemainingSec === 60) {
-        sendContextualUpdate(`Class time: 1 minute remaining. Start wrapping up gently.`);
-      }
       if (state.timeRemainingSec <= 0){
         clearInterval(state.timerInterval);
-        handleCompletion('timer');
+        endCourse('timer');
       }
     }, 1000);
   }
 
   function updateTimerDisplay(){
-    const m = Math.max(0, Math.floor(state.timeRemainingSec / 60));
-    const s = Math.max(0, state.timeRemainingSec % 60);
     const el = $('timer');
-    if (el) el.textContent = `${m}:${String(s).padStart(2,'0')}`;
+    if (!el) return;
+    const m = Math.floor(state.timeRemainingSec / 60);
+    const s = state.timeRemainingSec % 60;
+    el.textContent = `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  // ---------- Topic pips ----------
+  function formatMMSS(ms){
+    const sec = Math.max(0, Math.floor(ms / 1000));
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // ---------- Course / topic header ----------
+  function renderCourseHeader(){
+    const wrap = $('course-header');
+    if (!wrap) return;
+    const order = state.currentCourseIdx + 1;
+    const label = state.lesson?.subject_label || '…';
+    wrap.innerHTML = `Course <strong>${order}/${COURSES_PER_DAY}</strong> · <strong>${label}</strong>`;
+  }
+
   function renderTopicPips(){
     const wrap = $('topic-pips');
     if (!wrap || !state.lesson) return;
-    wrap.innerHTML = state.lesson.topics.map((_, i) => {
-      let cls = '';
-      if (i < state.currentTopicIdx) cls = 'done';
-      else if (i === state.currentTopicIdx) cls = 'active';
+    wrap.innerHTML = (state.lesson.topics || []).map((_, i) => {
+      const cls = i < state.currentTopicIdx ? 'done' : (i === state.currentTopicIdx ? 'active' : '');
       return `<span class="${cls}"></span>`;
     }).join('');
     const label = $('topic-label');
     if (label && state.lesson.topics[state.currentTopicIdx]){
       label.textContent = state.lesson.topics[state.currentTopicIdx].title;
     }
-    // v152: session progress bar
     if (NS.SessionProgress) NS.SessionProgress.update(state.currentTopicIdx + 1, state.lesson.topics.length, 'Topic');
   }
 
   // ---------- Humphrey portrait state ----------
   function setHumphreyState(s){
-    const p = $('humphrey-portrait');
-    const m = $('mic-indicator');
-    if (!p) return;
-    p.classList.remove('speaking', 'listening');
-    if (m) m.classList.remove('speaking', 'listening');
+    const portrait = $('humphrey-portrait');
+    const mic = $('mic-indicator');
+    if (!portrait) return;
+    portrait.classList.remove('speaking','listening');
     if (s === 'speaking') {
-      p.classList.add('speaking');
-      if (m) { m.classList.add('show', 'speaking'); m.textContent = '🔊 Ms. Humphrey is talking…'; }
-    } else if (s === 'listening') {
-      p.classList.add('listening');
-      if (m) { m.classList.add('show', 'listening'); m.textContent = '🎤 Listening…'; }
+      portrait.classList.add('speaking');
+      if (mic){ mic.className='show speaking'; mic.textContent='Ms. Humphrey is speaking…'; }
+    } else if (s === 'listening'){
+      portrait.classList.add('listening');
+      if (mic){ mic.className='show listening'; mic.textContent='Listening for you…'; }
     } else {
-      if (m) m.classList.remove('show');
+      if (mic){ mic.className=''; mic.textContent=''; }
     }
-    // Swap portrait image based on state when possible
     const img = $('humphrey-img');
     if (img) {
-      const map = { speaking:'humphrey-encouraging.png', listening:'humphrey-idle.png', idle:'humphrey-smile.png' };
-      const file = map[s] || 'humphrey-smile.png';
-      const wanted = `assets/humphrey/${file}`;
-      if (!img.src.endsWith(file)) img.src = wanted;
+      const expr = s === 'speaking' ? 'humphrey-encouraging' :
+                   s === 'listening' ? 'humphrey-idle' : 'humphrey-smile';
+      img.src = `assets/humphrey/${expr}.png`;
     }
   }
 
-  // ---------- ConvAI integration ----------
+  // ---------- ConvAI conversation (per-course) ----------
   async function startConversation(){
-    const Conv = (window.ElevenLabsClient || window.ElevenLabs || {}).Conversation;
-    if (!Conv){
-      console.error('[class-time] ElevenLabs Conversation SDK not loaded');
-      throw new Error('SDK_NOT_LOADED');
+    if (!window.ElevenLabsClient && !window.ElevenLabs){
+      throw new Error('ElevenLabs SDK not loaded');
     }
+    const Conv = (window.ElevenLabsClient && window.ElevenLabsClient.Conversation)
+              || (window.ElevenLabs && window.ElevenLabs.Conversation);
+    if (!Conv) throw new Error('ElevenLabs Conversation class not found');
 
-    // Mic permission first
+    // Mic permission (no-op if already granted)
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Stop track immediately — SDK will request its own when needed
       s.getTracks().forEach(t => t.stop());
     } catch(e){
-      console.error('[class-time] mic permission denied', e);
-      alert('Ms. Humphrey needs the microphone to teach. Tap allow and try again.');
-      throw e;
+      console.warn('[class-time] mic permission warning', e);
     }
 
     const clientTools = {
@@ -205,7 +274,7 @@
       writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    const v = p?.word ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] writeWord', p); return `wrote "${v}" on the board`; },
       writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  const v = p?.letter ?? p?.char ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] writeLetter', p); return `wrote letter "${v}" on the board`; },
       drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); const v = p?.equation ?? p?.eq ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] drawEquation', p); return `drew equation "${v}" on the board`; },
-      // v142: showVisual is now async — fetch a live Wikipedia image, fall back to SVG
+      // showVisual: live Wikipedia lookup; falls back to SVG library / text
       showVisual:   async (p) => {
         const subject = String(p?.subject ?? p?.topic ?? p?.text ?? '').trim();
         if (!subject){
@@ -230,15 +299,13 @@
         } catch(e){
           console.warn('[class-time] image lookup failed, falling back to SVG', e);
         }
-        // No live image found — fall back to SVG library or text
         NS.ClassTimeBoard.showVisual({ topic: subject });
         return `showed visual fallback: ${subject}`;
       },
       clearBoard:   ()  => { NS.ClassTimeBoard.clearBoard();    return 'cleared board'; },
-      // v157: Humphrey can call this to actually look at the board before
-      // describing it — instead of guessing from memory. Returns a short
-      // spoken-style reply she can repeat or paraphrase to Nigel.
-      // Usage: whatIsOnBoard({which:"humphrey"|"nigel"|"both", question:"..."})
+      // v157: Humphrey actually LOOKS at the board before answering visual
+      // questions, instead of guessing from memory. Returns a short
+      // spoken-style reply she can repeat or paraphrase.
       whatIsOnBoard: async (p) => {
         const which = String(p?.which ?? p?.board ?? 'humphrey').toLowerCase();
         const question = String(p?.question ?? p?.about ?? p?.q ?? '').trim();
@@ -256,7 +323,7 @@
             : "The board is empty right now — nothing to look at yet.";
         }
         const topic = state.lesson?.topics?.[state.currentTopicIdx] || {};
-        const subjectGuess = topic.skill || topic.subject || 'class time';
+        const subjectGuess = topic.skill || topic.subject || state.lesson?.subject || 'class time';
         try {
           const r = await fetch('/api/humphrey/see-board', {
             method: 'POST',
@@ -295,44 +362,52 @@
           state.topicStartedAt = Date.now();
           state.topicNudged = false;
           renderTopicPips();
-          // v142: when she advances to a new topic, push her the topic context
-          // including the why_chosen note so she opens the topic with a
-          // personalized "I chose this because…" line.
           announceTopicToHumphrey(state.currentTopicIdx);
           return `topic ${state.currentTopicIdx + 1}`;
         }
         return 'last topic reached';
       },
+      // v158: agent ends the CURRENT course (not the whole day)
       endClass: () => {
-        setTimeout(() => handleCompletion('humphrey'), 600);
-        return 'ending class';
+        setTimeout(() => endCourse('humphrey'), 600);
+        return 'ending course';
       }
     };
 
     const dynamicVariables = {
       nigel_current_zone: 'class-time',
-      lesson_topics: JSON.stringify(state.lesson.topics.map(t => ({
+      // Per-course context (changes every course)
+      current_subject: state.lesson?.subject_label || '',
+      current_subject_key: state.lesson?.subject || '',
+      current_course_order: state.currentCourseIdx + 1,
+      total_courses: COURSES_PER_DAY,
+      current_board_mode: state.lesson?.board_mode || 'drawing',
+      lesson_topics: JSON.stringify((state.lesson?.topics || []).map(t => ({
         title: t.title,
         focus: t.focus,
         skill: t.skill,
         why_chosen: t.why_chosen || ''
       }))),
       current_topic_index: 0,
-      time_remaining_min: 7,
-      lesson_theme: state.lesson.theme || 'daily review',
-      lesson_source: state.lesson.source || 'unknown'
+      time_remaining_min: state.lesson?.target_minutes || DEFAULT_COURSE_MIN,
+      lesson_theme: state.dayPlan?.theme || '',
+      lesson_source: state.dayPlan?.source || 'unknown',
+      course_why_chosen: state.lesson?.why_chosen || ''
     };
 
-    // v142: AUTO-START the class. Instead of letting the agent use her generic
-    // dashboard default ("What are we working on first today?"), give her an
-    // opener tailored to today's first topic. She immediately launches into
-    // teaching topic 1 the moment Nigel connects.
+    // Subject-aware opener
     const t0 = state.lesson.topics[0];
-    const why0 = (t0?.why_chosen || '').trim();
+    const why0 = (t0?.why_chosen || state.lesson.why_chosen || '').trim();
+    const subj = state.lesson.subject_label || 'class';
+    const order = state.currentCourseIdx + 1;
     const opener = (() => {
-      const base = `Hey Nigel! Today we're starting with ${t0?.title || 'our lesson'}.`;
-      if (why0) return `${base} ${why0} Let me show you something — watch the board.`;
-      return `${base} Let me show you something — watch the board.`;
+      const courseTag = order === 1
+        ? `Hey Nigel! Time to start school. First up is ${subj}.`
+        : `Welcome back, Nigel! Course ${order} of ${COURSES_PER_DAY} — ${subj}.`;
+      const topicTag = t0?.title ? ` We're going to work on ${t0.title}.` : '';
+      const whyTag = why0 ? ` ${why0}` : '';
+      const cta = ' Watch the board.';
+      return `${courseTag}${topicTag}${whyTag}${cta}`;
     })();
 
     state.conversation = await Conv.startSession({
@@ -340,11 +415,9 @@
       clientTools,
       dynamicVariables,
       overrides: {
-        agent: {
-          firstMessage: opener
-        }
+        agent: { firstMessage: opener }
       },
-      onConnect: () => { console.log('[class-time] connected'); setHumphreyState('listening'); },
+      onConnect: () => { console.log('[class-time] connected (course', state.currentCourseIdx + 1, ')'); setHumphreyState('listening'); },
       onDisconnect: () => { console.log('[class-time] disconnected'); setHumphreyState('idle'); },
       onError: (err) => { console.error('[class-time] conv error', err); },
       onModeChange: (m) => {
@@ -352,29 +425,33 @@
         else setHumphreyState('listening');
       },
       onStatusChange: (s) => { console.log('[class-time] status', s); },
-      // v142: capture transcript so it flows into the Saturday digest
+      // Transcript accumulates across courses for Saturday digest
       onMessage: (m) => {
         if (!m) return;
         const text = m.message || m.text || '';
         const source = m.source || m.role || 'unknown';
         if (text && state.transcript){
-          state.transcript.push({ role: source, message: text, ts: Date.now() });
+          state.transcript.push({
+            role: source,
+            message: text,
+            ts: Date.now(),
+            course_order: state.currentCourseIdx + 1,
+            subject: state.lesson?.subject || ''
+          });
         }
       }
     });
 
-    // Log telemetry for voice usage cap
     if (!state.voiceEventLogged){
       state.voiceEventLogged = true;
-      logEvent('class_time_voice', { lesson_date: state.today, source: state.lesson.source });
+      logEvent('class_time_voice', { lesson_date: state.today, source: state.dayPlan?.source });
     }
 
-    // v153: topic auto-advance watcher. Nudge Humphrey after 90s on one
-    // topic, then auto-advance at 120s so the class doesn't stall.
+    // Topic-watcher (nudge + auto-advance) — per course
     state.topicStartedAt = Date.now();
     state.topicNudged = false;
     state.topicWatcherInterval = setInterval(() => {
-      if (!state.lesson || state.completed) return;
+      if (!state.lesson || state.completed || state.inBreak) return;
       const elapsed = (Date.now() - state.topicStartedAt) / 1000;
       const isLast = state.currentTopicIdx >= state.lesson.topics.length - 1;
       if (elapsed >= 90 && !state.topicNudged && !isLast) {
@@ -384,11 +461,8 @@
           `You have been on this topic for about 90 seconds. ` +
           `Wrap up with one final thought, then call nextTopic to move on to "${next?.title || 'the next topic'}".`
         );
-        console.log('[class-time] topic nudge sent at', Math.round(elapsed), 's');
       }
       if (elapsed >= 130 && !isLast) {
-        // Auto-advance — Humphrey didn't call nextTopic despite the nudge
-        console.log('[class-time] auto-advancing topic at', Math.round(elapsed), 's');
         state.currentTopicIdx++;
         state.topicStartedAt = Date.now();
         state.topicNudged = false;
@@ -398,16 +472,13 @@
       if (isLast && elapsed >= 90 && !state.topicNudged) {
         state.topicNudged = true;
         sendContextualUpdate(
-          `This is the last topic. Wrap up class in the next 30 seconds, ` +
-          `then call endClass to finish.`
+          `This is the last topic of this course. Wrap up in the next 30 seconds, ` +
+          `then call endClass to finish the course.`
         );
       }
     }, 10000);
   }
 
-  // v142: when Humphrey advances topics via the nextTopic tool, push her the
-  // topic context so her next utterance opens that topic with the why_chosen
-  // hook ("I picked this because…").
   function announceTopicToHumphrey(idx){
     if (!state.lesson || !state.lesson.topics[idx]) return;
     const t = state.lesson.topics[idx];
@@ -433,12 +504,10 @@
     }
   }
 
-  // ---------- Auto-vision capture loop ----------
+  // ---------- Auto-vision capture (per course) ----------
   function startCaptureLoop(){
     let lastStrokeAt = 0;
     let dirtySinceCapture = false;
-
-    // Track drawing activity
     state.stopCaptureWatcher = NS.ClassTimeBoard.onDrawingActivity((kind) => {
       if (kind === 'start' || kind === 'move' || kind === 'end') {
         lastStrokeAt = Date.now();
@@ -448,7 +517,6 @@
         dirtySinceCapture = false;
         sendContextualUpdate("Nigel cleared his canvas. It's blank now.");
       }
-      // After stop, schedule a capture if 2.5s pass without more activity
       if (kind === 'end') {
         clearTimeout(state.pendingPostCapture);
         state.pendingPostCapture = setTimeout(() => {
@@ -459,8 +527,6 @@
         }, CAPTURE_AFTER_STOP_MS);
       }
     });
-
-    // Periodic capture: every 8s, if dirty since last capture
     state.captureInterval = setInterval(() => {
       const sinceCap = Date.now() - state.lastCaptureAt;
       if (sinceCap < AUTO_CAPTURE_INTERVAL_MS - 200) return;
@@ -492,10 +558,9 @@
       });
       const desc = r && r.description;
       if (desc && typeof desc === 'string' && desc.length > 0){
-        if (desc === state.lastVisionText) return; // dedupe
+        if (desc === state.lastVisionText) return;
         state.lastVisionText = desc;
         sendContextualUpdate(`What's on Nigel's canvas right now: ${desc}`);
-        console.log('[class-time] vision update sent:', desc);
       }
     } catch(e){
       console.warn('[class-time] see-canvas failed', e);
@@ -513,47 +578,198 @@
     } catch(e){ console.warn('[class-time] log event failed', eventType, e); }
   }
 
-  function markClassDoneLocal(){
+  function markDayDoneLocal(){
     try {
       localStorage.setItem('ha_class_time_' + state.today, JSON.stringify({
         completedAt: new Date().toISOString(),
-        topicsCompleted: state.currentTopicIdx + 1,
-        totalTopics: state.lesson?.topics?.length || 0,
-        durationSec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0
+        coursesCompleted: COURSES_PER_DAY,
+        theme: state.dayPlan?.theme || ''
       }));
     } catch(e){}
   }
 
-  // ---------- Completion ----------
-  async function handleCompletion(reason){
-    if (state.completed) return;
-    state.completed = true;
+  // ---------- Course lifecycle ----------
+  async function startCourse(idx){
+    const course = state.dayPlan?.courses?.[idx];
+    if (!course){ console.error('[class-time] no course at idx', idx); return; }
+    state.currentCourseIdx = idx;
+    state.lesson = {
+      date: state.dayPlan.date,
+      theme: state.dayPlan.theme,
+      source: state.dayPlan.source || 'day-plan',
+      subject: course.subject,
+      subject_label: course.subject_label,
+      board_mode: course.board_mode,
+      image_keywords: course.image_keywords || [],
+      target_minutes: course.target_minutes || DEFAULT_COURSE_MIN,
+      why_chosen: course.why_chosen || '',
+      course_order: course.order || (idx + 1),
+      topics: (course.topics || []).map(t => ({
+        ...t,
+        skill: course.subject,
+        subject_label: course.subject_label,
+        why_chosen: t.why_chosen || course.why_chosen || ''
+      }))
+    };
+    state.currentTopicIdx = 0;
+    state.topicNudged = false;
+    state.lastVisionText = '';
+    state.sessionStartedAt = Date.now();
+    renderCourseHeader();
+    renderTopicPips();
+
+    // Pre-load image for image-mode courses so the board STARTS visual
+    if (course.board_mode === 'image' && course.image_keywords && course.image_keywords[0]){
+      setBootMessage(`Pulling up ${course.subject_label} visuals…`);
+      try {
+        const r = await fetch('/api/class-time/lookup-image', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ subject: course.image_keywords[0] })
+        });
+        const data = await r.json();
+        if (data && data.image_url){
+          NS.ClassTimeBoard.showLiveImage({
+            url: data.image_url,
+            caption: data.caption || course.image_keywords[0],
+            attribution: data.attribution || 'Wikipedia'
+          });
+        }
+      } catch(e){
+        console.warn('[class-time] image preload failed (continuing)', e);
+      }
+    }
+
+    setBootMessage('Ms. Humphrey is on her way…');
+    await startConversation();
+    startTimer();
+    startCaptureLoop();
+  }
+
+  async function endCourse(reason){
+    if (state.inBreak || state.completed) return;
+    const courseOrder = state.currentCourseIdx + 1;
+    const subject = state.lesson?.subject || 'unknown';
+    const topicIds = (state.lesson?.topics || []).map(t => t.id);
+
+    // Persist completion
+    await recordCourseComplete(courseOrder, subject, topicIds);
+    logEvent('class_time_course_complete', {
+      lesson_date: state.today,
+      course_order: courseOrder,
+      subject,
+      reason,
+      topics: topicIds,
+      duration_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0
+    });
+
+    // End ConvAI + intervals
+    try { if (state.conversation) await state.conversation.endSession(); } catch(_){}
+    state.conversation = null;
     clearInterval(state.timerInterval);
     clearInterval(state.captureInterval);
     clearInterval(state.topicWatcherInterval);
     if (state.stopCaptureWatcher) state.stopCaptureWatcher();
     clearTimeout(state.pendingPostCapture);
+    NS.ClassTimeBoard.clearBoard();
 
+    // Last course → day done
+    if (state.currentCourseIdx >= COURSES_PER_DAY - 1){
+      handleDayCompletion(reason);
+      return;
+    }
+    // Otherwise: break
+    showBreak();
+  }
+
+  // ---------- Break overlay ----------
+  function showBreak(){
+    state.inBreak = true;
+    state.breakEndsAt = Date.now() + BREAK_MS;
+    const overlay = $('break-overlay');
+    if (overlay) overlay.classList.add('show');
+    const nextCourse = state.dayPlan?.courses?.[state.currentCourseIdx + 1];
+    const nextLabel = $('break-next-label');
+    if (nextLabel && nextCourse) nextLabel.textContent = `Next: Course ${state.currentCourseIdx + 2}/${COURSES_PER_DAY} — ${nextCourse.subject_label}`;
+    const btn = $('break-resume-btn');
+    if (btn){ btn.disabled = true; btn.textContent = 'Take your break first…'; }
+    tickBreak();
+    state.breakInterval = setInterval(tickBreak, 1000);
+  }
+
+  function tickBreak(){
+    const remaining = state.breakEndsAt - Date.now();
+    const timerEl = $('break-timer');
+    if (timerEl) timerEl.textContent = formatMMSS(remaining);
+    const btn = $('break-resume-btn');
+    if (remaining <= 0){
+      clearInterval(state.breakInterval);
+      state.breakInterval = null;
+      if (btn){ btn.disabled = false; btn.textContent = 'Resume class →'; }
+      playChime();
+    }
+  }
+
+  async function resumeFromBreak(){
+    if (!state.inBreak) return;
+    state.inBreak = false;
+    clearInterval(state.breakInterval);
+    state.breakInterval = null;
+    const overlay = $('break-overlay');
+    if (overlay) overlay.classList.remove('show');
+    const boot = $('boot-overlay');
+    if (boot) boot.style.display = 'flex';
+    setBootMessage('Starting next course…');
     try {
-      if (state.conversation && typeof state.conversation.endSession === 'function') {
-        await state.conversation.endSession();
-      }
-    } catch(e){ console.warn('[class-time] endSession failed', e); }
+      await startCourse(state.currentCourseIdx + 1);
+    } catch(e){
+      console.error('[class-time] resume start course failed', e);
+      alert('Couldn\'t start the next course. Try again in a few minutes.');
+      exitToHome();
+      return;
+    }
+    if (boot) boot.style.display = 'none';
+  }
 
-    markClassDoneLocal();
+  function playChime(){
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC();
+      [880, 660].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.18;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.20, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.start(t);
+        osc.stop(t + 0.55);
+      });
+    } catch(_){}
+  }
+
+  // ---------- Day completion ----------
+  function handleDayCompletion(reason){
+    if (state.completed) return;
+    state.completed = true;
+    markDayDoneLocal();
+    // Collect all topic titles across all courses for the Saturday digest
+    const allTopicTitles = (state.dayPlan?.courses || [])
+      .flatMap(c => (c.topics || []).map(t => `${c.subject_label}: ${t.title}`));
     logEvent('class_time_complete', {
       lesson_date: state.today,
       reason,
-      topics_completed: state.currentTopicIdx + 1,
-      total_topics: state.lesson?.topics?.length || 0,
-      duration_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0,
-      // v142: surface today's topic titles for the Saturday digest and for
-      // the lesson-plan regen check (which keys on lesson_date).
-      topic_titles: (state.lesson?.topics || []).map(t => t.title),
-      lesson_theme: state.lesson?.theme || '',
-      lesson_source: state.lesson?.source || '',
+      courses_completed: COURSES_PER_DAY,
+      total_courses: COURSES_PER_DAY,
+      topic_titles: allTopicTitles,
+      lesson_theme: state.dayPlan?.theme || '',
+      lesson_source: state.dayPlan?.source || '',
       transcript_turns: (state.transcript || []).length,
-      transcript: (state.transcript || []).slice(-60) // last 60 turns max
+      transcript: (state.transcript || []).slice(-200)  // raise from 60 → 200 since now full-day
     });
 
     // Mission integration
@@ -572,14 +788,15 @@
     const wrap = $('completion');
     const msg = $('completion-msg');
     if (msg){
-      if (reason === 'humphrey') msg.textContent = `Class is done. Great work today, Nigel!`;
-      else if (reason === 'timer') msg.textContent = `That's our 7 minutes! Beautiful class today.`;
-      else msg.textContent = `Class wrapped up. See you tomorrow!`;
+      if (reason === 'day-already-done') msg.textContent = `You already finished today's classes, Nigel! See you tomorrow.`;
+      else if (reason === 'humphrey') msg.textContent = `All four courses done! Beautiful work today, Nigel.`;
+      else if (reason === 'timer') msg.textContent = `That's the school day! Great work in all four classes.`;
+      else msg.textContent = `Class day wrapped up. See you tomorrow!`;
     }
     if (wrap) wrap.classList.add('show');
   }
 
-  // ---------- Mute ----------
+  // ---------- Mute / Exit ----------
   function toggleMute(){
     state.isMuted = !state.isMuted;
     const btn = $('mute-btn');
@@ -588,23 +805,25 @@
       try {
         if (typeof state.conversation.setVolume === 'function'){
           state.conversation.setVolume({ volume: state.isMuted ? 0 : 1 });
-        } else if (typeof state.conversation.setMicMuted === 'function'){
-          // fallback: nothing — SDK may not expose audio mute
         }
       } catch(e){ console.warn('[class-time] mute failed', e); }
     }
   }
 
-  // ---------- Exit ----------
   async function exit(){
     if (!state.completed) {
-      // Confirm-then-exit (skip confirmation; Galaxy Tab — exit is final)
       state.completed = true;
       try { if (state.conversation) await state.conversation.endSession(); } catch(e){}
       clearInterval(state.timerInterval);
       clearInterval(state.captureInterval);
-    clearInterval(state.topicWatcherInterval);
-      logEvent('class_time_exit_early', { lesson_date: state.today, time_in_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0 });
+      clearInterval(state.topicWatcherInterval);
+      clearInterval(state.breakInterval);
+      logEvent('class_time_exit_early', {
+        lesson_date: state.today,
+        course_order: state.currentCourseIdx + 1,
+        in_break: state.inBreak,
+        time_in_course_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0
+      });
     }
     exitToHome();
   }
@@ -614,44 +833,45 @@
     // 1. Voice cap check
     setBootMessage('Checking today\'s class allowance…');
     const usage = await getTodayVoiceUsage();
-    // v152: raised from 15 to 50 — the old cap blocked actual curriculum
-    // lessons because TTS calls across zones counted toward it.
-    if (usage >= 50){
-      showVoiceCap();
-      return;
-    }
+    if (usage >= 50){ showVoiceCap(); return; }
 
-    // 2. Board mount
+    // 2. Mount board
     NS.ClassTimeBoard.mount({});
 
-    // 3. Lesson plan
-    setBootMessage('Loading today\'s class plan…');
-    state.lesson = await fetchLessonPlan();
-    console.log('[class-time] lesson loaded', state.lesson);
-    renderTopicPips();
+    // 3. Fetch day plan + progress in parallel
+    setBootMessage('Loading today\'s school day…');
+    const [dayPlan, progress] = await Promise.all([fetchDayPlan(), fetchCourseProgress()]);
+    state.dayPlan = dayPlan;
+    state.courseProgress = progress;
+    console.log('[class-time] day plan loaded', state.dayPlan, 'progress', progress);
 
-    // 4. Listeners
+    // 4. UI listeners (wire once)
     $('exit-btn').addEventListener('click', exit);
     $('mute-btn').addEventListener('click', toggleMute);
     $('completion-btn').addEventListener('click', exitToHome);
+    const resumeBtn = $('break-resume-btn');
+    if (resumeBtn) resumeBtn.addEventListener('click', resumeFromBreak);
     const capBack = $('cap-back-btn');
     if (capBack) capBack.addEventListener('click', exitToHome);
 
-    // 5. ConvAI connect
-    setBootMessage('Ms. Humphrey is on her way…');
+    // 5. Resume: find first incomplete course
+    const startIdx = findFirstIncompleteCourse();
+    if (startIdx >= COURSES_PER_DAY){
+      $('boot-overlay').style.display = 'none';
+      handleDayCompletion('day-already-done');
+      return;
+    }
+
+    // 6. Start first course
     try {
-      await startConversation();
+      await startCourse(startIdx);
     } catch(e){
       $('boot-overlay').style.display = 'none';
       alert('Ms. Humphrey couldn\'t connect today. Try again in a few minutes.');
       console.error(e);
       return;
     }
-
-    // 6. Hide boot, start timer, start capture loop
     $('boot-overlay').style.display = 'none';
-    startTimer();
-    startCaptureLoop();
   }
 
   function setBootMessage(text){
@@ -667,5 +887,5 @@
   }
 
   // Expose for debugging
-  NS.ClassTime = { state, _boot: boot };
+  NS.ClassTime = { state, _boot: boot, _startCourse: startCourse, _endCourse: endCourse, _showBreak: showBreak, _resumeFromBreak: resumeFromBreak };
 })();
