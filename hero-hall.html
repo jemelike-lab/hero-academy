@@ -677,16 +677,44 @@
 
         modalBg.classList.add('open');
 
+        // v162: Ms. Humphrey reads character details aloud.
+        try {
+          const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (H && typeof H.say === 'function') {
+            if (typeof H.stop === 'function') H.stop();
+            const intro = c.name + ', the ' + (c.title || 'hero') + '. ' + (c.bio || '');
+            H.say('hero-hall-character', { kidName: 'Nigel', text: intro, expression: 'encouraging', priority: 'high' });
+            if (c.voiceLine) {
+              H.say('hero-hall-quote', { kidName: 'Nigel', text: c.name + ' says: ' + c.voiceLine, expression: 'encouraging' });
+            }
+          }
+        } catch (_) {}
+
         // Lazy-fetch the earned episode stories
         for (let i = 1; i <= ep; i++) {
           try {
             const story = await fetchEpisodeStory(c.id, i);
             const slot = document.getElementById('m-ep-text-' + i);
-            if (slot && story) slot.textContent = story;
+            if (slot && story) {
+              slot.textContent = story;
+              try {
+                const H2 = window.HeroAcademy && window.HeroAcademy.Humphrey;
+                if (H2 && typeof H2.say === 'function') {
+                  const stageLabel = ['Met', 'Trained', 'Squad'][i - 1] || ('Chapter ' + i);
+                  H2.say('hero-hall-episode', { kidName: 'Nigel', text: stageLabel + '. ' + story, expression: 'encouraging' });
+                }
+              } catch (_) {}
+            }
           } catch (e) { /* leave the placeholder */ }
         }
       }
-      function closeModal() { modalBg.classList.remove('open'); }
+      function closeModal() {
+        modalBg.classList.remove('open');
+        try {
+          const H = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (H && typeof H.stop === 'function') H.stop();
+        } catch (_) {}
+      }
       document.getElementById('modal-close').addEventListener('click', closeModal);
       modalBg.addEventListener('click', e => { if (e.target === modalBg) closeModal(); });
 

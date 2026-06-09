@@ -458,14 +458,39 @@
         overlay.hidden = false;
         window.scrollTo(0, 0);
         DC.markUsed('science_wonder');
+        // v162: Ms. Humphrey reads the full Wonder content sequentially.
         try {
           const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
-          if (hp && hp.say) hp.say({ text: "Great question for today, Nigel. Let's wonder together.", expression: 'encouraging' });
+          if (hp && typeof hp.say === 'function') {
+            const chunks = [];
+            chunks.push("Today's wonder, Nigel. " + (w.question || ''));
+            if (w.explanation)        chunks.push(w.explanation);
+            if (w.try_this)           chunks.push("Try this at home. " + w.try_this);
+            if (w.follow_up_question) chunks.push("And here's something to ask a grown-up. " + w.follow_up_question);
+            function splitForTts(text) {
+              var MAX = 450, t = String(text || '').trim();
+              if (!t) return []; if (t.length <= MAX) return [t];
+              var out = [], buf = '', sentences = t.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [t];
+              sentences.forEach(function (s) { var sentence = s.trim(); if (!sentence) return;
+                if ((buf + ' ' + sentence).trim().length > MAX) { if (buf) out.push(buf.trim()); buf = sentence.length > MAX ? sentence.slice(0, MAX) : sentence; }
+                else { buf = (buf + ' ' + sentence).trim(); }
+              }); if (buf) out.push(buf.trim()); return out;
+            }
+            chunks.forEach(function (c) { splitForTts(c).forEach(function (piece) {
+              hp.say('todays-wonder-read', { kidName: 'Nigel', text: piece, expression: 'encouraging', priority: 'high' });
+            }); });
+          }
         } catch (_) {}
       }
       card.addEventListener('click', open);
       card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
-      closeBtn.addEventListener('click', function () { overlay.hidden = true; });
+      closeBtn.addEventListener('click', function () {
+        overlay.hidden = true;
+        try {
+          var hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (hp && typeof hp.stop === 'function') hp.stop();
+        } catch (_) {}
+      });
     })();
   </script>
   <script src="js/sw-register.js"></script>
