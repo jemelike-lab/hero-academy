@@ -92,6 +92,59 @@
       font-family: 'Fredoka', sans-serif;
       font-size: 17px; margin: 0 0 8px; color: #1e293b;
     }
+
+    /* v160: Start School primary tile — biggest CTA on the home screen */
+    .start-school-tile {
+      display: flex; align-items: center; gap: 16px;
+      margin: 14px 16px 0; padding: 22px 22px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #ec4899 0%, #ff8b3d 55%, #ffd147 100%);
+      color: #2a0d1f;
+      text-decoration: none;
+      box-shadow: 0 14px 36px rgba(236, 72, 153, 0.45);
+      position: relative; overflow: hidden;
+      font-family: 'Nunito', system-ui, sans-serif;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .start-school-tile::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 90% 15%, rgba(255,255,255,0.35), transparent 55%);
+      pointer-events: none;
+    }
+    .start-school-tile:active { transform: scale(0.98); box-shadow: 0 8px 18px rgba(236, 72, 153, 0.4); }
+    .start-school-tile[hidden] { display: none !important; }
+    .start-school-emoji {
+      font-size: 56px; line-height: 1;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.15));
+      position: relative; z-index: 1;
+    }
+    .start-school-body { flex: 1 1 auto; min-width: 0; position: relative; z-index: 1; }
+    .start-school-eyebrow {
+      display: inline-block;
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 800; color: #2a0d1f;
+      background: rgba(255,255,255,0.45); padding: 4px 10px; border-radius: 999px;
+      margin: 0 0 8px;
+    }
+    .start-school-title {
+      font-family: 'Fredoka', system-ui, sans-serif;
+      font-size: 28px; line-height: 1.1; font-weight: 700;
+      margin: 0 0 4px; color: #1a0612;
+    }
+    .start-school-sub {
+      font-size: 14px; line-height: 1.35; color: #3a1428; margin: 0; opacity: 0.85;
+    }
+    .start-school-arrow {
+      font-size: 32px; font-weight: 700; color: #1a0612;
+      position: relative; z-index: 1;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+    }
+    /* When all 4 courses for today are done, tile shifts to a calmer "complete" look */
+    .start-school-tile.is-complete {
+      background: linear-gradient(135deg, #16a34a 0%, #22c55e 55%, #86efac 100%);
+      box-shadow: 0 12px 30px rgba(34, 197, 94, 0.4);
+    }
+    .start-school-tile.is-complete .start-school-arrow { content: '✓'; }
   </style>
   <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
   <title>Hero Academy · Nigel</title>
@@ -125,6 +178,17 @@
         <div class="speech-bubble" id="speechBubble"><span class="speech-text">Welcome back!</span><span class="speech-tail"></span></div>
       </div>
     </section>
+    <!-- v160: primary "Start School" tile — the daily anchor. Class Time is
+         Nigel's full-day teacher; this surfaces it above missions/wonders. -->
+    <a href="class-time.html" class="start-school-tile" id="startSchoolTile" aria-label="Start today's school day with Ms. Humphrey">
+      <span class="start-school-emoji" aria-hidden="true">🎒</span>
+      <div class="start-school-body">
+        <p class="start-school-eyebrow">Class Time with Ms. Humphrey</p>
+        <p class="start-school-title" id="startSchoolTitle">Start school</p>
+        <p class="start-school-sub" id="startSchoolSub">4 courses · ~75 min · breaks between</p>
+      </div>
+      <span class="start-school-arrow" aria-hidden="true">→</span>
+    </a>
     <section class="today-wonder-card" id="todayWonderCard" hidden role="button" tabindex="0" aria-label="Today's Wonder">
       <span class="today-wonder-eyebrow">✨ Today's Wonder</span>
       <p class="today-wonder-q" id="todayWonderQ">Loading…</p>
@@ -250,6 +314,30 @@
   <script src="js/quests.js"></script>
   <script src="js/characters.js"></script>
   <script>
+    // v160: Start School tile status — reflect today's Class Time completion
+    // from the localStorage marker set by Class Time's handleDayCompletion.
+    (function () {
+      var tile = document.getElementById('startSchoolTile');
+      if (!tile) return;
+      var d = new Date();
+      var todayKey = d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+      var titleEl = document.getElementById('startSchoolTitle');
+      var subEl = document.getElementById('startSchoolSub');
+      try {
+        var raw = localStorage.getItem('ha_class_time_' + todayKey);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.completedAt) {
+            tile.classList.add('is-complete');
+            if (titleEl) titleEl.textContent = 'All done today!';
+            if (subEl) subEl.textContent = 'Great work today, Nigel — see you tomorrow.';
+          }
+        }
+      } catch (_) { /* ignore parse errors, leave default */ }
+    })();
+
     if (window.HeroAcademy && window.HeroAcademy.TodayMission) {
       window.HeroAcademy.TodayMission.init();
     }

@@ -147,6 +147,37 @@
 
   // A cached mission is valid if it has a non-empty steps[] (new shape) OR
   // the legacy warmup/stretch/win triplet (we'll synthesize steps from those).
+  // v160: cap missions to 3 per day with day-rotated picks.
+  // Class Time is its own primary tile now (not a mission). Hero Hall is a
+  // reward-screen destination, not an activity. Filter both out, then pick
+  // 3 from the remaining pool using a day-of-year seed so the set rotates.
+  function pickThreeForToday(steps) {
+    if (!Array.isArray(steps) || steps.length === 0) return steps;
+    // Exclude class-time + hero-hall + anything without a routable zone_id
+    var pool = steps.filter(function (s) {
+      if (!s || !s.zone_id) return false;
+      if (s.zone_id === 'class-time') return false;
+      if (s.zone_id === 'hero-hall') return false;
+      return !!ZONE_ROUTES[s.zone_id];
+    });
+    if (pool.length <= 3) return pool;
+    // Day-of-year rotation: pick 3 starting from doy % pool.length, skipping
+    // duplicates by zone_id so the same zone isn't represented twice in a day.
+    var d = new Date();
+    var start = new Date(d.getFullYear(), 0, 0);
+    var doy = Math.floor((d - start) / 86400000);
+    var picked = [];
+    var seenZones = {};
+    for (var i = 0; i < pool.length && picked.length < 3; i++) {
+      var idx = (doy + i) % pool.length;
+      var s = pool[idx];
+      if (seenZones[s.zone_id]) continue;
+      seenZones[s.zone_id] = true;
+      picked.push(s);
+    }
+    return picked;
+  }
+
   function isValidCachedMission(m) {
     if (!m) return false;
     if (Array.isArray(m.steps) && m.steps.length > 0) return true;
@@ -339,6 +370,14 @@
     if (!ctx.container) return;
     mission = normalizeMission(mission);
     mission = injectLetterLabIfDueToday(mission);
+    // v160: cap to 3 missions per day with rotation; recompute total minutes.
+    var threeSteps = pickThreeForToday(mission.steps || []);
+    if (threeSteps && threeSteps !== mission.steps) {
+      mission = Object.assign({}, mission, {
+        steps: threeSteps,
+        total_minutes: threeSteps.reduce(function (sum, s) { return sum + (s.minutes || 0); }, 0)
+      });
+    }
     var steps = Array.isArray(mission.steps) ? mission.steps : [];
     if (steps.length === 0) {
       ctx.container.hidden = true;
@@ -379,7 +418,7 @@
       : 'Today\u2019s Mission';
     var subhead = allDone
       ? 'Come back tomorrow for a new mission.'
-      : ('All subjects \u2022 ' + doneCount + ' of ' + steps.length + ' done');
+      : ('3 quick activities \u2022 ' + doneCount + ' of ' + steps.length + ' done');
     var hint = allDone ? '' : (mission.unlock_hint || '');
 
     ctx.container.hidden = false;
