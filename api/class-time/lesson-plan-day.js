@@ -1,9 +1,10 @@
 /**
  * Hero Academy — /api/class-time/lesson-plan-day
  *
- * v156 (Class Time v2). Returns the FULL 4-course school day for a child on
- * a given date. Each course is 7-10 min on one subject, with N topics.
- * 15-min breaks happen between courses (handled client-side).
+ * v161 (Class Time v2.1). Returns the FULL 4-course school day with EXACTLY
+ * 4 topics per course. Each course is 7-10 min on one subject; 4 topics
+ * gives Ms. Humphrey ~90-150s per topic. 15-min breaks happen between
+ * courses (handled client-side).
  *
  * Cache strategy: first call of the day for a child triggers Haiku
  * generation, then the plan is persisted in `ha_day_lesson_plans` and
@@ -186,7 +187,7 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
     'Recent: ' + recentJson,
     '',
     '== PER-COURSE CONTENT ==',
-    'Each course has 2-3 topics. Each topic is something Ms. Humphrey can teach in 2-4 minutes on a digital board.',
+    'Each course has EXACTLY 4 topics. Each topic is something Ms. Humphrey can teach in roughly 90-150 seconds on a digital board, so four topics fill a 7-10 minute course. No fewer than 4. No more than 4.',
     '- For drawing-mode courses (math/spelling/writing), include the relevant `tools` from: drawNumber, drawDots, drawTenFrame, writeWord, writeLetter, drawEquation, clearBoard.',
     '- For mixed-mode courses (reading/grammar/vocabulary), tools may include writeWord plus an image keyword.',
     '- For image-mode courses (science/social), tools = ["showVisual"] and you MUST provide 2-4 image_keywords (single-noun search terms suitable for Wikipedia image lookup, e.g. "volcano", "blue crab", "Maryland flag", "honeybee"). Do NOT use proper nouns of living people.',
@@ -209,7 +210,9 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
     '      "target_minutes": 8,',
     '      "topics": [',
     '        {"id":"addition-10","title":"Addition within 10","focus":"7+3, 6+4, 8+2","tools":["drawDots","drawTenFrame","drawEquation"]},',
-    '        {"id":"count-by-2","title":"Counting by 2s","focus":"2,4,6,8,10","tools":["drawNumber","drawDots"]}',
+    '        {"id":"count-by-2","title":"Counting by 2s","focus":"2, 4, 6, 8, 10","tools":["drawNumber","drawDots"]},',
+    '        {"id":"ten-frame-read","title":"Reading ten-frames","focus":"show 6, 8, 10 on the frame","tools":["drawTenFrame","drawDots"]},',
+    '        {"id":"doubles-facts","title":"Doubles facts","focus":"4+4, 5+5, 6+6","tools":["drawEquation","drawDots"]}',
     '      ],',
     '      "image_keywords": []',
     '    },',
@@ -218,6 +221,9 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
     '    { "order": 4, "subject": "science", "subject_label": "Science", "board_mode": "image", "why_chosen": "...", "target_minutes": 10, "topics": [...], "image_keywords": ["volcano","lava","mountain"] }',
     '  ]',
     '}',
+    '',
+    '== CRITICAL — READ THIS LAST ==',
+    'EVERY course MUST contain EXACTLY 4 topics. Not 2, not 3, not 5. Four. Four. Four. Four. If you give a course fewer than 4 topics, the lesson breaks. All 4 courses × 4 topics = 16 total topic objects in your response.',
   ].join('\n');
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -229,7 +235,7 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
     },
     body: JSON.stringify({
       model: HAIKU_MODEL,
-      max_tokens: 1800,
+      max_tokens: 3000,
       system: systemPrompt,
       messages: [{ role: 'user', content: 'Write today\'s 4-course plan as JSON. No preamble.' }],
     }),
@@ -276,6 +282,12 @@ function normalizePlan(raw, date) {
       focus: String(t.focus || '').slice(0, 200),
       tools: Array.isArray(t.tools) ? t.tools.slice(0, 5).map(s => String(s).slice(0, 30)) : [],
     })).filter(t => t.title);
+    // Enforce exactly 4 topics per course (pad with subject-appropriate filler).
+    while (topics.length < 4) {
+      const j = topics.length;
+      const filler = topicFiller(meta.key, j);
+      topics.push(filler);
+    }
     out.courses.push({
       order: i + 1,
       subject: meta.key,
@@ -283,9 +295,7 @@ function normalizePlan(raw, date) {
       board_mode: ['drawing', 'image', 'mixed'].includes(c.board_mode) ? c.board_mode : meta.board_mode,
       why_chosen: String(c.why_chosen || '').slice(0, 200),
       target_minutes: clamp(parseInt(c.target_minutes, 10) || 8, 7, 10),
-      topics: topics.length ? topics : [{
-        id: meta.key + '-default', title: meta.label + ' practice', focus: '', tools: [],
-      }],
+      topics,
       image_keywords: Array.isArray(c.image_keywords)
         ? c.image_keywords.slice(0, 6).map(s => String(s).slice(0, 40))
         : [],
@@ -355,6 +365,9 @@ function fallbackPlan(date, recent) {
 
   const courses = subjects.map((subj, i) => {
     const meta = SUBJECT_BY_KEY[subj];
+    const seed = seedTopics[subj] || [];
+    const topics = seed.slice(0, 4);
+    while (topics.length < 4) topics.push(topicFiller(meta.key, topics.length));
     return {
       order: i + 1,
       subject: meta.key,
@@ -362,7 +375,7 @@ function fallbackPlan(date, recent) {
       board_mode: meta.board_mode,
       why_chosen: 'Daily rotation pick.',
       target_minutes: i === 0 ? 8 : (i === 3 ? 10 : 9),
-      topics: seedTopics[subj] || [{ id: subj + '-1', title: meta.label, focus: '', tools: [] }],
+      topics,
       image_keywords: seedImageKeywords[subj] || [],
     };
   });
@@ -376,8 +389,65 @@ function fallbackPlan(date, recent) {
 }
 
 // =====================================================================
-// Supabase RPC helper (native fetch, no SDK — repo has no package.json)
+// Subject-aware topic filler — used by normalizePlan when Haiku returns
+// fewer than 4 topics for a course. Each course MUST end up with 4.
 // =====================================================================
+function topicFiller(subjectKey, idx) {
+  const pool = {
+    math: [
+      { id:'math-pad-add',   title:'Quick addition warm-up',  focus:'3+2, 4+3, 5+4',         tools:['drawDots','drawEquation'] },
+      { id:'math-pad-sub',   title:'Quick subtraction',       focus:'5-2, 7-3, 9-4',         tools:['drawDots','drawEquation'] },
+      { id:'math-pad-count', title:'Count out loud',          focus:'count 1 to 20 together', tools:['drawNumber','drawDots'] },
+      { id:'math-pad-ten',   title:'Ten-frame practice',      focus:'show 5, 7, 10',         tools:['drawTenFrame','drawDots'] },
+    ],
+    reading: [
+      { id:'read-pad-sight', title:'Sight word review',       focus:'the, and, was, said',   tools:['writeWord'] },
+      { id:'read-pad-blend', title:'Blend & read',            focus:'sound out 3 simple words', tools:['writeWord','writeLetter'] },
+      { id:'read-pad-q',     title:'Comprehension check',     focus:'one who/what/why question', tools:['writeWord'] },
+      { id:'read-pad-flu',   title:'Read with feeling',       focus:'one sentence, smooth voice', tools:['writeWord'] },
+    ],
+    spelling: [
+      { id:'spell-pad-cvc',  title:'CVC words',               focus:'cat, dog, sun, pig',     tools:['writeWord'] },
+      { id:'spell-pad-sw',   title:'Sight-word spelling',     focus:'the, and, said',         tools:['writeWord','writeLetter'] },
+      { id:'spell-pad-fam',  title:'Word family',             focus:'-at: bat, cat, hat',     tools:['writeWord'] },
+      { id:'spell-pad-clap', title:'Clap the sounds',         focus:'clap each sound in 3 words', tools:['writeWord'] },
+    ],
+    writing: [
+      { id:'write-pad-cap',  title:'Capital at the start',    focus:'rewrite one sentence',   tools:['writeLetter','writeWord'] },
+      { id:'write-pad-end',  title:'Periods & question marks',focus:'add the right ending',   tools:['writeWord'] },
+      { id:'write-pad-name', title:'Name & label',            focus:'write one object name',  tools:['writeWord'] },
+      { id:'write-pad-sent', title:'One full sentence',       focus:'capital + words + period', tools:['writeWord'] },
+    ],
+    grammar: [
+      { id:'gram-pad-noun',  title:'Spot the noun',           focus:'which word is the thing?', tools:['writeWord'] },
+      { id:'gram-pad-verb',  title:'Spot the verb',           focus:'which word is the action?', tools:['writeWord'] },
+      { id:'gram-pad-adj',   title:'Describing words',        focus:'big, red, soft',         tools:['writeWord'] },
+      { id:'gram-pad-plur',  title:'One vs many',             focus:'cat / cats, dog / dogs', tools:['writeWord'] },
+    ],
+    vocabulary: [
+      { id:'vocab-pad-word', title:'New word + meaning',      focus:'gigantic = really big',  tools:['writeWord'] },
+      { id:'vocab-pad-use',  title:'Use it in a sentence',    focus:'say a sentence with the word', tools:['writeWord'] },
+      { id:'vocab-pad-syn',  title:'Synonym hunt',            focus:'big → huge, large',      tools:['writeWord'] },
+      { id:'vocab-pad-img',  title:'Picture the word',        focus:'draw or describe it',    tools:['writeWord'] },
+    ],
+    science: [
+      { id:'sci-pad-look',   title:'Look closely',            focus:'name what you see',      tools:['showVisual'] },
+      { id:'sci-pad-parts',  title:'Name the parts',          focus:'point to 3 parts',       tools:['showVisual','writeWord'] },
+      { id:'sci-pad-why',    title:'Why does it happen?',     focus:'one cause-and-effect',   tools:['showVisual'] },
+      { id:'sci-pad-life',   title:'Where it lives',          focus:'habitat or home',        tools:['showVisual'] },
+    ],
+    social: [
+      { id:'soc-pad-where',  title:'Find it on the map',      focus:'point and name',         tools:['showVisual'] },
+      { id:'soc-pad-job',    title:'Who does this job?',      focus:'community helper',       tools:['showVisual','writeWord'] },
+      { id:'soc-pad-symbol', title:'Maryland symbols',        focus:'flag, oriole, blue crab', tools:['showVisual'] },
+      { id:'soc-pad-then',   title:'Long ago vs now',         focus:'compare one thing',      tools:['showVisual'] },
+    ],
+  };
+  const list = pool[subjectKey] || pool.math;
+  return list[idx % list.length];
+}
+
+
 async function supabaseRpc(url, key, fn, params) {
   const r = await fetch(`${url}/rest/v1/rpc/${fn}`, {
     method: 'POST',
