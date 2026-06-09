@@ -235,6 +235,59 @@
         return `showed visual fallback: ${subject}`;
       },
       clearBoard:   ()  => { NS.ClassTimeBoard.clearBoard();    return 'cleared board'; },
+      // v157: Humphrey can call this to actually look at the board before
+      // describing it — instead of guessing from memory. Returns a short
+      // spoken-style reply she can repeat or paraphrase to Nigel.
+      // Usage: whatIsOnBoard({which:"humphrey"|"nigel"|"both", question:"..."})
+      whatIsOnBoard: async (p) => {
+        const which = String(p?.which ?? p?.board ?? 'humphrey').toLowerCase();
+        const question = String(p?.question ?? p?.about ?? p?.q ?? '').trim();
+        const meta = (NS.ClassTimeBoard.getBoardMeta && NS.ClassTimeBoard.getBoardMeta()) || { mode: 'drawing' };
+        console.log('[class-time] whatIsOnBoard called', { which, question, meta });
+        let snapshot = null;
+        try {
+          snapshot = await NS.ClassTimeBoard.captureBoardDataUrl({ which, maxDim: 640 });
+        } catch(e){
+          console.warn('[class-time] capture failed', e);
+        }
+        if (!snapshot){
+          return which === 'nigel'
+            ? "Nigel's board is empty — he hasn't drawn yet."
+            : "The board is empty right now — nothing to look at yet.";
+        }
+        const topic = state.lesson?.topics?.[state.currentTopicIdx] || {};
+        const subjectGuess = topic.skill || topic.subject || 'class time';
+        try {
+          const r = await fetch('/api/humphrey/see-board', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              image: snapshot,
+              media_type: 'image/jpeg',
+              context: {
+                subject: subjectGuess,
+                board_mode: meta.mode,
+                displayed_image_caption: meta.image_caption || '',
+                question_from_nigel: question
+              }
+            })
+          });
+          const data = await r.json();
+          if (data && (data.suggested_reply || data.description)){
+            const reply = String(data.suggested_reply || data.description).trim();
+            console.log('[class-time] see-board reply', reply, 'can_see=', data.can_see, 'conf=', data.confidence);
+            return reply;
+          }
+          if (data && data.error){
+            console.warn('[class-time] see-board error', data);
+            return 'I cannot quite make it out — let me try again in a moment.';
+          }
+          return 'I see the board, but cannot describe it clearly.';
+        } catch(e){
+          console.warn('[class-time] see-board fetch failed', e);
+          return 'I cannot see the board right now.';
+        }
+      },
       nextTopic:    ()  => {
         if (!state.lesson) return 'no lesson';
         if (state.currentTopicIdx < state.lesson.topics.length - 1) {

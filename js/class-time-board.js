@@ -13,6 +13,22 @@
     nigel:'#1e293b'          // dark for Nigel drawing
   };
 
+  // v157: board mode tracking — so see-board vision can be told what
+  // kind of board it's looking at (drawing / image / mixed).
+  // - 'drawing'  → only canvas strokes from teaching tools
+  // - 'image'    → a reference photo is up (showLiveImage / showVisual)
+  // - 'mixed'    → both an image AND canvas strokes are visible
+  // Mode is set automatically by which tool is called last; we never expose
+  // an explicit setter to the ConvAI agent for v157. clearBoard resets.
+  let currentMode = 'drawing';
+  let currentImageUrl = '';
+  let currentImageCaption = '';
+  let currentImageEl = null; // cached HTMLImageElement for capture composition
+  function escalateToMixed(){
+    if (currentMode === 'image') currentMode = 'mixed';
+  }
+
+
   // ---------- Canvas setup helpers ----------
   function fitCanvas(canvas){
     const host = canvas.parentElement;
@@ -60,7 +76,7 @@
   let activeAnimations = 0;
 
   function showHint(show){ if (humphreyHint) humphreyHint.style.display = show ? 'flex' : 'none'; }
-  function setBoardActive(){ showHint(false); }
+  function setBoardActive(){ showHint(false); escalateToMixed(); }
 
   function drawNumber(n){
     setBoardActive();
@@ -283,6 +299,11 @@
     if (visualSvg) visualSvg.innerHTML = svg;
     if (visualLabel) visualLabel.textContent = key;
     visualAid.classList.add('active');
+    // v157: mark mode for downstream vision calls
+    currentMode = 'image';
+    currentImageUrl = '';      // SVG, no URL to capture from
+    currentImageCaption = key;
+    currentImageEl = null;
   }
 
   // v142: render a live image (e.g. Wikipedia thumbnail) into the visual aid
@@ -304,10 +325,30 @@
       visualLabel.textContent = attr ? `${cap} — ${attr}` : cap;
     }
     visualAid.classList.add('active');
+    // v157: mark mode + preload a CORS-friendly copy for capture compositing.
+    currentMode = 'image';
+    currentImageUrl = String(url);
+    currentImageCaption = String(caption || '');
+    // Pre-load with crossOrigin so toDataURL won't taint the canvas later.
+    // Wikimedia upload.wikimedia.org sends CORS headers, so this works in
+    // practice. If it fails, captureHumphreyBoardDataUrl will fall back
+    // gracefully (image won't be in the snapshot, but canvas strokes will).
+    try {
+      const preload = new Image();
+      preload.crossOrigin = 'anonymous';
+      preload.onload = () => { currentImageEl = preload; };
+      preload.onerror = () => { currentImageEl = null; };
+      preload.src = currentImageUrl;
+    } catch(_) { currentImageEl = null; }
   }
 
   function clearBoard(){
     if (visualAid) visualAid.classList.remove('active');
+    // v157: reset mode tracking
+    currentMode = 'drawing';
+    currentImageUrl = '';
+    currentImageCaption = '';
+    currentImageEl = null;
     if (humphreyCanvas) {
       const { w, h } = getSize(humphreyCanvas);
       const ctx = humphreyCanvas.getContext('2d');
@@ -413,6 +454,132 @@
   function getStrokeCount(){ return strokeCount; }
   function onDrawingActivity(fn){ drawingListeners.add(fn); return () => drawingListeners.delete(fn); }
 
+  // ---------- v157: Humphrey board snapshot ----------
+  // Composites currently-visible image (if any) + canvas strokes into a
+  // single JPEG data URL that the see-board vision endpoint can read.
+  // Returns null if the board is empty.
+  function loadImagePromise(url){
+    return new Promise(function(resolve, reject){
+      try {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function(){ resolve(img); };
+        img.onerror = function(e){ reject(e); };
+        img.src = url;
+      } catch(e){ reject(e); }
+    });
+  }
+
+  function humphreyHasContent(){
+    if (currentMode === 'image' || currentMode === 'mixed') return true;
+    if (!humphreyCanvas) return false;
+    // Sniff: peek at a small downscaled pixel sample to detect non-blank canvas.
+    try {
+      var off = document.createElement('canvas');
+      off.width = 32; off.height = 32;
+      off.getContext('2d').drawImage(humphreyCanvas, 0, 0, 32, 32);
+      var px = off.getContext('2d').getImageData(0, 0, 32, 32).data;
+      for (var i = 3; i < px.length; i += 4) {
+        if (px[i] > 8) return true; // any non-trivial alpha
+      }
+    } catch(_) {}
+    return false;
+  }
+
+  async function captureHumphreyBoardDataUrl(maxDim){
+    if (!humphreyCanvas) return null;
+    if (!humphreyHasContent()) return null;
+    var target = maxDim || 640;
+    var hostR = humphreyCanvas.parentElement.getBoundingClientRect();
+    var w = hostR.width, h = hostR.height;
+    var scale = Math.min(1, target / Math.max(w, h));
+    var off = document.createElement('canvas');
+    off.width = Math.max(1, Math.round(w * scale));
+    off.height = Math.max(1, Math.round(h * scale));
+    var ctx = off.getContext('2d');
+    // Match Humphrey board background
+    ctx.fillStyle = '#fefce8';
+    ctx.fillRect(0, 0, off.width, off.height);
+    // Image layer (if mode is image/mixed and we have a URL)
+    if ((currentMode === 'image' || currentMode === 'mixed') && currentImageUrl){
+      try {
+        var img = currentImageEl;
+        if (!img || !img.complete) img = await loadImagePromise(currentImageUrl);
+        currentImageEl = img;
+        // object-fit: contain with 5% padding
+        var pad = 0.05;
+        var maxW = off.width * (1 - 2*pad);
+        var maxH = off.height * (1 - 2*pad);
+        var ir = img.width / img.height;
+        var dr = maxW / maxH;
+        var dw, dh;
+        if (ir > dr){ dw = maxW; dh = dw / ir; }
+        else { dh = maxH; dw = dh * ir; }
+        var dx = (off.width - dw) / 2;
+        var dy = (off.height - dh) / 2;
+        ctx.drawImage(img, dx, dy, dw, dh);
+      } catch(e){
+        console.warn('[ct-board] image draw failed, snapshot will exclude image (likely CORS):', e);
+      }
+    }
+    // Canvas strokes on top
+    try {
+      ctx.drawImage(humphreyCanvas, 0, 0, off.width, off.height);
+    } catch(e){
+      console.warn('[ct-board] canvas overlay failed:', e);
+    }
+    try {
+      return off.toDataURL('image/jpeg', 0.78);
+    } catch(e){
+      console.warn('[ct-board] toDataURL failed (canvas tainted?):', e);
+      return null;
+    }
+  }
+
+  // Side-by-side dispatcher — 'humphrey' (default), 'nigel', or 'both'.
+  async function captureBoardDataUrl(opts){
+    opts = opts || {};
+    var which = String(opts.which || 'humphrey').toLowerCase();
+    var max = opts.maxDim || 640;
+    if (which === 'nigel') return captureNigelCanvasDataUrl(max);
+    if (which === 'humphrey') return await captureHumphreyBoardDataUrl(max);
+    if (which === 'both'){
+      var hUrl = await captureHumphreyBoardDataUrl(max);
+      var nUrl = captureNigelCanvasDataUrl(max);
+      if (!hUrl && !nUrl) return null;
+      if (!hUrl) return nUrl;
+      if (!nUrl) return hUrl;
+      try {
+        var hi = await loadImagePromise(hUrl);
+        var ni = await loadImagePromise(nUrl);
+        var off = document.createElement('canvas');
+        var H = Math.max(hi.height, ni.height);
+        off.width = hi.width + ni.width + 8; // 8px gutter
+        off.height = H;
+        var ctx = off.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, off.width, off.height);
+        ctx.drawImage(hi, 0, 0);
+        ctx.drawImage(ni, hi.width + 8, 0);
+        return off.toDataURL('image/jpeg', 0.78);
+      } catch(e){
+        console.warn('[ct-board] both-composite failed, returning humphrey-only:', e);
+        return hUrl;
+      }
+    }
+    return await captureHumphreyBoardDataUrl(max);
+  }
+
+  function getBoardMeta(){
+    return {
+      mode: currentMode,
+      image_url: currentImageUrl,
+      image_caption: currentImageCaption,
+      humphrey_has_content: humphreyHasContent(),
+      nigel_has_content: nigelHasContent
+    };
+  }
+
   // ---------- Mount ----------
   function mount(opts){
     opts = opts || {};
@@ -478,6 +645,10 @@
     captureNigelCanvasDataUrl,
     isCanvasBlank,
     getStrokeCount,
-    onDrawingActivity
+    onDrawingActivity,
+    // v157: Humphrey board snapshot + mode metadata for see-board vision
+    captureHumphreyBoardDataUrl,
+    captureBoardDataUrl,
+    getBoardMeta
   };
 })();
