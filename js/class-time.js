@@ -96,8 +96,16 @@
 
   async function fetchCourseProgress(){
     try {
-      const r = await jsonFetch(`/api/class-time/course-progress?date=${state.today}&child_id=${CHILD_ID}`);
-      if (r && Array.isArray(r.progress)) return r.progress;
+      // v159: cache:'no-store' is defensive — the endpoint now also sends
+      // Cache-Control:no-store, but Service Worker or browser HTTP cache could
+      // otherwise return stale empty progress after a course completion.
+      const r = await fetch(
+        `/api/class-time/course-progress?date=${state.today}&child_id=${CHILD_ID}`,
+        { cache: 'no-store' }
+      );
+      if (!r.ok) throw new Error('http ' + r.status);
+      const data = await r.json();
+      if (data && Array.isArray(data.progress)) return data.progress;
     } catch(e){
       console.warn('[class-time] progress fetch failed (assuming none)', e);
     }

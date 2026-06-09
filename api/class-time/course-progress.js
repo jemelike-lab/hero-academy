@@ -51,6 +51,10 @@ export default async function handler(req, res) {
     const rows = await supabaseRpc(SUPA_URL, SUPA_KEY, 'ha_get_course_progress', {
       p_child_id: childId, p_date: date,
     });
+    // v159: explicitly opt out of any CDN/edge caching — this endpoint MUST
+    // reflect real-time DB state, or the Class Time resume flow ends up
+    // serving stale empty-progress data after a course completion.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     return res.status(200).json({ progress: Array.isArray(rows) ? rows : [] });
   } catch (e) {
     console.log('[course-progress] supabase failed', String(e).slice(0, 200));
