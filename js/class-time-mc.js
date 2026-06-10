@@ -1031,20 +1031,43 @@
   }
 
   // -------- Course start --------
-  function pickQuestionsForCourse(courseIdx) {
-    // v171: use the hardcoded bank. v172 will swap to Haiku-generated.
+  // v172: fetch from /api/class-time/questions for daily-fresh Haiku content.
+  // Falls back to V171_BANK if the API or Haiku fails. The endpoint itself
+  // caches per (child_id, plan_date, course_order), so two visits to the same
+  // course in the same day see the same questions — but the next day brings
+  // a fresh set.
+  async function fetchQuestionsForCourse(courseIdx) {
+    const courseOrder = courseIdx + 1;
     const subject = SUBJECTS[courseIdx] || 'math';
     state.subject = subject;
     state.courseIdx = courseIdx;
-    const bank = V171_BANK[subject] || [];
-    // Take first QUESTIONS_PER_COURSE — they're already curated.
-    return bank.slice(0, QUESTIONS_PER_COURSE);
+    try {
+      const url = `/api/class-time/questions?date=${state.today}&child_id=${CHILD_ID}&course_order=${courseOrder}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`api ${r.status}`);
+      const data = await r.json();
+      if (data && Array.isArray(data.questions) && data.questions.length >= 3) {
+        console.log(`[class-time-mc] questions source=${data.source} count=${data.questions.length}`);
+        // If the server's source is 'fallback' AND the subject is non-math, the
+        // server returned math questions — use the subject-specific V171_BANK
+        // instead.
+        if (data.source === 'fallback' && subject !== 'math') {
+          return (V171_BANK[subject] || V171_BANK.math).slice(0, QUESTIONS_PER_COURSE);
+        }
+        return data.questions.slice(0, QUESTIONS_PER_COURSE);
+      }
+      throw new Error('empty_questions');
+    } catch (e) {
+      console.warn('[class-time-mc] questions fetch failed, using V171_BANK:', e);
+      return (V171_BANK[subject] || V171_BANK.math).slice(0, QUESTIONS_PER_COURSE);
+    }
   }
 
-  function startCourse(courseIdx) {
+  async function startCourse(courseIdx) {
     state.courseIdx = courseIdx;
     state.subject = SUBJECTS[courseIdx];
-    state.questions = pickQuestionsForCourse(courseIdx);
+    setBootMessage('Loading questions for ' + (SUBJECT_LABEL[state.subject] || state.subject) + '…', '');
+    state.questions = await fetchQuestionsForCourse(courseIdx);
     state.qIdx = 0;
     $('course-badge').textContent = `Course ${courseIdx + 1}/${COURSES_PER_DAY}`;
     $('subject-badge').textContent = SUBJECT_LABEL[state.subject] || state.subject;
@@ -1137,7 +1160,7 @@
       handleDayCompletion('day-already-done');
       return;
     }
-    startCourse(startIdx);
+    await startCourse(startIdx);
   }
 
   // Save progress on tab hide / exit (matches v163 pattern)
