@@ -351,6 +351,22 @@
   }
   .skip-btn:hover { opacity: 1; background: rgba(214, 184, 137, 0.08); }
   .skip-btn:active { transform: translateY(1px); }
+
+  /* v169: contextual "Move on" button shown after 2+ wrong Serve It Up
+     attempts. More prominent than the global Skip Recipe button — it's an
+     explicit escape hatch that reveals the answer and advances cleanly. */
+  .move-on-btn {
+    display: block; margin: 10px auto 4px;
+    background: var(--fire-amber); color: #2a1d0e;
+    border: 2px solid var(--copper-deep);
+    border-radius: 14px; padding: 12px 22px;
+    font-size: 17px; font-weight: 700;
+    box-shadow: 0 3px 0 var(--copper-shadow);
+    cursor: pointer; min-height: 44px;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  .move-on-btn[hidden] { display: none; }
+  .move-on-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-shadow); }
   .feedback { font-size: 14px; min-height: 18px; text-align: center; font-weight: 600; }
   .feedback.correct { color: #2e6b27; }
   .feedback.wrong { color: #c0392b; }
@@ -560,8 +576,9 @@
   <!-- v146: Skip-to-next-question button. Hidden until the play loop starts;
        hidden again during 'boot' and 'complete' phases. Skipping advances to
        the next recipe (not the next micro-question) so Nigel cleanly moves
-       past a recipe he's stuck on without grinding through every bunch. -->
-  <button type="button" class="skip-btn" id="skipQuestionBtn" hidden>Skip ▶</button>
+       past a recipe he's stuck on without grinding through every bunch.
+       v169: relabeled "Skip recipe ▶" so scope is unambiguous. -->
+  <button type="button" class="skip-btn" id="skipQuestionBtn" hidden>Skip recipe ▶</button>
 </section>
 
 <section class="scene">
@@ -938,6 +955,8 @@
     state.currentVeggieIdx = 0;
     state.currentBunchIdx = 0;
     state.ingredientCounts = {};
+    state.wrongServeAttempts = 0;  // v169
+    hideMoveOn();                   // v169
     r.ingredients.forEach(ing => { state.ingredientCounts[ing.veggie.id] = 0; });
     renderRecipeHeader();
     renderTenFrames();
@@ -1131,9 +1150,14 @@
   });
   function onSubmit() {
     const r = state.recipes[state.currentRecipeIdx];
-    const guess = parseInt($('submitInput').value);
+    const raw = $('submitInput').value;
+    const guess = parseInt(raw, 10);
     if (isNaN(guess)) return;
-    if (guess === r.answer) {
+    // v169: defensive coercion — both sides forced to Number(). Combined
+    // with the recomputed answer in hydrateServerRecipe, this closes the
+    // "correct serve marked wrong" bug regardless of where bad data crept in.
+    const correct = Number(r.answer);
+    if (guess === correct) {
       // v152 fix: setHumphreyMessage() clears the feedback element as part of
       // its own "fresh question" setup. So we MUST call it FIRST, then set the
       // feedback text after — otherwise the feedback gets wiped instantly and
@@ -1143,6 +1167,8 @@
       $('feedback').className = 'feedback correct';
       $('submitArea').classList.remove('visible');
       $('strategyReveal').classList.remove('visible');
+      hideMoveOn(); // v169
+      state.wrongServeAttempts = 0;
       // Advance to next recipe
       setTimeout(() => {
         state.currentRecipeIdx++;
@@ -1157,7 +1183,63 @@
       setHumphreyMessage(`Let's count together. ${r.ingredients.map(i => i.count).join(' plus ')}.`);
       $('feedback').textContent = `Hmm — that's ${guess}, not quite right. Let's count together: ${r.ingredients.map(i => i.count).join(' + ')}. Try again.`;
       $('feedback').className = 'feedback wrong';
+      // v169: track repeated wrong attempts and surface a clear escape hatch
+      // so Nigel never gets locked out of the next recipe.
+      state.wrongServeAttempts = (state.wrongServeAttempts || 0) + 1;
+      if (state.wrongServeAttempts >= 2) {
+        showMoveOn();
+      }
     }
+  }
+
+  // v169: "Move on →" affordance that appears after 2+ wrong Serve It Up
+  // attempts. Reveals the answer and advances to the next recipe. This is
+  // separate from the global Skip Recipe button — it's contextual to the
+  // submit phase and acknowledges that Nigel tried.
+  function showMoveOn() {
+    var btn = $('moveOnBtn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'moveOnBtn';
+      btn.className = 'move-on-btn';
+      btn.textContent = 'Show me & move on →';
+      btn.addEventListener('click', onMoveOnTap);
+      // Insert directly under feedback, above strategy/skip
+      var fb = $('feedback');
+      if (fb && fb.parentNode) fb.parentNode.insertBefore(btn, fb.nextSibling);
+    }
+    btn.hidden = false;
+  }
+  function hideMoveOn() {
+    var btn = $('moveOnBtn');
+    if (btn) btn.hidden = true;
+  }
+  function onMoveOnTap() {
+    var r = state.recipes[state.currentRecipeIdx];
+    if (!r) return;
+    setHumphreyMessage(`No worries, Nigel. The answer is ${r.answer}. ${r.ingredients.map(i => i.count).join(' plus ')} is ${r.answer}. Let's try the next one.`);
+    $('feedback').textContent = `${r.ingredients.map(i => i.count).join(' + ')} = ${r.answer}`;
+    $('feedback').className = 'feedback hint';
+    $('submitArea').classList.remove('visible');
+    $('strategyReveal').classList.remove('visible');
+    hideMoveOn();
+    state.wrongServeAttempts = 0;
+    try { if (window.HeroAcademy?.Telemetry?.rpc) {
+      window.HeroAcademy.Telemetry.rpc('ha_record_event', {
+        p_child_id: window.HeroAcademy.Telemetry.childId?.(),
+        p_event_type: 'cauldron_serve_skipped',
+        p_payload: { recipe: r.name, answer: r.answer }
+      });
+    } } catch (_) {}
+    setTimeout(() => {
+      state.currentRecipeIdx++;
+      if (state.currentRecipeIdx >= state.recipes.length) {
+        startComplete();
+      } else {
+        startRecipe();
+      }
+    }, 3200);
   }
 
   function startComplete() {
@@ -1244,12 +1326,32 @@
       return { veggie: v, count: ing.count };
     }).filter(Boolean);
     if (!ingredients.length) return null;
+    // v169 — NEVER trust the LLM's r.answer for math correctness. The API
+    // validator only enforces it's a number, not that it actually equals
+    // the sum of ingredients. We've seen "5 + 4 = 8" recipes ship through
+    // and mark Nigel's correct 9 as wrong. Recompute from ingredient counts
+    // and log a discrepancy so we can see how often the LLM is wrong.
+    const computedAnswer = ingredients.reduce((s, i) => s + (Number(i.count) || 0), 0);
+    if (typeof r.answer === 'number' && r.answer !== computedAnswer) {
+      console.warn('[Cauldron] LLM answer mismatch — recipe:', r.name,
+        'llm_answer:', r.answer, 'computed:', computedAnswer,
+        'ingredients:', ingredients.map(i => i.count));
+      try {
+        if (window.HeroAcademy?.Telemetry?.rpc) {
+          window.HeroAcademy.Telemetry.rpc('ha_record_event', {
+            p_child_id: window.HeroAcademy.Telemetry.childId?.(),
+            p_event_type: 'cauldron_llm_answer_mismatch',
+            p_payload: { recipe: r.name, llm: r.answer, computed: computedAnswer, ingredients: ingredients.map(i => ({ v: i.veggie?.id, c: i.count })) }
+          });
+        }
+      } catch (_) {}
+    }
     return {
       name: r.name,
       ingredients,
       prompt: r.prompt,
       equation: r.equation,
-      answer: r.answer,
+      answer: computedAnswer,
       skill: r.skill,
     };
   }
