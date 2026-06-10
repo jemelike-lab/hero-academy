@@ -1,7 +1,11 @@
 // js/class-time.js
-// v165 — Class Time v2: full school day = 4 courses × 7-10 min, 15-min breaks
-// Fixed: exit no longer marks course as completed (was causing false completions)
-// Fixed: removed duplicate SessionProgress bar (class-time has its own header)
+// v166 — Class Time v2: full school day = 4 courses × 7-10 min, 15-min breaks
+// v165: exit no longer marks course as completed (was causing false completions)
+// v165: removed duplicate SessionProgress bar (class-time has its own header)
+// v166: FREEZE FIX — silence detection + nudge buttons + sendUserMessage prods
+//       Root cause: contextual updates don't wake an idle ConvAI agent; only
+//       user messages do. Topic watcher now uses sendUserMessage. Adds 18s
+//       silence auto-nudge + 👋 Nudge / ⏭ Next-topic buttons in header.
 // between courses, subject-aware board mode, resumable on reload.
 //
 // Each course is its own ConvAI conversation with course-specific dynamic
@@ -53,6 +57,12 @@
     topicWatcherInterval: null,
     topicStartedAt: 0,
     topicNudged: false,
+    // v166: silence detection
+    isHumphreySpeaking: false,
+    lastSpeakingEndAt: 0,
+    lastUserActivityAt: 0,
+    autoNudgeCount: 0,
+    silenceCheckInterval: null,
     sessionStartedAt: null,
     transcript: [],                      // accumulated across all courses for Saturday email
     // Misc
@@ -367,11 +377,7 @@
       nextTopic:    ()  => {
         if (!state.lesson) return 'no lesson';
         if (state.currentTopicIdx < state.lesson.topics.length - 1) {
-          state.currentTopicIdx++;
-          state.topicStartedAt = Date.now();
-          state.topicNudged = false;
-          renderTopicPips();
-          announceTopicToHumphrey(state.currentTopicIdx);
+          advanceTopic('humphrey');
           return `topic ${state.currentTopicIdx + 1}`;
         }
         return 'last topic reached';
@@ -430,8 +436,19 @@
       onDisconnect: () => { console.log('[class-time] disconnected'); setHumphreyState('idle'); },
       onError: (err) => { console.error('[class-time] conv error', err); },
       onModeChange: (m) => {
-        if (m && m.mode === 'speaking') setHumphreyState('speaking');
-        else setHumphreyState('listening');
+        const speaking = !!(m && m.mode === 'speaking');
+        // v166: track speaking-end timestamps so silence-detection knows when
+        // Humphrey actually went idle (vs never started talking yet).
+        if (speaking) {
+          setHumphreyState('speaking');
+          state.isHumphreySpeaking = true;
+        } else {
+          setHumphreyState('listening');
+          if (state.isHumphreySpeaking) {
+            state.lastSpeakingEndAt = Date.now();
+            state.isHumphreySpeaking = false;
+          }
+        }
       },
       onStatusChange: (s) => { console.log('[class-time] status', s); },
       // Transcript accumulates across courses for Saturday digest
@@ -439,6 +456,11 @@
         if (!m) return;
         const text = m.message || m.text || '';
         const source = m.source || m.role || 'unknown';
+        // v166: any user message resets the silence/nudge clock
+        if (source === 'user' || source === 'student') {
+          state.lastUserActivityAt = Date.now();
+          state.autoNudgeCount = 0;
+        }
         if (text && state.transcript){
           state.transcript.push({
             role: source,
@@ -456,46 +478,63 @@
       logEvent('class_time_voice', { lesson_date: state.today, source: state.dayPlan?.source });
     }
 
-    // Topic-watcher (nudge + auto-advance) — per course
+    // v166: Topic-watcher (nudge + auto-advance) — per course.
+    // Thresholds tightened (60s/100s vs old 90s/130s) and prods now use
+    // sendUserMessage so Humphrey actually takes a turn.
     state.topicStartedAt = Date.now();
     state.topicNudged = false;
+    state.autoNudgeCount = 0;
+    state.lastSpeakingEndAt = 0;
+    state.lastUserActivityAt = 0;
     state.topicWatcherInterval = setInterval(() => {
       if (!state.lesson || state.completed || state.inBreak) return;
       const elapsed = (Date.now() - state.topicStartedAt) / 1000;
       const isLast = state.currentTopicIdx >= state.lesson.topics.length - 1;
-      if (elapsed >= 90 && !state.topicNudged && !isLast) {
+      if (elapsed >= 60 && !state.topicNudged && !isLast) {
         state.topicNudged = true;
         const next = state.lesson.topics[state.currentTopicIdx + 1];
+        // First inject context (silent), then a user message (audible) so she replies
         sendContextualUpdate(
-          `You have been on this topic for about 90 seconds. ` +
-          `Wrap up with one final thought, then call nextTopic to move on to "${next?.title || 'the next topic'}".`
+          `Topic ${state.currentTopicIdx + 1} has been going for 60s. ` +
+          `Wrap up briefly and call nextTopic to advance to "${next?.title || 'the next topic'}".`
         );
+        setTimeout(() => sendUserMessage(
+          `Ms. Humphrey, can we move on to ${next?.title || 'the next topic'}?`
+        ), 200);
       }
-      if (elapsed >= 130 && !isLast) {
-        state.currentTopicIdx++;
-        state.topicStartedAt = Date.now();
-        state.topicNudged = false;
-        renderTopicPips();
-        announceTopicToHumphrey(state.currentTopicIdx);
+      if (elapsed >= 100 && !isLast) {
+        advanceTopic('auto');
       }
-      if (isLast && elapsed >= 90 && !state.topicNudged) {
+      if (isLast && elapsed >= 60 && !state.topicNudged) {
         state.topicNudged = true;
         sendContextualUpdate(
-          `This is the last topic of this course. Wrap up in the next 30 seconds, ` +
-          `then call endClass to finish the course.`
+          `Last topic has been going for 60s. Wrap up in the next 30s and call endClass.`
         );
+        setTimeout(() => sendUserMessage(
+          `Ms. Humphrey, I think we're done with this course. Can we finish?`
+        ), 200);
       }
     }, 10000);
+    // v166: Silence checker runs every 3s; lighter than topic watcher
+    state.silenceCheckInterval = setInterval(checkSilence, 3000);
   }
 
-  function announceTopicToHumphrey(idx){
+  function announceTopicToHumphrey(idx, reason){
     if (!state.lesson || !state.lesson.topics[idx]) return;
     const t = state.lesson.topics[idx];
+    const totalTopics = state.lesson.topics.length;
     const why = (t.why_chosen || '').trim();
-    let msg = `Topic ${idx + 1} of ${state.lesson.topics.length} starting now: "${t.title}" (${t.skill}). Focus: ${t.focus}.`;
-    if (why) msg += ` Why this topic for Nigel today: ${why}`;
-    msg += " Open the topic by mentioning the why-chosen reason if it fits naturally, then start teaching.";
-    sendContextualUpdate(msg);
+    // v166: Context (silent) for the agent's awareness
+    let ctx = `Topic ${idx + 1} of ${totalTopics} starting now: "${t.title}" (${t.skill}). Focus: ${t.focus}.`;
+    if (why) ctx += ` Why this topic for Nigel today: ${why}`;
+    sendContextualUpdate(ctx);
+    // v166: User message (audible prompt) — this is what makes her actually speak
+    const reasonTag = reason === 'silence' ? "I was quiet, sorry! " :
+                      reason === 'manual'  ? "I'm ready, " :
+                      reason === 'auto'    ? "Let's keep going, " : "";
+    setTimeout(() => {
+      sendUserMessage(`${reasonTag}can we move on to topic ${idx + 1}: ${t.title}? Please teach it.`);
+    }, 200);
   }
 
   function sendContextualUpdate(text){
@@ -511,6 +550,83 @@
     } catch(e){
       console.warn('[class-time] contextual update failed', e);
     }
+  }
+
+  // v166: Forces the agent to take a turn. Contextual updates do NOT wake
+  // an idle ConvAI agent — only user messages do. This was the root cause
+  // of the freezing bug: 90s/130s nudges fired contextualUpdate calls that
+  // Humphrey received silently while waiting for Nigel's voice.
+  function sendUserMessage(text){
+    if (!state.conversation) return false;
+    try {
+      if (typeof state.conversation.sendUserMessage === 'function') {
+        state.conversation.sendUserMessage(text);
+        return true;
+      }
+      if (typeof state.conversation.sendMessage === 'function') {
+        state.conversation.sendMessage(text);
+        return true;
+      }
+      // Last resort — fall back to contextual update (won't unfreeze, but logs)
+      console.warn('[class-time] sendUserMessage unavailable, falling back to contextual');
+      sendContextualUpdate(text);
+      return false;
+    } catch(e){
+      console.warn('[class-time] sendUserMessage failed', e);
+      return false;
+    }
+  }
+
+  // v166: Silence detection — if Humphrey has been idle (not speaking) and
+  // Nigel hasn't said anything for ~18s, prod her with a Nigel-voice user
+  // message. Capped at 3 nudges per topic; after that, force-advance.
+  function checkSilence(){
+    if (!state.lesson || state.completed || state.inBreak) return;
+    if (state.isHumphreySpeaking) return;
+    if (!state.lastSpeakingEndAt) return; // she hasn't started speaking yet
+    const silenceSec = (Date.now() - state.lastSpeakingEndAt) / 1000;
+    const userIdleSec = state.lastUserActivityAt
+      ? (Date.now() - state.lastUserActivityAt) / 1000
+      : silenceSec;
+    if (silenceSec < 18 || userIdleSec < 18) return;
+    if (state.autoNudgeCount >= 3) {
+      // She's been silent through 3 nudges — force-advance topic or end course
+      console.warn('[class-time] silence after 3 nudges — forcing advance');
+      state.autoNudgeCount = 0;
+      forceAdvanceFromSilence();
+      return;
+    }
+    state.autoNudgeCount++;
+    state.lastSpeakingEndAt = Date.now(); // reset the silence clock
+    console.log('[class-time] auto-nudge #' + state.autoNudgeCount);
+    const topic = state.lesson?.topics?.[state.currentTopicIdx];
+    const nudgeText = topic
+      ? `Ms. Humphrey? I'm waiting. Can you keep teaching about ${topic.title}?`
+      : `Ms. Humphrey? Can you keep going?`;
+    sendUserMessage(nudgeText);
+  }
+
+  function forceAdvanceFromSilence(){
+    if (!state.lesson) return;
+    const isLast = state.currentTopicIdx >= state.lesson.topics.length - 1;
+    if (isLast) {
+      console.log('[class-time] forcing course end from silence');
+      endCourse('silence');
+    } else {
+      advanceTopic('silence');
+    }
+  }
+
+  function advanceTopic(reason){
+    if (!state.lesson) return;
+    if (state.currentTopicIdx >= state.lesson.topics.length - 1) return;
+    state.currentTopicIdx++;
+    state.topicStartedAt = Date.now();
+    state.topicNudged = false;
+    state.autoNudgeCount = 0;
+    state.lastSpeakingEndAt = Date.now(); // give a fresh silence window
+    renderTopicPips();
+    announceTopicToHumphrey(state.currentTopicIdx, reason);
   }
 
   // ---------- Auto-vision capture (per course) ----------
@@ -679,6 +795,7 @@
     clearInterval(state.timerInterval);
     clearInterval(state.captureInterval);
     clearInterval(state.topicWatcherInterval);
+    clearInterval(state.silenceCheckInterval);
     if (state.stopCaptureWatcher) state.stopCaptureWatcher();
     clearTimeout(state.pendingPostCapture);
     NS.ClassTimeBoard.clearBoard();
@@ -820,6 +937,52 @@
     }
   }
 
+  // v166: Manual "Keep going" button — prods Humphrey to keep teaching
+  function manualNudge(){
+    console.log('[class-time] manual nudge');
+    flashButton('nudge-btn');
+    state.autoNudgeCount = 0;
+    state.lastSpeakingEndAt = Date.now();
+    const topic = state.lesson?.topics?.[state.currentTopicIdx];
+    const text = topic
+      ? `Ms. Humphrey, can you keep teaching me about ${topic.title}?`
+      : `Ms. Humphrey, can you keep going?`;
+    sendUserMessage(text);
+    logEvent('class_time_manual_nudge', {
+      lesson_date: state.today,
+      course_order: state.currentCourseIdx + 1,
+      topic_idx: state.currentTopicIdx
+    });
+  }
+
+  // v166: Manual "Next topic" button — advances pip + tells Humphrey to switch
+  function manualNextTopic(){
+    console.log('[class-time] manual next topic');
+    flashButton('next-topic-btn');
+    if (!state.lesson) return;
+    const isLast = state.currentTopicIdx >= state.lesson.topics.length - 1;
+    logEvent('class_time_manual_skip', {
+      lesson_date: state.today,
+      course_order: state.currentCourseIdx + 1,
+      topic_idx: state.currentTopicIdx,
+      was_last: isLast
+    });
+    if (isLast) {
+      // End the course early — same path Humphrey's endClass tool takes
+      sendUserMessage("Ms. Humphrey, I think we're done with this course. Can we wrap up?");
+      setTimeout(() => { endCourse('manual-skip-last'); }, 1500);
+    } else {
+      advanceTopic('manual');
+    }
+  }
+
+  function flashButton(id){
+    const btn = $(id);
+    if (!btn) return;
+    btn.classList.add('flash');
+    setTimeout(() => btn.classList.remove('flash'), 400);
+  }
+
   async function exit(){
     // v165: do NOT mark course as complete on exit — only endCourse() does
     // that when the timer runs out or Humphrey calls endClass. Early exits
@@ -828,6 +991,7 @@
     clearInterval(state.timerInterval);
     clearInterval(state.captureInterval);
     clearInterval(state.topicWatcherInterval);
+    clearInterval(state.silenceCheckInterval);
     clearInterval(state.breakInterval);
     logEvent('class_time_exit_early', {
       lesson_date: state.today,
@@ -859,6 +1023,11 @@
     $('exit-btn').addEventListener('click', exit);
     $('mute-btn').addEventListener('click', toggleMute);
     $('completion-btn').addEventListener('click', exitToHome);
+    // v166: manual nudge + skip buttons
+    const nudgeBtn = $('nudge-btn');
+    if (nudgeBtn) nudgeBtn.addEventListener('click', manualNudge);
+    const skipBtn = $('next-topic-btn');
+    if (skipBtn) skipBtn.addEventListener('click', manualNextTopic);
     const resumeBtn = $('break-resume-btn');
     if (resumeBtn) resumeBtn.addEventListener('click', resumeFromBreak);
     const capBack = $('cap-back-btn');

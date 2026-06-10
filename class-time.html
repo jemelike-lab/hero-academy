@@ -48,6 +48,18 @@
   .ct-icon-btn:hover { background:rgba(255,255,255,0.08); }
   .ct-icon-btn.exit { background:rgba(239,68,68,0.15); color:#fca5a5; border-color:rgba(239,68,68,0.3); }
 
+  /* v166: nudge + skip buttons */
+  .ct-icon-btn.nudge { background:rgba(251,191,36,0.16); color:#fbbf24; border-color:rgba(251,191,36,0.35); font-size:20px; }
+  .ct-icon-btn.nudge:hover { background:rgba(251,191,36,0.26); }
+  .ct-icon-btn.skip { background:rgba(34,211,238,0.14); color:#67e8f9; border-color:rgba(34,211,238,0.32); font-size:18px; }
+  .ct-icon-btn.skip:hover { background:rgba(34,211,238,0.24); }
+  .ct-icon-btn.flash { animation:btn-flash 0.4s ease-out; }
+  @keyframes btn-flash {
+    0%   { transform:scale(1); box-shadow:0 0 0 0 rgba(251,191,36,0.6); }
+    50%  { transform:scale(1.18); box-shadow:0 0 0 8px rgba(251,191,36,0.0); }
+    100% { transform:scale(1); }
+  }
+
   /* Boards container */
   .ct-stage { flex:1 1 auto; display:flex; gap:12px; padding:12px; min-height:0; }
   .ct-board-wrap { flex:1 1 50%; display:flex; flex-direction:column; min-width:0; }
@@ -210,6 +222,8 @@
       <div class="ct-timer" id="timer">7:00</div>
     </div>
     <div class="ct-actions">
+      <button class="ct-icon-btn nudge" id="nudge-btn" title="Nudge Ms. Humphrey to keep going">👋</button>
+      <button class="ct-icon-btn skip" id="next-topic-btn" title="Skip to next topic">⏭</button>
       <button class="ct-icon-btn" id="mute-btn" title="Mute">🔊</button>
       <button class="ct-icon-btn exit" id="exit-btn" title="Exit">✕</button>
     </div>
