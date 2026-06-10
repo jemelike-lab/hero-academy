@@ -717,6 +717,90 @@
   function pulseHumphreyOn() { $('humphrey-portrait')?.classList.add('speaking'); }
   function pulseHumphreyOff() { $('humphrey-portrait')?.classList.remove('speaking'); }
 
+  // =====================================================================
+  // v173: kid-friendly audio cues for right/wrong. WebAudio so no asset
+  // fetch and no dependency on ElevenLabs being warmed up. Synthesized to
+  // be PROMINENT but not annoying — happy two-note chime on correct, soft
+  // descending blip on wrong (no harsh buzzer for a 7yo).
+  // =====================================================================
+  let __audioCtx = null;
+  function getAudioCtx() {
+    if (__audioCtx) return __audioCtx;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) __audioCtx = new Ctx();
+    } catch (_) {}
+    return __audioCtx;
+  }
+  function playCue(kind) {
+    if (state.muted) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      if (kind === 'correct') {
+        // Two-note ascending chime: C5 → E5
+        [[523.25, 0], [659.25, 0.12]].forEach(([freq, delay]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + delay + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.32);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now + delay);
+          osc.stop(now + delay + 0.34);
+        });
+      } else if (kind === 'wrong') {
+        // Soft descending blip: G4 → E4 (gentle, not punitive)
+        [[392, 0], [329.63, 0.13]].forEach(([freq, delay]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.0001, now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.12, now + delay + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.22);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now + delay);
+          osc.stop(now + delay + 0.24);
+        });
+      } else if (kind === 'advance') {
+        // Crisp 'click' for I-Get-It → next question
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.1, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      }
+    } catch (e) { console.warn('[class-time-mc] cue failed', kind, e); }
+  }
+
+  // =====================================================================
+  // v173: topic mastery telemetry. Each answered question contributes one
+  // attempt to ha_topic_mastery. We mark "passed" only when the FIRST tap
+  // was correct — getting it after a hint or after the demo still counts
+  // as attempted but not passed (cleaner signal of true mastery).
+  // =====================================================================
+  function recordTopicAttempt(topicId, passedFirstTry) {
+    if (!topicId) return;
+    try {
+      if (NS.Telemetry && typeof NS.Telemetry.rpc === 'function') {
+        NS.Telemetry.rpc('ha_record_topic_attempt', {
+          p_child_id: NS.Telemetry.childId ? NS.Telemetry.childId() : CHILD_ID,
+          p_topic_id: topicId,
+          p_passed: !!passedFirstTry,
+        });
+      }
+    } catch (e) { console.warn('[class-time-mc] recordTopicAttempt failed', e); }
+  }
+
   // -------- Question rendering --------
   function letterFor(i) { return String.fromCharCode(65 + i); } // 0→A
 
@@ -818,6 +902,9 @@
       buttons.forEach((b) => { b.disabled = true; });
       $('feedback').textContent = `✓ ${q.explanation}`;
       $('feedback').className = 'ct-feedback correct';
+      playCue('correct'); // v173
+      // v173: only counts as "passed" if FIRST tap was correct
+      recordTopicAttempt(q.topic, state.wrongAttempts === 0);
       logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: true, attempts: state.wrongAttempts + 1 });
       tts(`Yes! ${q.explanation}`);
       setTimeout(advanceQuestion, FEEDBACK_PAUSE_MS + 1400);
@@ -828,11 +915,14 @@
     state.wrongAttempts++;
     buttons[idx].classList.add('wrong');
     buttons[idx].disabled = true;
+    playCue('wrong'); // v173
 
     if (state.wrongAttempts >= 2) {
       // Trigger the whiteboard remediation demo
       $('feedback').textContent = `Let's work through this together.`;
       $('feedback').className = 'ct-feedback hint';
+      // v173: record as attempted-but-not-passed (we'll show the demo)
+      recordTopicAttempt(q.topic, false);
       logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: false, attempts: state.wrongAttempts, demo_shown: true });
       setTimeout(() => startRemediation(q), FEEDBACK_PAUSE_MS);
       return;
@@ -914,6 +1004,7 @@
     $('demo-next-btn').hidden = false;
     $('demo-next-btn').onclick = () => {
       state.abortDemo = true; // belt-and-suspenders
+      playCue('advance'); // v173
       advanceQuestion();
     };
   }
@@ -971,6 +1062,19 @@
     $('break-next-label').textContent = `Next: ${SUBJECT_LABEL[nextSubject]} · Course ${nextCourseIdx + 1} of ${COURSES_PER_DAY}`;
     const overlay = $('break-overlay');
     overlay.style.display = 'flex';
+
+    // v173: warm the cache for the NEXT course while Nigel is on break.
+    // Haiku takes ~17s; the break is 15 min. By the time he resumes, the
+    // next course's questions are sitting in the Supabase cache and the
+    // start is instant.
+    const prefetchUrl = `/api/class-time/questions?date=${state.today}&child_id=${CHILD_ID}&course_order=${nextCourseIdx + 1}`;
+    fetch(prefetchUrl).then(r => r.ok ? r.json() : null).then((data) => {
+      if (data && data.ok) {
+        console.log(`[class-time-mc] prefetched course ${nextCourseIdx + 1} (${data.source}, ${data.count} q)`);
+      }
+    }).catch((e) => {
+      console.log('[class-time-mc] prefetch failed (no big deal — will re-fetch on resume):', e);
+    });
 
     // Wire the resume button — break-timer.js will enable it after 15 min
     const resumeBtn = $('break-resume-btn');
@@ -1137,15 +1241,13 @@
     $('exit-btn').addEventListener('click', exit);
     $('mute-btn').addEventListener('click', toggleMute);
     $('read-again-btn').addEventListener('click', () => {
-      if (state.inDemo) return;
+      if (state.inDemo) return; // v173: don't compete with the demo's narration
       const q = state.questions[state.qIdx];
       if (!q) return;
       const btn = $('read-again-btn');
       btn.classList.add('speaking');
       speakAndUnlock(buildReadAloud(q));
-      // Remove speaking class when TTS resolves — speakAndUnlock pulses humphrey,
-      // so we hook into the same timeline.
-      setTimeout(() => btn.classList.remove('speaking'), 25000); // hard timeout matches TTS_FALLBACK_MS
+      setTimeout(() => btn.classList.remove('speaking'), 25000);
     });
 
     // Mount the board ahead of time so the canvas DOM exists.
@@ -1161,6 +1263,16 @@
       return;
     }
     await startCourse(startIdx);
+
+    // v173: warm cache for course +1 in the background. Cheap — Haiku
+    // already cached its content if it's been requested today; if not,
+    // ~17s now means the break-to-course-2 transition is instant.
+    if (startIdx + 1 < COURSES_PER_DAY) {
+      const url = `/api/class-time/questions?date=${state.today}&child_id=${CHILD_ID}&course_order=${startIdx + 2}`;
+      fetch(url).then(r => r.ok ? r.json() : null).then((data) => {
+        if (data && data.ok) console.log(`[class-time-mc] boot-prefetched course ${startIdx + 2} (${data.source})`);
+      }).catch(() => {});
+    }
   }
 
   // Save progress on tab hide / exit (matches v163 pattern)
