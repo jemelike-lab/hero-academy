@@ -7,10 +7,15 @@
 <link rel="icon" href="data:," />
 <link rel="manifest" href="manifest.webmanifest">
 <style>
+  /* v171 — Multiple-choice Class Time. Whiteboard/canvas + ConvAI retired.
+     One-way TTS reads question + every option, buttons stay disabled until
+     she finishes, then Nigel taps to answer. */
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin:0; padding:0; height:100%; width:100%; overflow:hidden; background:#0b0d14; color:#e6e9f2; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; touch-action:none; }
+  html, body { margin:0; padding:0; height:100%; width:100%; overflow:hidden;
+    background:linear-gradient(180deg,#1a1230 0%,#0b0d14 100%); color:#e6e9f2;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; touch-action:none; }
 
-  /* Rotate prompt for portrait */
   #rotate-prompt {
     position:fixed; inset:0; z-index:9999;
     background:linear-gradient(180deg,#1a1230 0%,#0b0d14 100%);
@@ -22,7 +27,6 @@
   #rotate-prompt p { margin:0; font-size:18px; line-height:1.5; color:#cbd5e1; max-width:440px; }
   @keyframes rotate-hint { 0%,100%{transform:rotate(0)} 50%{transform:rotate(90deg)} }
 
-  /* Main classroom layout (landscape) */
   #classroom { position:fixed; inset:0; display:flex; flex-direction:column; }
 
   /* Header */
@@ -34,9 +38,9 @@
   .ct-title { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; color:#fbbf24; }
   .ct-title .badge { background:rgba(251,191,36,0.15); color:#fbbf24; padding:2px 10px; border-radius:999px; font-size:12px; }
   .ct-meta { display:flex; align-items:center; gap:16px; font-size:14px; }
-  .ct-timer { font-variant-numeric:tabular-nums; font-weight:600; color:#22d3ee; min-width:60px; text-align:right; }
-  .ct-topic-pip { display:inline-flex; gap:4px; }
-  .ct-topic-pip span { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.18); }
+  .ct-progress { font-variant-numeric:tabular-nums; font-weight:600; color:#22d3ee; min-width:90px; text-align:right; }
+  .ct-topic-pip { display:inline-flex; gap:6px; }
+  .ct-topic-pip span { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.18); transition:background .2s ease; }
   .ct-topic-pip span.active { background:#fbbf24; box-shadow:0 0 10px rgba(251,191,36,0.6); }
   .ct-topic-pip span.done { background:#22c55e; }
   .ct-actions { display:flex; gap:8px; }
@@ -48,158 +52,185 @@
   .ct-icon-btn:hover { background:rgba(255,255,255,0.08); }
   .ct-icon-btn.exit { background:rgba(239,68,68,0.15); color:#fca5a5; border-color:rgba(239,68,68,0.3); }
 
-  /* v166: nudge + skip buttons */
-  .ct-icon-btn.nudge { background:rgba(251,191,36,0.16); color:#fbbf24; border-color:rgba(251,191,36,0.35); font-size:20px; }
-  .ct-icon-btn.nudge:hover { background:rgba(251,191,36,0.26); }
-  .ct-icon-btn.skip { background:rgba(34,211,238,0.14); color:#67e8f9; border-color:rgba(34,211,238,0.32); font-size:18px; }
-  .ct-icon-btn.skip:hover { background:rgba(34,211,238,0.24); }
-  .ct-icon-btn.flash { animation:btn-flash 0.4s ease-out; }
-  @keyframes btn-flash {
-    0%   { transform:scale(1); box-shadow:0 0 0 0 rgba(251,191,36,0.6); }
-    50%  { transform:scale(1.18); box-shadow:0 0 0 8px rgba(251,191,36,0.0); }
-    100% { transform:scale(1); }
+  /* Stage — the question card */
+  .ct-stage {
+    flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    padding:24px 20px 20px; gap:20px; overflow:hidden;
   }
+  .ct-question-card {
+    width:100%; max-width:1100px;
+    background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+    border-radius:24px; padding:32px 32px 28px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.3);
+    position:relative;
+    min-height:200px;
+  }
+  .ct-q-topic {
+    color:#a78bfa; font-weight:600; font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .ct-q-text {
+    font-size:30px; line-height:1.35; color:#fef3c7; font-weight:500;
+    margin:0 0 6px 0;
+  }
+  .ct-q-status {
+    margin-top:14px; font-size:14px; color:#a3a3c2; min-height:20px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .ct-q-status.ready { color:#86efac; }
+  .ct-listen-dot { width:8px; height:8px; border-radius:50%; background:#fbbf24; animation:listen-pulse 1.2s ease-in-out infinite; }
+  @keyframes listen-pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  .ct-q-status.ready .ct-listen-dot { background:#22c55e; animation:none; }
 
-  /* Boards container */
-  .ct-stage { flex:1 1 auto; display:flex; gap:12px; padding:12px; min-height:0; }
-  .ct-board-wrap { flex:1 1 50%; display:flex; flex-direction:column; min-width:0; }
-  .ct-board-label {
-    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
-    padding:6px 12px; border-radius:8px 8px 0 0; display:flex; align-items:center; justify-content:space-between;
+  .ct-card-controls { position:absolute; top:20px; right:20px; display:flex; gap:8px; }
+  .ct-read-again {
+    background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid rgba(251,191,36,0.35);
+    border-radius:12px; padding:8px 14px; font-size:14px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; min-height:36px;
   }
-  .ct-board-wrap.humphrey .ct-board-label { background:rgba(168,85,247,0.18); color:#d8b4fe; }
-  .ct-board-wrap.nigel .ct-board-label { background:rgba(34,211,238,0.18); color:#67e8f9; }
-  .ct-board-canvas-host {
-    flex:1 1 auto; position:relative; border-radius:0 0 14px 14px; overflow:hidden;
-    background:#f8fafc; border:2px solid rgba(255,255,255,0.08); border-top:none; min-height:0;
-  }
-  .ct-board-wrap.humphrey .ct-board-canvas-host { background:linear-gradient(180deg,#fefce8,#fef9c3); }
-  .ct-board-wrap.nigel .ct-board-canvas-host { background:#ffffff; }
-  .ct-board-canvas-host canvas { display:block; width:100%; height:100%; touch-action:none; }
+  .ct-read-again:hover { background:rgba(251,191,36,0.25); }
+  .ct-read-again:disabled { opacity:0.4; cursor:not-allowed; }
+  .ct-read-again.speaking { animation:listen-pulse 0.8s ease-in-out infinite; }
 
-  /* Visual aid overlay (showVisual) */
+  /* Answer buttons — disabled until TTS ends */
+  .ct-answers {
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    gap:14px; width:100%; max-width:1100px;
+  }
+  .ct-answer-btn {
+    background:linear-gradient(180deg,#3b1d6e,#2a1450);
+    color:#fff; border:2px solid rgba(251,191,36,0.3);
+    border-radius:20px; padding:24px 20px;
+    font-size:22px; font-weight:600; line-height:1.3;
+    cursor:pointer;
+    display:flex; align-items:center; gap:14px;
+    min-height:80px;
+    text-align:left;
+    transition:transform .1s ease, box-shadow .15s ease, border-color .15s ease, opacity .15s ease;
+    box-shadow:0 4px 0 rgba(0,0,0,0.3);
+  }
+  .ct-answer-btn:not(:disabled):hover { border-color:#fbbf24; transform:translateY(-2px); box-shadow:0 6px 0 rgba(0,0,0,0.3); }
+  .ct-answer-btn:not(:disabled):active { transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,0.3); }
+  .ct-answer-btn:disabled { opacity:0.45; cursor:not-allowed; }
+  .ct-answer-btn.correct { background:linear-gradient(180deg,#15803d,#14532d); border-color:#86efac; }
+  .ct-answer-btn.wrong { background:linear-gradient(180deg,#9f1239,#7f1d1d); border-color:#fca5a5; }
+  .ct-answer-btn .letter {
+    flex:0 0 36px; height:36px; border-radius:50%; background:rgba(251,191,36,0.2);
+    color:#fbbf24; font-size:18px; font-weight:800;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .ct-answer-btn.correct .letter { background:rgba(134,239,172,0.25); color:#86efac; }
+  .ct-answer-btn.wrong .letter { background:rgba(252,165,165,0.25); color:#fca5a5; }
+
+  /* Feedback line + move-on */
+  .ct-feedback {
+    width:100%; max-width:1100px; min-height:32px;
+    font-size:18px; line-height:1.4; padding:12px 16px; border-radius:14px;
+    background:transparent;
+    transition:background .2s ease, color .2s ease;
+  }
+  .ct-feedback.correct { background:rgba(34,197,94,0.12); color:#86efac; border:1px solid rgba(134,239,172,0.3); }
+  .ct-feedback.wrong { background:rgba(239,68,68,0.12); color:#fca5a5; border:1px solid rgba(252,165,165,0.3); }
+  .ct-feedback.hint { background:rgba(251,191,36,0.12); color:#fde68a; border:1px solid rgba(251,191,36,0.3); }
+  .ct-feedback:empty { display:none; }
+
+  /* v171 demo-board — the whiteboard surface Ms. Humphrey uses to teach a
+     question step-by-step after two wrong tries. Mounts the same canvas the
+     existing class-time-board.js renders to, so writeWord / drawEquation /
+     showVisual all work unchanged. */
+  .ct-demo-board {
+    width:100%; max-width:1100px;
+    background:rgba(254,243,199,0.96); color:#1f2937;
+    border:1px solid rgba(251,191,36,0.5); border-radius:24px;
+    padding:18px 22px 20px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.3);
+    position:relative;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .ct-demo-board[hidden] { display:none; }
+  .ct-demo-label {
+    display:flex; align-items:center; justify-content:space-between;
+    font-weight:700; color:#92400e; font-size:15px;
+  }
+  .ct-demo-step { background:rgba(251,191,36,0.18); color:#92400e; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .ct-demo-canvas-host {
+    position:relative; width:100%; height:300px;
+    background:#fef9e7; border-radius:14px; overflow:hidden;
+    border:1px dashed rgba(146,64,14,0.25);
+  }
+  #humphrey-canvas { width:100%; height:100%; display:block; }
   #visual-aid {
     position:absolute; inset:0; display:none; align-items:center; justify-content:center;
-    background:rgba(254,252,232,0.96); pointer-events:none; padding:16px;
+    pointer-events:none;
   }
-  #visual-aid.active { display:flex; animation:visual-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
-  #visual-aid .svg-host { max-width:90%; max-height:90%; display:flex; flex-direction:column; align-items:center; gap:8px; }
-  #visual-aid .svg-host svg { max-width:100%; max-height:60vh; height:auto; }
-  #visual-aid .visual-label { font-size:24px; font-weight:700; color:#7c3aed; text-transform:capitalize; }
-  @keyframes visual-pop { from{opacity:0; transform:scale(0.7)} to{opacity:1; transform:scale(1)} }
-
-  /* Board hint when empty */
-  .ct-board-hint {
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    color:#94a3b8; font-size:16px; pointer-events:none; user-select:none;
+  #visual-aid.visible { display:flex; }
+  #visual-aid .svg-host { display:flex; flex-direction:column; align-items:center; gap:10px; padding:14px; background:rgba(255,255,255,0.85); border-radius:14px; max-width:60%; max-height:90%; }
+  #visual-aid .svg-img { max-width:220px; max-height:220px; }
+  #visual-aid .svg-img svg, #visual-aid .svg-img img { width:100%; height:auto; }
+  #visual-aid .visual-label { font-size:18px; font-weight:700; color:#1f2937; text-align:center; }
+  .ct-demo-next {
+    align-self:flex-end;
+    background:#f5a23d; color:#2a1d0e; border:2px solid #d97706;
+    border-radius:14px; padding:14px 24px;
+    font-size:18px; font-weight:700; min-height:48px; cursor:pointer;
+    box-shadow:0 3px 0 #92400e;
   }
+  .ct-demo-next[hidden] { display:none; }
+  .ct-demo-next:active { transform:translateY(2px); box-shadow:0 1px 0 #92400e; }
 
-  /* Nigel canvas tools */
-  .ct-nigel-tools { display:flex; gap:8px; }
-  .ct-tool-btn {
-    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#e6e9f2;
-    padding:4px 10px; border-radius:8px; font-size:12px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;
-  }
-  .ct-tool-btn:hover { background:rgba(255,255,255,0.14); }
-
-  /* Humphrey portrait */
+  /* Floating Humphrey portrait */
   #humphrey-portrait {
-    position:fixed; right:18px; bottom:18px; width:96px; height:96px; border-radius:50%;
-    background:#1e293b; overflow:hidden; border:3px solid #fbbf24; z-index:50;
-    box-shadow:0 8px 30px rgba(251,191,36,0.35); transition:all 0.3s ease;
+    position:fixed; bottom:24px; right:24px;
+    width:96px; height:96px; border-radius:50%;
+    background:#0b0d14 center/cover;
+    border:3px solid rgba(251,191,36,0.4);
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    overflow:hidden; z-index:5;
+    transition:box-shadow .2s ease, transform .2s ease;
   }
-  #humphrey-portrait.speaking { box-shadow:0 0 0 4px rgba(251,191,36,0.4),0 8px 30px rgba(251,191,36,0.6); animation:pulse-speak 1.6s ease-in-out infinite; }
-  #humphrey-portrait.listening { border-color:#22d3ee; box-shadow:0 0 0 4px rgba(34,211,238,0.4),0 8px 30px rgba(34,211,238,0.5); }
-  #humphrey-portrait img { width:100%; height:100%; object-fit:cover; }
-  @keyframes pulse-speak { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+  #humphrey-portrait img { width:100%; height:100%; object-fit:cover; display:block; }
+  #humphrey-portrait.speaking {
+    box-shadow:0 0 0 6px rgba(251,191,36,0.25), 0 4px 16px rgba(0,0,0,0.4);
+    animation:speaking-bob 1.2s ease-in-out infinite;
+  }
+  @keyframes speaking-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
 
-  #mic-indicator {
-    position:fixed; right:130px; bottom:50px; padding:8px 14px; border-radius:999px;
-    background:rgba(15,23,42,0.85); border:1px solid rgba(255,255,255,0.12);
-    font-size:13px; color:#cbd5e1; display:none; z-index:50; max-width:240px;
+  /* Overlays — same patterns as the previous version */
+  #boot-overlay, #completion, #break-overlay {
+    position:fixed; inset:0; z-index:50;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px;
+    background:linear-gradient(180deg,#1a1230 0%,#0b0d14 100%); text-align:center;
   }
-  #mic-indicator.show { display:inline-block; }
-  #mic-indicator.speaking { color:#fbbf24; border-color:rgba(251,191,36,0.4); }
-  #mic-indicator.listening { color:#67e8f9; border-color:rgba(34,211,238,0.4); }
-
-  /* Boot overlay */
-  #boot-overlay {
-    position:fixed; inset:0; z-index:200; background:rgba(11,13,20,0.95);
-    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:20px;
-  }
-  #boot-overlay .ralphie { width:90px; height:90px; animation:bounce 1s ease-in-out infinite; }
-  #boot-overlay .label { font-size:18px; color:#cbd5e1; }
-  #boot-overlay .sub { font-size:13px; color:#94a3b8; }
-  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-
-  /* Completion overlay */
-  #completion {
-    position:fixed; inset:0; z-index:300; background:radial-gradient(ellipse at center,rgba(124,58,237,0.25),rgba(11,13,20,0.98));
-    display:none; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; text-align:center;
-  }
-  #completion.show { display:flex; }
-  #completion h2 { font-size:36px; margin:0; color:#fbbf24; }
-  #completion p { font-size:18px; color:#cbd5e1; margin:0; max-width:520px; line-height:1.5; }
-  #completion .btn {
-    margin-top:14px; padding:14px 30px; background:#fbbf24; color:#1f2937; border:none; border-radius:14px;
-    font-size:18px; font-weight:700; cursor:pointer; box-shadow:0 6px 20px rgba(251,191,36,0.35);
+  #completion, #break-overlay { display:none; }
+  #boot-overlay .ralphie { width:120px; height:auto; }
+  #boot-overlay .label { font-size:22px; color:#fbbf24; font-weight:700; }
+  #boot-overlay .sub { font-size:16px; color:#cbd5e1; }
+  #completion h2 { color:#fbbf24; font-size:32px; margin:0; }
+  #completion p { color:#cbd5e1; font-size:18px; margin:0 0 8px 0; }
+  .btn {
+    background:#fbbf24; color:#1a1230; border:none; border-radius:14px;
+    padding:14px 28px; font-size:18px; font-weight:700; cursor:pointer;
+    min-height:48px;
   }
 
-  /* Voice cap state */
-  #voice-cap-msg {
-    position:fixed; inset:0; z-index:250; background:rgba(11,13,20,0.95);
-    display:none; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; text-align:center;
-  }
-  #voice-cap-msg.show { display:flex; }
-  #voice-cap-msg h2 { color:#fbbf24; margin:0; font-size:32px; }
-  #voice-cap-msg p { color:#cbd5e1; margin:0; max-width:520px; line-height:1.5; }
-  #voice-cap-msg .btn { padding:12px 24px; background:rgba(255,255,255,0.08); color:#e6e9f2; border:1px solid rgba(255,255,255,0.18); border-radius:12px; font-size:16px; cursor:pointer; }
+  .break-card { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:36px 40px; max-width:520px; }
+  .break-card h2 { color:#86efac; font-size:32px; margin:0 0 16px 0; }
+  .break-timer-display { font-size:64px; font-weight:800; color:#22d3ee; font-variant-numeric:tabular-nums; margin:8px 0; }
+  .break-sub { color:#cbd5e1; font-size:16px; margin:8px 0; }
+  .break-next { color:#a78bfa; font-size:14px; font-weight:600; margin:16px 0 8px 0; }
+  #break-resume-btn { background:#22d3ee; color:#0b0d14; border:none; border-radius:14px; padding:14px 28px; font-size:18px; font-weight:700; cursor:pointer; }
+  #break-resume-btn:disabled { background:rgba(255,255,255,0.1); color:#cbd5e1; cursor:not-allowed; }
 
-  /* v158: Course header pill (in title bar) */
-  .ct-title #course-header {
-    background:rgba(34,211,238,0.16); color:#67e8f9;
-    padding:2px 10px; border-radius:999px; font-size:12px;
-    letter-spacing:0.02em;
+  /* Phone responsive */
+  @media (max-width:640px) {
+    .ct-q-text { font-size:24px; }
+    .ct-answer-btn { font-size:18px; padding:18px 16px; min-height:64px; }
+    .ct-question-card { padding:24px 20px; }
+    .ct-card-controls { top:14px; right:14px; }
+    .ct-read-again { padding:8px 10px; font-size:13px; }
+    .ct-read-again .label { display:none; }
+    #humphrey-portrait { width:72px; height:72px; }
   }
-  .ct-title #course-header strong { color:#bef0fb; font-weight:700; }
-
-  /* v158: Break overlay between courses */
-  #break-overlay {
-    position:fixed; inset:0; z-index:280;
-    background:radial-gradient(ellipse at center,rgba(20,184,212,0.25),rgba(11,13,20,0.97));
-    display:none; align-items:center; justify-content:center; padding:24px;
-  }
-  #break-overlay.show { display:flex; }
-  .break-card {
-    background:rgba(15,23,42,0.85); border:2px solid rgba(34,211,238,0.4);
-    border-radius:24px; padding:36px 44px; text-align:center; max-width:560px;
-    box-shadow:0 20px 60px rgba(34,211,238,0.18);
-  }
-  .break-card h2 {
-    margin:0 0 14px; font-size:34px; color:#67e8f9; letter-spacing:0.01em;
-  }
-  .break-timer-display {
-    font-size:84px; font-weight:800; margin:8px 0;
-    font-variant-numeric:tabular-nums; color:#fbbf24;
-    text-shadow:0 0 30px rgba(251,191,36,0.4);
-  }
-  .break-sub {
-    font-size:20px; color:#e2e8f0; margin:14px 0 6px; line-height:1.4;
-  }
-  .break-next {
-    font-size:14px; color:#94a3b8; margin:0 0 22px; text-transform:uppercase;
-    letter-spacing:0.06em;
-  }
-  #break-resume-btn {
-    padding:14px 32px; background:#22d3ee; color:#0b0d14; border:none;
-    border-radius:14px; font-size:18px; font-weight:700; cursor:pointer;
-    transition:all 0.2s ease;
-    box-shadow:0 6px 20px rgba(34,211,238,0.4);
-  }
-  #break-resume-btn:disabled {
-    background:rgba(255,255,255,0.08); color:#64748b; box-shadow:none; cursor:not-allowed;
-  }
-  #break-resume-btn:not(:disabled):hover { transform:translateY(-2px); box-shadow:0 10px 28px rgba(34,211,238,0.55); }
 </style>
 </head>
 <body>
@@ -207,50 +238,55 @@
 <div id="rotate-prompt">
   <div class="icon">📱</div>
   <h2>Turn your tablet sideways</h2>
-  <p>Class Time works best when your tablet is in landscape mode — Ms. Humphrey's board on the left, your space on the right.</p>
+  <p>Class time works best in landscape mode.</p>
 </div>
 
 <div id="classroom">
   <div class="ct-header">
     <div class="ct-title">
       <span>🎓 Class Time</span>
-      <span class="badge" id="course-header">Course 1/4</span>
-      <span class="badge" id="topic-label">Loading…</span>
+      <span class="badge" id="course-badge">Course 1/4</span>
+      <span class="badge" id="subject-badge" style="background:rgba(167,139,250,0.18); color:#c4b5fd;">Math</span>
     </div>
     <div class="ct-meta">
-      <div class="ct-topic-pip" id="topic-pips"></div>
-      <div class="ct-timer" id="timer">7:00</div>
-    </div>
-    <div class="ct-actions">
-      <button class="ct-icon-btn nudge" id="nudge-btn" title="Nudge Ms. Humphrey to keep going">👋</button>
-      <button class="ct-icon-btn skip" id="next-topic-btn" title="Skip to next topic">⏭</button>
-      <button class="ct-icon-btn" id="mute-btn" title="Mute">🔊</button>
-      <button class="ct-icon-btn exit" id="exit-btn" title="Exit">✕</button>
+      <span class="ct-progress" id="q-progress">0 / 8</span>
+      <span class="ct-topic-pip" id="topic-pip"></span>
+      <div class="ct-actions">
+        <button class="ct-icon-btn" id="mute-btn" title="Mute">🔊</button>
+        <button class="ct-icon-btn exit" id="exit-btn" title="Exit">✕</button>
+      </div>
     </div>
   </div>
 
   <div class="ct-stage">
-    <div class="ct-board-wrap humphrey">
-      <div class="ct-board-label">
-        <span>👩🏽‍🏫 Ms. Humphrey's Board</span>
+    <div class="ct-question-card">
+      <div class="ct-card-controls">
+        <button type="button" class="ct-read-again" id="read-again-btn" title="Read again">
+          🔊 <span class="label">Read again</span>
+        </button>
       </div>
-      <div class="ct-board-canvas-host">
+      <div class="ct-q-topic" id="q-topic">Topic</div>
+      <h2 class="ct-q-text" id="q-text">Loading your first question…</h2>
+      <div class="ct-q-status" id="q-status"><span class="ct-listen-dot"></span> Ms. Humphrey is reading…</div>
+    </div>
+
+    <!-- Normal MC mode: answer buttons + feedback -->
+    <div class="ct-answers" id="answer-buttons"></div>
+    <div class="ct-feedback" id="feedback"></div>
+
+    <!-- v171 demo mode: whiteboard takes over after 2 wrong tries. Hidden
+         until remediation triggers. Ms. Humphrey writes/draws here while
+         TTS narrates each step. "I get it" button advances to next Q. -->
+    <div class="ct-demo-board" id="demo-board" hidden>
+      <div class="ct-demo-label">
+        <span>👩🏽‍🏫 Ms. Humphrey's Board</span>
+        <span class="ct-demo-step" id="demo-step-label">Step 1 of 3</span>
+      </div>
+      <div class="ct-demo-canvas-host">
         <canvas id="humphrey-canvas"></canvas>
-        <div class="ct-board-hint" id="humphrey-hint">She'll write here as she teaches</div>
         <div id="visual-aid"><div class="svg-host"><div class="svg-img" id="visual-svg"></div><div class="visual-label" id="visual-label"></div></div></div>
       </div>
-    </div>
-    <div class="ct-board-wrap nigel">
-      <div class="ct-board-label">
-        <span>✏️ Your Space</span>
-        <div class="ct-nigel-tools">
-          <button class="ct-tool-btn" id="nigel-clear-btn">🧹 Clear</button>
-        </div>
-      </div>
-      <div class="ct-board-canvas-host">
-        <canvas id="nigel-canvas"></canvas>
-        <div class="ct-board-hint" id="nigel-hint">Draw or write your answers here</div>
-      </div>
+      <button type="button" class="ct-demo-next" id="demo-next-btn" hidden>I get it! Next question →</button>
     </div>
   </div>
 </div>
@@ -258,7 +294,6 @@
 <div id="humphrey-portrait">
   <img id="humphrey-img" src="assets/humphrey/humphrey-smile.png" alt="Ms. Humphrey" onerror="this.src='assets/humphrey/humphrey-idle.png'">
 </div>
-<div id="mic-indicator">Connecting…</div>
 
 <div id="boot-overlay">
   <img class="ralphie" src="assets/ralphie/ralphie_waving.png" alt="Ralphie" onerror="this.style.display='none'">
@@ -282,22 +317,15 @@
   </div>
 </div>
 
-<div id="voice-cap-msg">
-  <h2>🌙 Chat again tomorrow</h2>
-  <p>You've had a lot of great chats with Ms. Humphrey today. Come back tomorrow for a fresh class!</p>
-  <button class="btn" id="cap-back-btn">Back home</button>
-</div>
-
-<!-- ElevenLabs ConvAI SDK -->
-<script src="https://unpkg.com/@elevenlabs/client@1.9.0/dist/lib.iife.js" defer></script>
-
-<!-- Hero Academy modules -->
+<!-- Hero Academy modules. ConvAI SDK retired in v171; whiteboard kept for
+     teaching demonstrations on wrong-twice (driven by the front-end, not an
+     agent — so no listening + no ConvAI complexity). -->
 <script src="js/humphrey.js"></script>
 <script src="js/telemetry.js"></script>
 <script src="js/sw-register.js"></script>
 <script src="js/class-time-visuals.js"></script>
 <script src="js/class-time-board.js"></script>
-<script src="js/class-time.js"></script>
+<script src="js/class-time-mc.js"></script>
 <script src="js/break-timer.js" defer></script>
 
 </body>

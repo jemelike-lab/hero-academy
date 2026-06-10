@@ -1,0 +1,1158 @@
+// =========================================================================
+// Class Time v3 (v171) — multiple choice + whiteboard remediation.
+//
+// Major redesign goals motivated by field reports:
+//  - ConvAI listening was unreliable, silence detection was unreliable, the
+//    canvas-vision wakeup was unreliable.
+//  - The new flow: Humphrey TTS-reads the question + every option, buttons
+//    stay disabled until she finishes, Nigel taps to answer.
+//  - Wrong twice → Humphrey uses the whiteboard to TEACH the solution step
+//    by step (driven by front-end, NOT an agent — no listening required).
+//
+// What's preserved from prior versions:
+//  - 4 courses per day (math / reading / spelling / science)
+//  - 15-min break overlay between courses (v158)
+//  - ha_day_lesson_plans + ha_course_attempts for routing/resume (v158/v163)
+//  - Exit-saves-progress via sendBeacon (v163)
+//  - Today's Mission integration on home (v146/v151)
+//
+// What's retired:
+//  - ConvAI session, listening, silence detection, nudge button (v166)
+//  - Canvas vision wakeup (v167)
+//  - Topic auto-advance watcher (v154)
+//  - "Your Space" — Nigel's drawing canvas (he taps, doesn't draw)
+//  - Voice cap UI (TTS is cheap, no per-conversation gating)
+//
+// What stays for remediation only:
+//  - class-time-board.js (writeWord, writeLetter, drawEquation, showVisual)
+//  - class-time-visuals.js (SVG library for showVisual)
+// =========================================================================
+
+(function () {
+  'use strict';
+
+  const NS = (window.HeroAcademy = window.HeroAcademy || {});
+
+  // -------- Config --------
+  const CHILD_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165'; // Nigel
+  const COURSES_PER_DAY = 4;
+  const QUESTIONS_PER_COURSE = 8;
+  const TTS_FALLBACK_MS = 25000; // Max time to wait for TTS before unlocking buttons anyway
+  const STEP_PAUSE_MS = 600;     // Pause between demo steps
+  const FEEDBACK_PAUSE_MS = 1200; // Pause after right/wrong feedback before advancing
+
+  const SUBJECTS = ['math', 'reading', 'spelling', 'science'];
+  const SUBJECT_LABEL = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science' };
+
+  // -------- State --------
+  const state = {
+    today: todayISO(),
+    dayPlan: null,
+    courseProgress: null,
+    courseIdx: 0,            // 0..3
+    subject: 'math',
+    questions: [],           // array of QuestionDef
+    qIdx: 0,                 // index into state.questions
+    wrongAttempts: 0,        // for the current question
+    ttsLocked: true,         // true while Humphrey is reading
+    inDemo: false,
+    muted: false,
+    abortDemo: false,
+  };
+
+  function todayISO() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  // =====================================================================
+  // Hardcoded v171 question bank — proves the loop end-to-end. v172 will
+  // swap to /api/class-time/questions with Haiku-generated daily-fresh
+  // questions + remediation scripts.
+  //
+  // Each question has:
+  //   topic: string label
+  //   question: string
+  //   options: string[] (3 or 4 options)
+  //   correct_index: number
+  //   explanation: string (short, said on correct OR after demo)
+  //   hint: string (said after first wrong attempt)
+  //   remediation: {
+  //     intro: string,
+  //     steps: [{ say: string, board: { tool, args } | null }, ...],
+  //     outro: string
+  //   }
+  // Board tools: writeWord({word}), writeLetter({letter}), drawEquation({equation}), showVisual({topic}), clearBoard()
+  // =====================================================================
+  const V171_BANK = {
+    math: [
+      {
+        topic: 'Addition within 20',
+        question: 'What is 7 + 5?',
+        options: ['10', '11', '12', '13'],
+        correct_index: 2,
+        explanation: 'Seven plus five equals twelve.',
+        hint: 'Try counting up from 7 — eight, nine, ten…',
+        remediation: {
+          intro: "Let me show you how to solve seven plus five.",
+          steps: [
+            { say: "First, let's write down the problem.", board: { tool: 'drawEquation', args: { equation: '7 + 5 = ?' } } },
+            { say: "We start at seven. Now we count up five more: eight, nine, ten, eleven, twelve.", board: null },
+            { say: "So seven plus five equals twelve.", board: { tool: 'drawEquation', args: { equation: '7 + 5 = 12' } } },
+          ],
+          outro: "Now you've got it!",
+        },
+      },
+      {
+        topic: 'Subtraction within 20',
+        question: 'What is 14 minus 6?',
+        options: ['6', '7', '8', '9'],
+        correct_index: 2,
+        explanation: 'Fourteen minus six equals eight.',
+        hint: 'Try counting back from 14 — thirteen, twelve…',
+        remediation: {
+          intro: "Let me show you fourteen minus six.",
+          steps: [
+            { say: "Here's the problem.", board: { tool: 'drawEquation', args: { equation: '14 - 6 = ?' } } },
+            { say: "We start at fourteen and count back six: thirteen, twelve, eleven, ten, nine, eight.", board: null },
+            { say: "Fourteen minus six is eight.", board: { tool: 'drawEquation', args: { equation: '14 - 6 = 8' } } },
+          ],
+          outro: "Counting back works great for subtraction.",
+        },
+      },
+      {
+        topic: 'Skip counting by 2',
+        question: 'What number comes next? 2, 4, 6, 8, ___',
+        options: ['9', '10', '11', '12'],
+        correct_index: 1,
+        explanation: 'When you skip-count by twos, the next number is 10.',
+        hint: 'We are jumping by two each time. After eight comes…',
+        remediation: {
+          intro: "Let me show you the pattern.",
+          steps: [
+            { say: "We're counting by twos.", board: { tool: 'writeWord', args: { word: '2 4 6 8' } } },
+            { say: "Each number is two more than the one before. Two, then four, then six, then eight.", board: null },
+            { say: "So after eight, we add two more, which gives us ten.", board: { tool: 'writeWord', args: { word: '10' } } },
+          ],
+          outro: "Skip-counting is just adding the same number each time.",
+        },
+      },
+      {
+        topic: 'Place value',
+        question: 'In the number 47, what is the value of the 4?',
+        options: ['4', '14', '40', '44'],
+        correct_index: 2,
+        explanation: 'The 4 is in the tens place, so it means forty.',
+        hint: 'Think about which spot the 4 is in — ones or tens?',
+        remediation: {
+          intro: "Let me show you place value.",
+          steps: [
+            { say: "Here's the number forty-seven.", board: { tool: 'writeWord', args: { word: '47' } } },
+            { say: "The four is in the tens place. The seven is in the ones place.", board: null },
+            { say: "So the four really means four tens, which is forty.", board: { tool: 'drawEquation', args: { equation: '4 tens = 40' } } },
+          ],
+          outro: "Place value tells you how much each digit is worth.",
+        },
+      },
+      {
+        topic: 'Doubles',
+        question: 'What is 8 + 8?',
+        options: ['14', '15', '16', '17'],
+        correct_index: 2,
+        explanation: 'Double eight is sixteen.',
+        hint: 'Doubles means adding a number to itself.',
+        remediation: {
+          intro: "Eight plus eight is a doubles fact.",
+          steps: [
+            { say: "Eight plus eight.", board: { tool: 'drawEquation', args: { equation: '8 + 8 = ?' } } },
+            { say: "Think of two hands with eight fingers each — that's sixteen fingers total.", board: null },
+            { say: "Eight plus eight equals sixteen.", board: { tool: 'drawEquation', args: { equation: '8 + 8 = 16' } } },
+          ],
+          outro: "Memorize the doubles and addition gets much faster.",
+        },
+      },
+      {
+        topic: 'Comparing numbers',
+        question: 'Which symbol goes here? 23 ___ 32',
+        options: ['<', '>', '='],
+        correct_index: 0,
+        explanation: 'Twenty-three is less than thirty-two, so the symbol is less-than.',
+        hint: 'Twenty-three or thirty-two — which is bigger?',
+        remediation: {
+          intro: "Let me show you comparing numbers.",
+          steps: [
+            { say: "We have twenty-three and thirty-two.", board: { tool: 'writeWord', args: { word: '23 vs 32' } } },
+            { say: "Thirty-two is the bigger number. Twenty-three is smaller.", board: null },
+            { say: "The open side of the symbol always points to the bigger number, like a hungry alligator.", board: { tool: 'drawEquation', args: { equation: '23 < 32' } } },
+          ],
+          outro: "Less-than points left, greater-than points right.",
+        },
+      },
+      {
+        topic: 'Word problem',
+        question: 'Nigel has 9 stickers. He gives 4 to his friend. How many stickers does he have left?',
+        options: ['3', '4', '5', '6'],
+        correct_index: 2,
+        explanation: 'Nine minus four is five stickers left.',
+        hint: 'Giving away means subtracting.',
+        remediation: {
+          intro: "Let me show you this word problem.",
+          steps: [
+            { say: "Nigel starts with nine stickers.", board: { tool: 'writeWord', args: { word: '9 start' } } },
+            { say: "He gives away four. That means subtract.", board: { tool: 'drawEquation', args: { equation: '9 - 4 = ?' } } },
+            { say: "Nine minus four is five. He has five stickers left.", board: { tool: 'drawEquation', args: { equation: '9 - 4 = 5' } } },
+          ],
+          outro: "Watch for 'gives away' or 'eats' or 'loses' — those mean subtract.",
+        },
+      },
+      {
+        topic: 'Adding three numbers',
+        question: 'What is 3 + 4 + 5?',
+        options: ['11', '12', '13', '14'],
+        correct_index: 1,
+        explanation: 'Three plus four is seven, plus five more is twelve.',
+        hint: 'Add two of them first, then add the third.',
+        remediation: {
+          intro: "Let's add three numbers step by step.",
+          steps: [
+            { say: "Three plus four plus five.", board: { tool: 'drawEquation', args: { equation: '3 + 4 + 5 = ?' } } },
+            { say: "First, three plus four is seven.", board: { tool: 'drawEquation', args: { equation: '3 + 4 = 7' } } },
+            { say: "Now seven plus five is twelve.", board: { tool: 'drawEquation', args: { equation: '7 + 5 = 12' } } },
+          ],
+          outro: "Adding three numbers? Just do it two at a time.",
+        },
+      },
+    ],
+    reading: [
+      {
+        topic: 'Short vowels',
+        question: 'Which word has the short "a" sound like in "cat"?',
+        options: ['cake', 'cap', 'cane', 'kite'],
+        correct_index: 1,
+        explanation: 'Cap has the short a sound, just like cat.',
+        hint: 'Short a sounds like "aaa" — the sound a sheep makes.',
+        remediation: {
+          intro: "Let me show you the short a sound.",
+          steps: [
+            { say: "Short a sounds like 'aaa'. Listen: cat, mat, hat, bat. They all have short a.", board: { tool: 'writeWord', args: { word: 'cat' } } },
+            { say: "Now look at cap. C - a - p. That's the same short a sound.", board: { tool: 'writeWord', args: { word: 'cap' } } },
+            { say: "Cake has a long a — like the letter name A. Cap has short a — like aaa.", board: null },
+          ],
+          outro: "Short vowels sound short. Long vowels say their name.",
+        },
+      },
+      {
+        topic: 'Rhyming words',
+        question: 'Which word rhymes with "frog"?',
+        options: ['fish', 'jump', 'log', 'leaf'],
+        correct_index: 2,
+        explanation: 'Frog and log both end with the "og" sound — they rhyme.',
+        hint: 'Rhyming words end with the same sound.',
+        remediation: {
+          intro: "Let me show you rhymes.",
+          steps: [
+            { say: "Frog ends with the sound 'og'.", board: { tool: 'writeWord', args: { word: 'frog' } } },
+            { say: "Log also ends with 'og'.", board: { tool: 'writeWord', args: { word: 'log' } } },
+            { say: "Frog and log rhyme because they end the same way.", board: null },
+          ],
+          outro: "Rhyming words sound alike at the end.",
+        },
+      },
+      {
+        topic: 'Sight words',
+        question: 'Which word is "because"?',
+        options: ['before', 'because', 'beside', 'between'],
+        correct_index: 1,
+        explanation: 'Because starts with "be" and ends with "cause".',
+        hint: 'It starts with B-E and ends with C-A-U-S-E.',
+        remediation: {
+          intro: "Let me show you the word because.",
+          steps: [
+            { say: "Because. B - E - C - A - U - S - E. Because.", board: { tool: 'writeWord', args: { word: 'because' } } },
+            { say: "Before is shorter. Beside is shorter. Because is the longest.", board: null },
+            { say: "Use because when you tell why — 'I'm happy because it's Friday'.", board: null },
+          ],
+          outro: "Sight words you just have to memorize by looking at them.",
+        },
+      },
+      {
+        topic: 'Compound words',
+        question: 'Which is a compound word?',
+        options: ['running', 'rainbow', 'happy', 'apple'],
+        correct_index: 1,
+        explanation: 'Rainbow is rain plus bow — two words joined together.',
+        hint: 'A compound word is two words stuck together.',
+        remediation: {
+          intro: "A compound word is two whole words joined together.",
+          steps: [
+            { say: "Rainbow. That's rain plus bow.", board: { tool: 'writeWord', args: { word: 'rainbow' } } },
+            { say: "Rain is a word. Bow is a word. Put them together and you get rainbow.", board: null },
+            { say: "Other compound words: sunshine, baseball, butterfly. Each one is two words stuck together.", board: null },
+          ],
+          outro: "Look for two words hiding inside a longer word.",
+        },
+      },
+      {
+        topic: 'Beginning sounds',
+        question: 'Which word starts with the same sound as "ship"?',
+        options: ['snake', 'shoe', 'soup', 'star'],
+        correct_index: 1,
+        explanation: 'Shoe starts with "sh", just like ship.',
+        hint: 'Listen for the SH sound at the beginning.',
+        remediation: {
+          intro: "Let me show you the sh sound.",
+          steps: [
+            { say: "Ship starts with sh.", board: { tool: 'writeWord', args: { word: 'ship' } } },
+            { say: "Shoe also starts with sh.", board: { tool: 'writeWord', args: { word: 'shoe' } } },
+            { say: "Snake starts with just s. That's different. Sh is when the s and h work together.", board: null },
+          ],
+          outro: "Two letters together sometimes make one new sound.",
+        },
+      },
+      {
+        topic: 'Plurals',
+        question: 'What is the plural of "child"?',
+        options: ['childs', 'childes', 'children', 'childies'],
+        correct_index: 2,
+        explanation: 'The plural of child is children — it changes shape.',
+        hint: 'Some plurals do not just add s.',
+        remediation: {
+          intro: "Most plurals add s, but some are special.",
+          steps: [
+            { say: "One child.", board: { tool: 'writeWord', args: { word: 'child' } } },
+            { say: "Many of them: children. The word changes completely.", board: { tool: 'writeWord', args: { word: 'children' } } },
+            { say: "Other tricky ones: foot becomes feet, mouse becomes mice. You memorize these.", board: null },
+          ],
+          outro: "Most plurals add s — but some are irregular and you just learn them.",
+        },
+      },
+      {
+        topic: 'Reading comprehension',
+        question: 'Tom planted a seed. He watered it every day. What does Tom want to happen?',
+        options: ['Tom wants to swim', 'Tom wants the seed to grow', 'Tom wants to eat lunch', 'Tom wants to sleep'],
+        correct_index: 1,
+        explanation: 'Tom is taking care of the seed because he wants it to grow into a plant.',
+        hint: 'Why would someone water a seed every day?',
+        remediation: {
+          intro: "Let's think about why Tom is doing this.",
+          steps: [
+            { say: "Tom planted a seed and waters it every day.", board: { tool: 'writeWord', args: { word: 'seed + water' } } },
+            { say: "Seeds need water to grow into plants.", board: null },
+            { say: "So Tom is hoping his seed will grow.", board: { tool: 'writeWord', args: { word: 'grow!' } } },
+          ],
+          outro: "Sometimes the answer is not in the story — you have to think about it.",
+        },
+      },
+      {
+        topic: 'Synonyms',
+        question: 'Which word means almost the same as "big"?',
+        options: ['tiny', 'large', 'fast', 'soft'],
+        correct_index: 1,
+        explanation: 'Big and large mean almost the same thing.',
+        hint: 'Synonyms mean about the same thing.',
+        remediation: {
+          intro: "Synonyms are words that mean almost the same thing.",
+          steps: [
+            { say: "Big means not small.", board: { tool: 'writeWord', args: { word: 'big' } } },
+            { say: "Large also means not small.", board: { tool: 'writeWord', args: { word: 'large' } } },
+            { say: "Big and large are synonyms — they mean about the same thing.", board: null },
+          ],
+          outro: "Synonyms give you more ways to say the same idea.",
+        },
+      },
+    ],
+    spelling: [
+      {
+        topic: 'CVC words',
+        question: 'How do you spell the word for the sound a sheep makes? (Hint: starts with B-A)',
+        options: ['baa', 'baah', 'bah', 'bha'],
+        correct_index: 0,
+        explanation: 'Sheep say "baa" — just B-A-A.',
+        hint: 'Sound it out — B, then aaa, then aaa.',
+        remediation: {
+          intro: "Let me show you how to spell baa.",
+          steps: [
+            { say: "B sound, then long a sound: baa.", board: { tool: 'writeWord', args: { word: 'baa' } } },
+            { say: "Just two letters — B and double A.", board: null },
+            { say: "Bah with an H is a different word. The simple spelling is B - A - A.", board: null },
+          ],
+          outro: "Sound out each part of the word.",
+        },
+      },
+      {
+        topic: 'Silent E',
+        question: 'How do you spell the word that means the opposite of "small" (something a baby tooth might become)?',
+        options: ['biger', 'biggr', 'biggest', 'bigger'],
+        correct_index: 3,
+        explanation: 'Bigger has two Gs and ends in E-R.',
+        hint: 'When you compare two things, words often end with E-R.',
+        remediation: {
+          intro: "When you compare two things, add E-R to the word.",
+          steps: [
+            { say: "Big.", board: { tool: 'writeWord', args: { word: 'big' } } },
+            { say: "When comparing, we double the g and add e-r: bigger.", board: { tool: 'writeWord', args: { word: 'bigger' } } },
+            { say: "Bigger has two Gs because the vowel before is short.", board: null },
+          ],
+          outro: "Comparing words: add E-R, sometimes double the last letter.",
+        },
+      },
+      {
+        topic: 'Long vowels',
+        question: 'How do you spell the word for what you do when you are tired?',
+        options: ['slep', 'slepe', 'sleep', 'sleap'],
+        correct_index: 2,
+        explanation: 'Sleep is spelled S-L-E-E-P with two Es.',
+        hint: 'The long E sound is usually two Es next to each other.',
+        remediation: {
+          intro: "Let me show you sleep.",
+          steps: [
+            { say: "Long e sound is often spelled with two Es.", board: { tool: 'writeWord', args: { word: 'sleep' } } },
+            { say: "S - L - double E - P. Sleep.", board: null },
+            { say: "Other words like this: feet, bee, see, tree. All use double E.", board: null },
+          ],
+          outro: "Double E is one common way to spell the long e sound.",
+        },
+      },
+      {
+        topic: 'Common sight words',
+        question: 'How do you spell the question word that asks about a place?',
+        options: ['were', 'where', 'wher', 'whear'],
+        correct_index: 1,
+        explanation: 'Where has W-H at the start and ends with E-R-E.',
+        hint: 'Most question words start with W-H.',
+        remediation: {
+          intro: "Question words usually start with w-h.",
+          steps: [
+            { say: "Where. W - H - E - R - E.", board: { tool: 'writeWord', args: { word: 'where' } } },
+            { say: "Other question words: what, when, why, who. All start with w-h.", board: null },
+            { say: "Where asks about a place. 'Where are you?'", board: null },
+          ],
+          outro: "When in doubt on a question word, try starting it with W-H.",
+        },
+      },
+      {
+        topic: 'Plurals',
+        question: 'How do you spell more than one box?',
+        options: ['boxs', 'boxes', 'boxies', 'box\'s'],
+        correct_index: 1,
+        explanation: 'Boxes ends in E-S because box already ends in an X.',
+        hint: 'Words ending in s, x, ch, or sh add ES instead of just S.',
+        remediation: {
+          intro: "Words ending in x add e-s, not just s.",
+          steps: [
+            { say: "One box.", board: { tool: 'writeWord', args: { word: 'box' } } },
+            { say: "Many of them: boxes.", board: { tool: 'writeWord', args: { word: 'boxes' } } },
+            { say: "Same rule for bus, fish, lunch — buses, fishes, lunches. All add e-s.", board: null },
+          ],
+          outro: "Ends in s, x, ch, sh? Add e-s.",
+        },
+      },
+      {
+        topic: 'Double letters',
+        question: 'How do you spell the word for something that is fluffy and white?',
+        options: ['cotn', 'coton', 'cotton', 'cottn'],
+        correct_index: 2,
+        explanation: 'Cotton has two Ts in the middle.',
+        hint: 'Listen for a short sound — sometimes that means a double letter.',
+        remediation: {
+          intro: "Let me show you cotton.",
+          steps: [
+            { say: "Cot — short o sound. Then add t-o-n.", board: { tool: 'writeWord', args: { word: 'cotton' } } },
+            { say: "Two Ts because the vowel before is short.", board: null },
+            { say: "Same with kitten, button, ribbon. All have double letters.", board: null },
+          ],
+          outro: "Short vowels often need a double consonant after them.",
+        },
+      },
+      {
+        topic: 'Common irregular words',
+        question: 'How do you spell the word that means a girl or boy in your family?',
+        options: ['kid', 'chold', 'child', 'cild'],
+        correct_index: 2,
+        explanation: 'Child is C-H-I-L-D.',
+        hint: 'It starts with C-H, not just C.',
+        remediation: {
+          intro: "Let me show you child.",
+          steps: [
+            { say: "Child starts with c-h, like in chair.", board: { tool: 'writeWord', args: { word: 'child' } } },
+            { say: "C - H - I - L - D. Five letters.", board: null },
+            { say: "More than one is children — that word changes.", board: { tool: 'writeWord', args: { word: 'children' } } },
+          ],
+          outro: "C-H makes the ch sound.",
+        },
+      },
+      {
+        topic: 'Apostrophes',
+        question: 'How do you spell "do not" as one short word?',
+        options: ['dont', 'do\'nt', 'don\'t', 'donot'],
+        correct_index: 2,
+        explanation: 'Don\'t has an apostrophe where the O in "not" used to be.',
+        hint: 'The apostrophe replaces a missing letter.',
+        remediation: {
+          intro: "When you smash two words together, you use an apostrophe.",
+          steps: [
+            { say: "Do not.", board: { tool: 'writeWord', args: { word: 'do not' } } },
+            { say: "We drop the o in not and put an apostrophe there: don\'t.", board: { tool: 'writeWord', args: { word: "don't" } } },
+            { say: "Same with can\'t, won\'t, isn\'t — the apostrophe takes the place of missing letters.", board: null },
+          ],
+          outro: "Apostrophes show where letters have been left out.",
+        },
+      },
+    ],
+    science: [
+      {
+        topic: 'Animal classification',
+        question: 'Which one is a mammal?',
+        options: ['frog', 'shark', 'dog', 'eagle'],
+        correct_index: 2,
+        explanation: 'A dog is a mammal — it has fur and feeds milk to its babies.',
+        hint: 'Mammals have fur or hair and feed milk to their babies.',
+        remediation: {
+          intro: "Let me show you what makes a mammal.",
+          steps: [
+            { say: "Mammals have three things: fur or hair, they breathe air, and mothers feed milk to their babies.", board: { tool: 'writeWord', args: { word: 'mammals' } } },
+            { say: "A dog has fur. A mother dog feeds her puppies milk. So a dog is a mammal.", board: null },
+            { say: "Frogs are amphibians, sharks are fish, eagles are birds. None of those are mammals.", board: null },
+          ],
+          outro: "Fur plus milk equals mammal.",
+        },
+      },
+      {
+        topic: 'States of matter',
+        question: 'What state of matter is water when it freezes?',
+        options: ['liquid', 'gas', 'solid', 'plasma'],
+        correct_index: 2,
+        explanation: 'Frozen water is ice — a solid.',
+        hint: 'When something freezes, it gets hard and keeps its shape.',
+        remediation: {
+          intro: "Let me show you the three main states of matter.",
+          steps: [
+            { say: "Solid keeps its shape — like ice or a rock.", board: { tool: 'writeWord', args: { word: 'solid' } } },
+            { say: "Liquid flows — like water in a cup.", board: { tool: 'writeWord', args: { word: 'liquid' } } },
+            { say: "When water freezes, it becomes ice — and ice is a solid.", board: null },
+          ],
+          outro: "Solid, liquid, gas — three states of the same stuff.",
+        },
+      },
+      {
+        topic: 'The water cycle',
+        question: 'What do we call it when water falls from clouds?',
+        options: ['evaporation', 'precipitation', 'condensation', 'collection'],
+        correct_index: 1,
+        explanation: 'Precipitation is when water falls from clouds — rain, snow, sleet, or hail.',
+        hint: 'It starts with the letter P — a big word.',
+        remediation: {
+          intro: "The water cycle has four big words.",
+          steps: [
+            { say: "Evaporation: sun heats water and it goes up as invisible gas.", board: { tool: 'writeWord', args: { word: 'evaporation' } } },
+            { say: "Condensation: the gas cools and forms clouds.", board: { tool: 'writeWord', args: { word: 'condensation' } } },
+            { say: "Precipitation: water falls from clouds as rain or snow.", board: { tool: 'writeWord', args: { word: 'precipitation' } } },
+          ],
+          outro: "And then it collects in rivers and lakes — that's collection.",
+        },
+      },
+      {
+        topic: 'Plants',
+        question: 'What part of a plant takes in water from the ground?',
+        options: ['leaves', 'flower', 'roots', 'stem'],
+        correct_index: 2,
+        explanation: 'Roots take in water and nutrients from the soil.',
+        hint: 'It is the part underground.',
+        remediation: {
+          intro: "Let me show you the parts of a plant.",
+          steps: [
+            { say: "Roots are underground. They take in water and food from the soil.", board: { tool: 'writeWord', args: { word: 'roots' } } },
+            { say: "The stem carries the water up.", board: { tool: 'writeWord', args: { word: 'stem' } } },
+            { say: "The leaves use sunlight. The flower makes seeds.", board: null },
+          ],
+          outro: "Roots, stem, leaves, flower — all work together.",
+        },
+      },
+      {
+        topic: 'Day and night',
+        question: 'Why does the sun appear to move across the sky during the day?',
+        options: ['The sun is moving', 'The Earth is spinning', 'The clouds are moving', 'The wind is pushing it'],
+        correct_index: 1,
+        explanation: 'The Earth spins, so the sun looks like it moves — but really we are moving.',
+        hint: 'The Earth turns around once every day.',
+        remediation: {
+          intro: "The sun looks like it moves, but really we are moving.",
+          steps: [
+            { say: "The Earth spins like a top. One full spin takes 24 hours.", board: { tool: 'writeWord', args: { word: 'Earth spins' } } },
+            { say: "As we spin, our side of Earth faces the sun, then turns away.", board: null },
+            { say: "That's why the sun seems to move — but it's really us turning.", board: null },
+          ],
+          outro: "The sun stays still. We do all the moving.",
+        },
+      },
+      {
+        topic: 'The five senses',
+        question: 'Which sense do you use to find out if something is sweet or sour?',
+        options: ['sight', 'hearing', 'taste', 'smell'],
+        correct_index: 2,
+        explanation: 'You use taste — your tongue — to tell sweet from sour.',
+        hint: 'You use this sense with your tongue.',
+        remediation: {
+          intro: "We have five senses.",
+          steps: [
+            { say: "Sight is what you see with your eyes. Hearing is what you do with your ears.", board: { tool: 'writeWord', args: { word: '5 senses' } } },
+            { say: "Smell is your nose. Touch is your skin. Taste is your tongue.", board: null },
+            { say: "Sweet, sour, salty, bitter — those are tastes.", board: null },
+          ],
+          outro: "Five senses, five ways to find out about the world.",
+        },
+      },
+      {
+        topic: 'Force and motion',
+        question: 'What makes a ball roll down a hill?',
+        options: ['the wind', 'gravity', 'magnets', 'electricity'],
+        correct_index: 1,
+        explanation: 'Gravity pulls everything down toward Earth.',
+        hint: 'It is the invisible force that pulls things down.',
+        remediation: {
+          intro: "Gravity pulls everything toward the ground.",
+          steps: [
+            { say: "Drop anything — a ball, a pencil, a leaf. It falls down because of gravity.", board: { tool: 'writeWord', args: { word: 'gravity' } } },
+            { say: "On a hill, gravity pulls the ball down the slope.", board: null },
+            { say: "Gravity is the same force that keeps us on Earth instead of floating away.", board: null },
+          ],
+          outro: "Gravity pulls down — every time.",
+        },
+      },
+      {
+        topic: 'Habitats',
+        question: 'Where would you most likely find a polar bear?',
+        options: ['desert', 'rainforest', 'arctic ice', 'farm'],
+        correct_index: 2,
+        explanation: 'Polar bears live in the cold arctic where there is ice and snow.',
+        hint: 'Polar bears have thick white fur to stay warm.',
+        remediation: {
+          intro: "Animals live in habitats that suit them.",
+          steps: [
+            { say: "Polar bears have thick white fur.", board: { tool: 'writeWord', args: { word: 'polar bear' } } },
+            { say: "They live where it is very cold — on the arctic ice near the north pole.", board: { tool: 'writeWord', args: { word: 'arctic' } } },
+            { say: "Their white fur helps them blend in with the snow when they hunt.", board: null },
+          ],
+          outro: "Animals usually live where their bodies fit best.",
+        },
+      },
+    ],
+  };
+
+  // -------- DOM helpers --------
+  const $ = (id) => document.getElementById(id);
+  function setBootMessage(label, sub) {
+    if ($('boot-label') && label) $('boot-label').textContent = label;
+    if ($('boot-sub') && sub) $('boot-sub').textContent = sub;
+  }
+  function hideBoot() { $('boot-overlay').style.display = 'none'; }
+  function showBoot() { $('boot-overlay').style.display = 'flex'; }
+
+  // -------- API helpers (re-using existing endpoints) --------
+  async function jsonFetch(url, opts) {
+    const r = await fetch(url, opts);
+    if (!r.ok) throw new Error(`${url} → ${r.status}`);
+    return r.json();
+  }
+  async function fetchDayPlan() {
+    try {
+      const r = await jsonFetch(`/api/class-time/lesson-plan-day?date=${state.today}&child_id=${CHILD_ID}`);
+      return r;
+    } catch (e) {
+      console.warn('[class-time-mc] day plan fetch failed, using subjects-only fallback', e);
+      return {
+        date: state.today,
+        courses: SUBJECTS.map((s, i) => ({ subject: s, order: i + 1, topics: [] })),
+      };
+    }
+  }
+  async function fetchCourseProgress() {
+    try {
+      const r = await jsonFetch(`/api/class-time/course-progress?date=${state.today}&child_id=${CHILD_ID}`);
+      return r;
+    } catch (e) {
+      console.warn('[class-time-mc] progress fetch failed', e);
+      return { completed: [] };
+    }
+  }
+  async function recordCourseComplete(courseIdx, subject, topicsCovered) {
+    try {
+      await fetch('/api/class-time/record-course', {
+        method: 'POST', keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          child_id: CHILD_ID,
+          plan_date: state.today,
+          course_order: courseIdx + 1,
+          subject,
+          topics_covered: topicsCovered,
+        }),
+      });
+    } catch (e) { console.warn('[class-time-mc] record-course failed', e); }
+  }
+  function findFirstIncompleteCourse() {
+    const done = new Set((state.courseProgress?.completed || []).map((c) => c.course_order));
+    for (let i = 0; i < COURSES_PER_DAY; i++) {
+      if (!done.has(i + 1)) return i;
+    }
+    return COURSES_PER_DAY;
+  }
+
+  // -------- TTS --------
+  function tts(text) {
+    if (!text || state.muted) return Promise.resolve();
+    const H = NS.Humphrey;
+    if (!H || typeof H.say !== 'function') return Promise.resolve();
+    try {
+      const p = H.say('class-time-mc', { kidName: 'Nigel', text: String(text), priority: 'high' });
+      return Promise.resolve(p);
+    } catch (e) {
+      console.warn('[class-time-mc] tts threw', e);
+      return Promise.resolve();
+    }
+  }
+  function pulseHumphreyOn() { $('humphrey-portrait')?.classList.add('speaking'); }
+  function pulseHumphreyOff() { $('humphrey-portrait')?.classList.remove('speaking'); }
+
+  // -------- Question rendering --------
+  function letterFor(i) { return String.fromCharCode(65 + i); } // 0→A
+
+  function renderQuestion(q) {
+    state.wrongAttempts = 0;
+    state.inDemo = false;
+    state.abortDemo = false;
+    $('q-topic').textContent = q.topic;
+    $('q-text').textContent = q.question;
+    $('feedback').textContent = '';
+    $('feedback').className = 'ct-feedback';
+    $('demo-board').hidden = true;
+    $('demo-next-btn').hidden = true;
+
+    // Render answer buttons disabled
+    const wrap = $('answer-buttons');
+    wrap.innerHTML = '';
+    wrap.style.display = 'grid';
+    q.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ct-answer-btn';
+      btn.disabled = true;
+      btn.dataset.index = String(i);
+      btn.innerHTML = `<span class="letter">${letterFor(i)}</span><span class="text">${opt}</span>`;
+      btn.addEventListener('click', () => onAnswerClick(i));
+      wrap.appendChild(btn);
+    });
+    setListeningStatus();
+
+    // Build the read-aloud script and play it
+    const readAloud = buildReadAloud(q);
+    speakAndUnlock(readAloud);
+  }
+
+  function buildReadAloud(q) {
+    // "Question: <text>. Your choices are: A, <opt1>. B, <opt2>. C, <opt3>."
+    const opts = q.options.map((o, i) => `${letterFor(i)}, ${o}.`).join(' ');
+    return `Question: ${q.question} Your choices are: ${opts}`;
+  }
+
+  function setListeningStatus() {
+    const s = $('q-status');
+    s.className = 'ct-q-status';
+    s.innerHTML = '<span class="ct-listen-dot"></span> Ms. Humphrey is reading…';
+  }
+  function setReadyStatus() {
+    const s = $('q-status');
+    s.className = 'ct-q-status ready';
+    s.innerHTML = '<span class="ct-listen-dot"></span> Tap your answer →';
+  }
+
+  function lockButtons() {
+    document.querySelectorAll('#answer-buttons .ct-answer-btn').forEach((b) => { b.disabled = true; });
+    state.ttsLocked = true;
+    setListeningStatus();
+  }
+  function unlockButtons() {
+    document.querySelectorAll('#answer-buttons .ct-answer-btn').forEach((b) => { b.disabled = false; });
+    state.ttsLocked = false;
+    setReadyStatus();
+  }
+
+  function speakAndUnlock(text) {
+    lockButtons();
+    pulseHumphreyOn();
+    let unlocked = false;
+    const fallback = setTimeout(() => {
+      if (unlocked) return;
+      unlocked = true;
+      console.warn('[class-time-mc] TTS fallback fired — unlocking buttons after timeout');
+      pulseHumphreyOff();
+      unlockButtons();
+    }, TTS_FALLBACK_MS);
+    tts(text).then(() => {
+      if (unlocked) return;
+      unlocked = true;
+      clearTimeout(fallback);
+      pulseHumphreyOff();
+      unlockButtons();
+    }).catch(() => {
+      if (unlocked) return;
+      unlocked = true;
+      clearTimeout(fallback);
+      pulseHumphreyOff();
+      unlockButtons();
+    });
+  }
+
+  // -------- Answer handling --------
+  function onAnswerClick(idx) {
+    if (state.ttsLocked) return;
+    const q = state.questions[state.qIdx];
+    const isCorrect = idx === q.correct_index;
+    const buttons = Array.from(document.querySelectorAll('#answer-buttons .ct-answer-btn'));
+
+    if (isCorrect) {
+      buttons[idx].classList.add('correct');
+      buttons.forEach((b) => { b.disabled = true; });
+      $('feedback').textContent = `✓ ${q.explanation}`;
+      $('feedback').className = 'ct-feedback correct';
+      logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: true, attempts: state.wrongAttempts + 1 });
+      tts(`Yes! ${q.explanation}`);
+      setTimeout(advanceQuestion, FEEDBACK_PAUSE_MS + 1400);
+      return;
+    }
+
+    // Wrong path
+    state.wrongAttempts++;
+    buttons[idx].classList.add('wrong');
+    buttons[idx].disabled = true;
+
+    if (state.wrongAttempts >= 2) {
+      // Trigger the whiteboard remediation demo
+      $('feedback').textContent = `Let's work through this together.`;
+      $('feedback').className = 'ct-feedback hint';
+      logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: false, attempts: state.wrongAttempts, demo_shown: true });
+      setTimeout(() => startRemediation(q), FEEDBACK_PAUSE_MS);
+      return;
+    }
+
+    // First wrong — give hint and let Nigel try again
+    $('feedback').textContent = q.hint;
+    $('feedback').className = 'ct-feedback wrong';
+    logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: false, attempts: state.wrongAttempts });
+    speakAndUnlock(`Not quite. ${q.hint} Try again.`);
+  }
+
+  // -------- Whiteboard remediation (the teaching demo) --------
+  async function startRemediation(q) {
+    state.inDemo = true;
+    // Hide answer buttons + feedback, show board panel.
+    $('answer-buttons').style.display = 'none';
+    $('feedback').textContent = '';
+    $('demo-board').hidden = false;
+    $('demo-next-btn').hidden = true;
+
+    // Mount/clear the board (class-time-board.js exposes ClassTimeBoard)
+    const Board = NS.ClassTimeBoard;
+    if (Board && typeof Board.mount === 'function') {
+      try { Board.mount({}); } catch (e) { console.warn('[class-time-mc] board mount issue', e); }
+    }
+    if (Board && typeof Board.clearBoard === 'function') Board.clearBoard();
+
+    const r = q.remediation;
+    if (!r || !Array.isArray(r.steps)) {
+      // No remediation script — just reveal correct + advance
+      $('demo-next-btn').hidden = false;
+      $('demo-next-btn').onclick = () => advanceQuestion();
+      tts(q.explanation);
+      return;
+    }
+
+    // Intro
+    pulseHumphreyOn();
+    if (r.intro) await tts(r.intro);
+    if (state.abortDemo) return;
+
+    // Steps — each step: optional board action, then TTS narration
+    for (let i = 0; i < r.steps.length; i++) {
+      if (state.abortDemo) return;
+      $('demo-step-label').textContent = `Step ${i + 1} of ${r.steps.length}`;
+      const step = r.steps[i];
+      // Fire the board tool first so the visual is on screen as she speaks
+      if (step.board && Board) {
+        try {
+          const fn = Board[step.board.tool];
+          if (typeof fn === 'function') {
+            const result = fn(step.board.args || {});
+            // class-time-board.js v167 returns structured { ok, reason } —
+            // we don't need to react here, just continue.
+            void result;
+          }
+        } catch (e) { console.warn('[class-time-mc] board tool failed', step.board, e); }
+      }
+      if (step.say) await tts(step.say);
+      if (state.abortDemo) return;
+      await new Promise((res) => setTimeout(res, STEP_PAUSE_MS));
+    }
+
+    if (r.outro) await tts(r.outro);
+    pulseHumphreyOff();
+    if (state.abortDemo) return;
+
+    // Show "I get it!" button
+    $('demo-next-btn').hidden = false;
+    $('demo-next-btn').onclick = () => {
+      state.abortDemo = true; // belt-and-suspenders
+      advanceQuestion();
+    };
+  }
+
+  // -------- Advance / course transitions --------
+  function advanceQuestion() {
+    state.abortDemo = true;
+    pulseHumphreyOff();
+    state.qIdx++;
+    $('q-progress').textContent = `${state.qIdx} / ${state.questions.length}`;
+    // Topic pip
+    renderTopicPip();
+    if (state.qIdx >= state.questions.length) {
+      finishCourse();
+      return;
+    }
+    // Restore normal MC layout
+    $('demo-board').hidden = true;
+    $('demo-next-btn').hidden = true;
+    $('answer-buttons').style.display = 'grid';
+    renderQuestion(state.questions[state.qIdx]);
+  }
+
+  function renderTopicPip() {
+    const pipBox = $('topic-pip');
+    if (!pipBox) return;
+    const total = state.questions.length;
+    pipBox.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement('span');
+      if (i < state.qIdx) dot.classList.add('done');
+      else if (i === state.qIdx) dot.classList.add('active');
+      pipBox.appendChild(dot);
+    }
+  }
+
+  async function finishCourse() {
+    const subject = state.subject;
+    const courseIdx = state.courseIdx;
+    const topicsCovered = state.questions.map((q) => q.topic);
+    logEvent('class_time_course_complete', { course_idx: courseIdx, subject });
+    await recordCourseComplete(courseIdx, subject, topicsCovered);
+
+    if (courseIdx + 1 >= COURSES_PER_DAY) {
+      handleDayCompletion('all-courses-done');
+      return;
+    }
+
+    // Show break overlay (15 min) then start next course
+    showBreakOverlay(courseIdx + 1);
+  }
+
+  function showBreakOverlay(nextCourseIdx) {
+    const nextSubject = SUBJECTS[nextCourseIdx];
+    $('break-next-label').textContent = `Next: ${SUBJECT_LABEL[nextSubject]} · Course ${nextCourseIdx + 1} of ${COURSES_PER_DAY}`;
+    const overlay = $('break-overlay');
+    overlay.style.display = 'flex';
+
+    // Wire the resume button — break-timer.js will enable it after 15 min
+    const resumeBtn = $('break-resume-btn');
+    resumeBtn.onclick = () => {
+      overlay.style.display = 'none';
+      startCourse(nextCourseIdx);
+    };
+
+    // Defer to break-timer.js if present
+    if (NS.BreakTimer && typeof NS.BreakTimer.start === 'function') {
+      try {
+        NS.BreakTimer.start({
+          minutes: 15,
+          onTick: (sec) => {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            $('break-timer').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          },
+          onEnd: () => {
+            resumeBtn.disabled = false;
+            resumeBtn.textContent = '✓ Ready! Start next course →';
+          },
+        });
+      } catch (e) {
+        console.warn('[class-time-mc] BreakTimer start failed', e);
+        // Fall back: enable after 1 minute so we don't lock Nigel out forever
+        setTimeout(() => { resumeBtn.disabled = false; resumeBtn.textContent = 'Continue →'; }, 60000);
+      }
+    } else {
+      // No BreakTimer? Allow immediate continue (still shows the break overlay).
+      resumeBtn.disabled = false;
+      resumeBtn.textContent = 'Continue →';
+    }
+  }
+
+  function handleDayCompletion(reason) {
+    state.abortDemo = true;
+    // Mark zone complete for Today's Mission (same pattern as cauldron)
+    try {
+      const rawState = localStorage.getItem('hero_academy_state_v1');
+      const appState = rawState ? JSON.parse(rawState) : {};
+      appState.zoneProgress = appState.zoneProgress || {};
+      const prev = appState.zoneProgress['class-time'] || 0;
+      appState.zoneProgress['class-time'] = Math.min(100, prev + 25);
+      localStorage.setItem('hero_academy_state_v1', JSON.stringify(appState));
+      const key = `ha_mission_zones_done_${state.today}`;
+      const done = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!done.includes('class-time')) { done.push('class-time'); localStorage.setItem(key, JSON.stringify(done)); }
+    } catch (_) {}
+    if (NS.TodayMission && typeof NS.TodayMission.markVisited === 'function') {
+      try { NS.TodayMission.markVisited('class-time'); } catch (_) {}
+    }
+    logEvent('class_time_complete', { reason });
+
+    document.getElementById('classroom').style.display = 'none';
+    $('completion').style.display = 'flex';
+    $('completion-btn').onclick = exitToHome;
+  }
+
+  // -------- Course start --------
+  function pickQuestionsForCourse(courseIdx) {
+    // v171: use the hardcoded bank. v172 will swap to Haiku-generated.
+    const subject = SUBJECTS[courseIdx] || 'math';
+    state.subject = subject;
+    state.courseIdx = courseIdx;
+    const bank = V171_BANK[subject] || [];
+    // Take first QUESTIONS_PER_COURSE — they're already curated.
+    return bank.slice(0, QUESTIONS_PER_COURSE);
+  }
+
+  function startCourse(courseIdx) {
+    state.courseIdx = courseIdx;
+    state.subject = SUBJECTS[courseIdx];
+    state.questions = pickQuestionsForCourse(courseIdx);
+    state.qIdx = 0;
+    $('course-badge').textContent = `Course ${courseIdx + 1}/${COURSES_PER_DAY}`;
+    $('subject-badge').textContent = SUBJECT_LABEL[state.subject] || state.subject;
+    $('q-progress').textContent = `0 / ${state.questions.length}`;
+    renderTopicPip();
+    hideBoot();
+    document.getElementById('classroom').style.display = 'flex';
+    if (!state.questions.length) {
+      console.warn('[class-time-mc] no questions for course', courseIdx);
+      finishCourse();
+      return;
+    }
+    renderQuestion(state.questions[0]);
+  }
+
+  // -------- Exit / mute --------
+  function exit() {
+    state.abortDemo = true;
+    logEvent('class_time_exit_early', { course_idx: state.courseIdx, q_idx: state.qIdx });
+    exitToHome();
+  }
+  function exitToHome() { window.location.href = '/'; }
+  function toggleMute() {
+    state.muted = !state.muted;
+    const btn = $('mute-btn');
+    if (btn) btn.textContent = state.muted ? '🔇' : '🔊';
+    if (state.muted && NS.Humphrey && typeof NS.Humphrey.toggleMute === 'function') {
+      // Mirror to Humphrey's own mute so any in-flight TTS stops too.
+      try { if (!NS.Humphrey.isMuted()) NS.Humphrey.toggleMute(); } catch (_) {}
+    } else if (!state.muted && NS.Humphrey && NS.Humphrey.isMuted && NS.Humphrey.isMuted()) {
+      try { NS.Humphrey.toggleMute(); } catch (_) {}
+    }
+  }
+
+  // -------- Telemetry --------
+  function logEvent(eventType, payload) {
+    try {
+      if (NS.Telemetry && typeof NS.Telemetry.rpc === 'function') {
+        NS.Telemetry.rpc('ha_record_event', {
+          p_child_id: NS.Telemetry.childId ? NS.Telemetry.childId() : CHILD_ID,
+          p_event_type: eventType,
+          p_payload: payload || {},
+        });
+      }
+    } catch (e) { console.warn('[class-time-mc] logEvent failed', eventType, e); }
+  }
+
+  // -------- Boot --------
+  async function boot() {
+    setBootMessage("Setting up today's class…", "Ms. Humphrey is getting ready");
+
+    // Initialize Humphrey (TTS-only — no ConvAI in v171)
+    if (NS.Humphrey && typeof NS.Humphrey.init === 'function') {
+      try {
+        NS.Humphrey.init({ position: 'bottom-right', audioEnabled: true, kidName: 'Nigel' });
+        NS.Humphrey.hide(); // We use our own embedded portrait
+      } catch (e) { console.warn('[class-time-mc] Humphrey.init failed', e); }
+    }
+
+    // Fetch progress + day plan in parallel
+    setBootMessage("Loading today's school day…", '');
+    const [dayPlan, progress] = await Promise.all([fetchDayPlan(), fetchCourseProgress()]);
+    state.dayPlan = dayPlan;
+    state.courseProgress = progress;
+
+    // Wire UI
+    $('exit-btn').addEventListener('click', exit);
+    $('mute-btn').addEventListener('click', toggleMute);
+    $('read-again-btn').addEventListener('click', () => {
+      if (state.inDemo) return;
+      const q = state.questions[state.qIdx];
+      if (!q) return;
+      const btn = $('read-again-btn');
+      btn.classList.add('speaking');
+      speakAndUnlock(buildReadAloud(q));
+      // Remove speaking class when TTS resolves — speakAndUnlock pulses humphrey,
+      // so we hook into the same timeline.
+      setTimeout(() => btn.classList.remove('speaking'), 25000); // hard timeout matches TTS_FALLBACK_MS
+    });
+
+    // Mount the board ahead of time so the canvas DOM exists.
+    if (NS.ClassTimeBoard && typeof NS.ClassTimeBoard.mount === 'function') {
+      try { NS.ClassTimeBoard.mount({}); } catch (e) { console.warn('[class-time-mc] board mount issue', e); }
+    }
+
+    // Resume from the first incomplete course
+    const startIdx = findFirstIncompleteCourse();
+    if (startIdx >= COURSES_PER_DAY) {
+      hideBoot();
+      handleDayCompletion('day-already-done');
+      return;
+    }
+    startCourse(startIdx);
+  }
+
+  // Save progress on tab hide / exit (matches v163 pattern)
+  function persistOnLeave() {
+    // Course completion is already saved when finishCourse fires. Nothing
+    // to do mid-question — but if we want partial progress later, hook here.
+  }
+  window.addEventListener('pagehide', persistOnLeave);
+  window.addEventListener('beforeunload', persistOnLeave);
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    boot().catch((e) => { console.error('[class-time-mc] boot failed', e); setBootMessage('Could not load class.', 'Please refresh and try again.'); });
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      boot().catch((e) => { console.error('[class-time-mc] boot failed', e); setBootMessage('Could not load class.', 'Please refresh and try again.'); });
+    });
+  }
+
+  // Expose minimal API for testing
+  NS.ClassTimeMC = {
+    state,
+    startCourse,
+    advanceQuestion,
+    renderQuestion,
+    startRemediation,
+  };
+})();
