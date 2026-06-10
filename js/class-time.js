@@ -1,23 +1,17 @@
 // js/class-time.js
-// v166 — Class Time v2: full school day = 4 courses × 7-10 min, 15-min breaks
-// v165: exit no longer marks course as completed (was causing false completions)
-// v165: removed duplicate SessionProgress bar (class-time has its own header)
-// v166: FREEZE FIX — silence detection + nudge buttons + sendUserMessage prods
-//       Root cause: contextual updates don't wake an idle ConvAI agent; only
-//       user messages do. Topic watcher now uses sendUserMessage. Adds 18s
-//       silence auto-nudge + 👋 Nudge / ⏭ Next-topic buttons in header.
-// between courses, subject-aware board mode, resumable on reload.
-//
-// Each course is its own ConvAI conversation with course-specific dynamic
-// variables and a subject-aware opener. The existing per-class state machine
-// (topic pips, auto-vision capture, topic-watcher, completion) is reused
-// inside each course. Breaks are a full-screen overlay with a 15-min
-// countdown + stretch prompt + chime + Resume button.
-//
-// Day plan comes from /api/class-time/lesson-plan-day (Haiku-generated,
-// Supabase-cached). Course completion is persisted via
-// /api/class-time/record-course so reloading mid-day resumes at the right
-// course.
+// v167 — Class Time bug-fix pass (TWO critical bugs reported in field):
+//   BUG 1: "Question text appearing on the board" — agent was passing whole
+//          questions to writeWord/drawEquation; showVisual fallback also
+//          wrote the topic as text. Fix: sanitize() guards in board layer +
+//          structured error returns so the agent retries.
+//   BUG 2: "Ms. Humphrey not responding to his answers" — triggerCapture
+//          used sendContextualUpdate, which v166 itself noted does NOT wake
+//          an idle agent. Fix: when Nigel finishes drawing a real answer,
+//          send via sendUserMessage instead. Also: drawing now counts as
+//          user activity for the silence detector.
+// v166: silence detection + sendUserMessage prods + nudge/skip buttons
+// v165: exit no longer marks course as completed
+// v158: 4-course state machine + 15-min break overlay
 (function(){
   'use strict';
   const NS = window.HeroAcademy = window.HeroAcademy || {};
@@ -51,6 +45,7 @@
     sdkConversationCtor: null,
     captureInterval: null,
     lastCaptureAt: 0,
+    lastVisionUserMsgAt: 0,              // v167: throttle vision→user-message
     pendingPostCapture: null,
     lastVisionText: '',
     stopCaptureWatcher: null,
@@ -290,9 +285,39 @@
       drawNumber:   (p) => { NS.ClassTimeBoard.drawNumber(p);   const v = p?.n ?? p?.number ?? p?.value ?? p?.count ?? '?'; console.log('[class-time] drawNumber', p); return `drew number ${v} on the board`; },
       drawDots:     (p) => { NS.ClassTimeBoard.drawDots(p);     const v = p?.count ?? p?.n ?? p?.dots ?? p?.value ?? p?.number ?? '?'; console.log('[class-time] drawDots', p); return `drew ${v} dots on the board`; },
       drawTenFrame: (p) => { NS.ClassTimeBoard.drawTenFrame(p); const v = p?.filled ?? p?.n ?? p?.count ?? p?.value ?? p?.number ?? '?'; console.log('[class-time] drawTenFrame', p); return `drew ten frame with ${v} filled circles on the board — verify this matches what you said`; },
-      writeWord:    (p) => { NS.ClassTimeBoard.writeWord(p);    const v = p?.word ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] writeWord', p); return `wrote "${v}" on the board`; },
-      writeLetter:  (p) => { NS.ClassTimeBoard.writeLetter(p);  const v = p?.letter ?? p?.char ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] writeLetter', p); return `wrote letter "${v}" on the board`; },
-      drawEquation: (p) => { NS.ClassTimeBoard.drawEquation(p); const v = p?.equation ?? p?.eq ?? p?.text ?? p?.value ?? '?'; console.log('[class-time] drawEquation', p); return `drew equation "${v}" on the board`; },
+      // v167: writeWord/writeLetter/drawEquation now reject question text
+      // and over-long inputs. The agent gets a clear instruction back so she
+      // retries with the right kind of content instead of dumping her own
+      // question onto the board.
+      writeWord:    (p) => {
+        const r = NS.ClassTimeBoard.writeWord(p);
+        if (r && r.ok === false) {
+          console.warn('[class-time] writeWord blocked:', r.reason);
+          if (r.reason === 'question_text')  return `ERROR: writeWord only takes a short noun or vocabulary word — NOT the question. Ask the question with your voice, then call writeWord with just the focus word (e.g. "cat", "and", "ten").`;
+          if (r.reason === 'too_long')        return `ERROR: writeWord max ${r.cap} chars. Pass a single short word, not a sentence.`;
+          if (r.reason === 'empty')           return `ERROR: writeWord needs a non-empty word.`;
+          return `ERROR: writeWord rejected (${r.reason}).`;
+        }
+        return `wrote "${r?.value ?? '?'}" on the board`;
+      },
+      writeLetter:  (p) => {
+        const r = NS.ClassTimeBoard.writeLetter(p);
+        if (r && r.ok === false) {
+          if (r.reason === 'too_long') return `ERROR: writeLetter takes ONE letter only (or upper+lower pair). Pass a single character.`;
+          return `ERROR: writeLetter rejected (${r.reason}).`;
+        }
+        return `wrote letter "${r?.value ?? '?'}" on the board`;
+      },
+      drawEquation: (p) => {
+        const r = NS.ClassTimeBoard.drawEquation(p);
+        if (r && r.ok === false) {
+          if (r.reason === 'question_text')   return `ERROR: drawEquation takes the equation NUMERALLY (like "7+3=10" or "5 - 2"), not the question in words. Ask the question with your voice, then call drawEquation with the math.`;
+          if (r.reason === 'not_an_equation') return `ERROR: drawEquation needs digits and a math operator (+, -, =, ×, /). Got: "${(r.value||'').slice(0,40)}".`;
+          if (r.reason === 'too_long')        return `ERROR: drawEquation max ${r.cap} chars. Keep equations short.`;
+          return `ERROR: drawEquation rejected (${r.reason}).`;
+        }
+        return `drew equation "${r?.value ?? '?'}" on the board`;
+      },
       // showVisual: live Wikipedia lookup; falls back to SVG library / text
       showVisual:   async (p) => {
         const subject = String(p?.subject ?? p?.topic ?? p?.text ?? '').trim();
@@ -637,6 +662,11 @@
       if (kind === 'start' || kind === 'move' || kind === 'end') {
         lastStrokeAt = Date.now();
         dirtySinceCapture = true;
+        // v167: drawing IS user activity. Without this the silence-detection
+        // clock kept ticking while Nigel was busy answering on his canvas,
+        // and Humphrey's auto-nudge would fire as if he'd disappeared.
+        state.lastUserActivityAt = Date.now();
+        state.autoNudgeCount = 0;
       }
       if (kind === 'clear') {
         dirtySinceCapture = false;
@@ -682,11 +712,35 @@
         })
       });
       const desc = r && r.description;
-      if (desc && typeof desc === 'string' && desc.length > 0){
-        if (desc === state.lastVisionText) return;
-        state.lastVisionText = desc;
-        sendContextualUpdate(`What's on Nigel's canvas right now: ${desc}`);
+      if (!desc || typeof desc !== 'string' || desc.length === 0) return;
+      if (desc === state.lastVisionText) return;
+      state.lastVisionText = desc;
+
+      // v167 — THE FIX: when Nigel finishes drawing an answer (reason ===
+      // 'stopped-drawing'), surface the description as a USER MESSAGE so
+      // Humphrey actually responds. ContextualUpdate is silent — v166 noted
+      // this for topic transitions but the canvas-vision path was left on
+      // contextualUpdate, which is why Humphrey never reacted to answers.
+      // Mid-stroke interval captures still use contextualUpdate so she
+      // doesn't get interrupted mid-thought every 8s.
+      const looksScribble = /scribble|squiggl|nothing clear|blank|no clear|empty/i.test(desc);
+      const wantsResponse = reason === 'stopped-drawing' && !looksScribble;
+
+      if (wantsResponse) {
+        const since = Date.now() - (state.lastVisionUserMsgAt || 0);
+        if (since >= 4000) { // throttle: at most one per 4s
+          state.lastVisionUserMsgAt = Date.now();
+          state.lastUserActivityAt = Date.now();
+          // Phrased in Nigel's voice so the agent hears it as the child
+          // narrating his work and replies naturally.
+          sendUserMessage(`Look at my canvas, Ms. Humphrey — ${desc}`);
+          console.log('[class-time] vision → user message (wakes Humphrey):', desc);
+          return;
+        }
       }
+      // Default path — silent context for awareness (mid-drawing interval
+      // captures, scribbles, throttle hits)
+      sendContextualUpdate(`What's on Nigel's canvas right now: ${desc}`);
     } catch(e){
       console.warn('[class-time] see-canvas failed', e);
     }

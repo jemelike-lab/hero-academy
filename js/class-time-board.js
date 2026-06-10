@@ -28,6 +28,54 @@
     if (currentMode === 'image') currentMode = 'mixed';
   }
 
+  // v167: Input sanitization. The agent was passing entire QUESTIONS (e.g.
+  // "What is 7 + 3?") to writeWord/drawEquation, causing the question itself
+  // to appear on the board instead of the subject content. These guards
+  // reject question-form text and over-length text so the board stays clean
+  // and the agent gets a clear error back, prompting her to retry properly.
+  const QUESTION_WORDS = /^\s*(what|how|why|who|when|where|which|can|could|do|does|did|is|are|will|would|let'?s|tell|show|give)\b/i;
+  function looksLikeQuestion(s){
+    if (!s) return false;
+    if (s.indexOf('?') !== -1) return true;
+    if (QUESTION_WORDS.test(s)) return true;
+    return false;
+  }
+  function sanitize(text, kind){
+    const raw = String(text == null ? '' : text).trim();
+    if (!raw) return { ok:false, reason:'empty', value:'' };
+    if (looksLikeQuestion(raw)) {
+      return { ok:false, reason:'question_text', value:raw };
+    }
+    const caps = { word: 20, letter: 3, equation: 25, visual: 30 };
+    const cap = caps[kind] || 25;
+    if (raw.length > cap) {
+      return { ok:false, reason:'too_long', value:raw, cap };
+    }
+    return { ok:true, value:raw };
+  }
+  // Equations must contain an arithmetic operator AND a digit; rejects
+  // narrative text the agent sometimes passes (e.g. "seven plus three").
+  // v167-r2: a trailing `= ?` placeholder is LEGITIMATE in equations
+  // (fill-in-the-blank pattern, per agent prompt). So for equations we
+  // bypass the generic question-word check and only require the math
+  // structure (digit + operator). Length cap still applies.
+  function sanitizeEquation(text){
+    const raw = String(text == null ? '' : text).trim();
+    if (!raw) return { ok:false, reason:'empty', value:'' };
+    const cap = 25;
+    if (raw.length > cap) return { ok:false, reason:'too_long', value:raw, cap };
+    if (!/\d/.test(raw) || !/[+\-=×x*/÷]/.test(raw)) {
+      return { ok:false, reason:'not_an_equation', value:raw };
+    }
+    // Reject narrative question phrasing even when math symbols are present
+    // (e.g. "How much is 5+5?" — has digits + operator + question word).
+    if (QUESTION_WORDS.test(raw)) {
+      return { ok:false, reason:'question_text', value:raw };
+    }
+    return { ok:true, value:raw };
+  }
+  NS._classTimeBoardSanitize = { sanitize, sanitizeEquation, looksLikeQuestion };
+
 
   // ---------- Canvas setup helpers ----------
   function fitCanvas(canvas){
@@ -291,8 +339,23 @@
     const NSV = (window.HeroAcademy && window.HeroAcademy.ClassTimeVisuals) || null;
     const svg = NSV && NSV.has(key) ? NSV.get(key) : null;
     if (!svg) {
-      // Fallback: write the topic as text
-      writeWord(key);
+      // v167: NO MORE writeWord fallback — the agent was passing question
+      // text and topic strings here, causing question text to appear on the
+      // board. Instead, show a soft "no visual" placeholder in the popup
+      // area only if the topic itself is a clean short noun.
+      const s = sanitize(key, 'visual');
+      if (s.ok && key && visualSvg && visualLabel){
+        // Tiny inline placeholder card — NOT a writeWord on the main canvas
+        visualSvg.innerHTML = '<div style="font-size:64px;opacity:0.45;">📚</div>';
+        visualLabel.textContent = key;
+        visualAid.classList.add('active');
+        currentMode = 'image';
+        currentImageUrl = '';
+        currentImageCaption = key;
+        currentImageEl = null;
+      } else {
+        console.warn('[ct-board] showVisual: no svg for', key, 'and not safe to render — skipping');
+      }
       return;
     }
     setBoardActive();
@@ -626,17 +689,36 @@
   }
 
   // ---------- Public API ----------
+  // v167: writeWord / writeLetter / drawEquation now run inputs through
+  // sanitize() and return { ok, reason? } so the orchestrator can pass a
+  // useful error string back to the agent as a tool result. This stops the
+  // agent from writing entire questions on the board.
   NS.ClassTimeBoard = {
     mount,
-    // Tools (each accepts a single object payload from ConvAI)
-    // v154: maximally permissive parameter extraction — the agent may use
-    // any of: filled, count, n, number, value, dots, etc.
     drawNumber:    (p) => drawNumber((p && (p.n ?? p.number ?? p.value ?? p.count)) ?? 0),
     drawDots:      (p) => drawDots((p && (p.count ?? p.n ?? p.dots ?? p.value ?? p.number)) ?? 0),
     drawTenFrame:  (p) => drawTenFrame((p && (p.filled ?? p.n ?? p.count ?? p.value ?? p.number)) ?? 0),
-    writeWord:     (p) => writeWord((p && (p.word ?? p.text ?? p.value)) ?? ''),
-    writeLetter:   (p) => writeLetter((p && (p.letter ?? p.text ?? p.char ?? p.value)) ?? ''),
-    drawEquation:  (p) => drawEquation((p && (p.text ?? p.equation ?? p.eq ?? p.value)) ?? ''),
+    writeWord:     (p) => {
+      const v = (p && (p.word ?? p.text ?? p.value)) ?? '';
+      const s = sanitize(v, 'word');
+      if (!s.ok) { console.warn('[ct-board] writeWord rejected:', s.reason, JSON.stringify(v).slice(0,80)); return s; }
+      writeWord(s.value);
+      return { ok:true, value:s.value };
+    },
+    writeLetter:   (p) => {
+      const v = (p && (p.letter ?? p.text ?? p.char ?? p.value)) ?? '';
+      const s = sanitize(v, 'letter');
+      if (!s.ok) { console.warn('[ct-board] writeLetter rejected:', s.reason); return s; }
+      writeLetter(s.value);
+      return { ok:true, value:s.value };
+    },
+    drawEquation:  (p) => {
+      const v = (p && (p.text ?? p.equation ?? p.eq ?? p.value)) ?? '';
+      const s = sanitizeEquation(v);
+      if (!s.ok) { console.warn('[ct-board] drawEquation rejected:', s.reason, JSON.stringify(v).slice(0,80)); return s; }
+      drawEquation(s.value);
+      return { ok:true, value:s.value };
+    },
     showVisual:    (p) => showVisual((p && (p.topic ?? p.subject ?? p.text ?? p.value)) ?? ''),
     showLiveImage: (p) => showLiveImage(p || {}),
     clearBoard:    () => clearBoard(),
@@ -649,6 +731,10 @@
     // v157: Humphrey board snapshot + mode metadata for see-board vision
     captureHumphreyBoardDataUrl,
     captureBoardDataUrl,
-    getBoardMeta
+    getBoardMeta,
+    // v167: expose for orchestrator + tests
+    sanitize,
+    sanitizeEquation,
+    looksLikeQuestion
   };
 })();
