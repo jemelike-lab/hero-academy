@@ -271,22 +271,50 @@
   }
 
   /* ===== Question card ===== */
+  /* v168: enlarged question text + visible repeat button + question-row
+     restructured so the question stays prominent and a 7yo can both READ
+     the problem and re-hear it on demand without hunting for the floating
+     portrait. */
   .question-card {
     background: var(--parchment);
     color: var(--ink-deep);
     margin: 0 16px 16px;
     border-radius: 14px;
-    padding: 14px 16px;
+    padding: 18px 18px 16px;
     border: 2px solid var(--parchment-edge);
     box-shadow: 0 4px 0 var(--copper-shadow), 0 6px 12px rgba(0,0,0,0.3);
-    display: flex; flex-direction: column; gap: 10px;
+    display: flex; flex-direction: column; gap: 12px;
   }
-  .question-row { display: flex; gap: 10px; align-items: flex-start; }
+  .question-row {
+    display: flex; gap: 12px; align-items: flex-start;
+  }
   .question-text {
     flex: 1;
     font-family: 'Caveat', cursive; font-weight: 700;
-    font-size: 20px; line-height: 1.25;
+    font-size: 30px; line-height: 1.2;
     color: var(--ink-deep); margin: 0;
+  }
+  /* v168: in-card Repeat button — large, obvious, sits next to the
+     question so Nigel never has to ask Josh "what was the question?" */
+  .repeat-btn {
+    flex: 0 0 auto;
+    background: var(--copper); color: var(--parchment);
+    border: 2px solid var(--copper-deep);
+    border-radius: 12px; padding: 10px 14px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 3px 0 var(--copper-shadow);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    min-height: 44px; /* tap target */
+  }
+  .repeat-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--copper-shadow); }
+  .repeat-btn[disabled] { opacity: 0.5; cursor: default; }
+  .repeat-btn.speaking { background: var(--fire-amber); }
+  .repeat-btn .repeat-icon { font-size: 18px; line-height: 1; }
+  @media (max-width: 520px){
+    .question-text { font-size: 26px; }
+    .repeat-btn { padding: 8px 10px; font-size: 13px; }
+    .repeat-btn .repeat-label { display: none; }
   }
   .answer-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   .answer-btn {
@@ -507,6 +535,35 @@
   <div class="recipe-progress" id="recipeProgress"></div>
 </section>
 
+<!-- v168: Question card moved ABOVE the scene. Previously it sat below the
+     basket+cauldron, pushing the actual question off-screen on phones and
+     making it visually subordinate to a giant empty cauldron. The question
+     is the primary thing Nigel needs to see — the cauldron is the visual
+     aid below it. Also adds an in-card Repeat button so he can replay
+     without having to find the floating portrait. -->
+<section class="question-card">
+  <div class="question-row">
+    <p class="question-text" id="questionText">Loading…</p>
+    <button type="button" class="repeat-btn" id="repeatBtn" aria-label="Repeat the question">
+      <span class="repeat-icon">🔊</span><span class="repeat-label">Repeat</span>
+    </button>
+  </div>
+  <div class="answer-buttons" id="answerButtons"></div>
+  <div class="feedback" id="feedback"></div>
+  <div class="submit-area" id="submitArea">
+    <input type="number" inputmode="numeric" class="submit-input" id="submitInput" placeholder="?">
+    <button type="button" class="submit-btn" id="submitBtn">Serve it up!</button>
+  </div>
+  <div class="strategy-reveal" id="strategyReveal">
+    <div class="strategy-eq" id="strategyEq"></div>
+  </div>
+  <!-- v146: Skip-to-next-question button. Hidden until the play loop starts;
+       hidden again during 'boot' and 'complete' phases. Skipping advances to
+       the next recipe (not the next micro-question) so Nigel cleanly moves
+       past a recipe he's stuck on without grinding through every bunch. -->
+  <button type="button" class="skip-btn" id="skipQuestionBtn" hidden>Skip ▶</button>
+</section>
+
 <section class="scene">
   <div class="basket-area">
     <div class="basket-label" id="basketLabel">Basket</div>
@@ -528,26 +585,6 @@
     </div>
     <div class="pot-count-readout" id="potReadout">0 in the pot</div>
   </div>
-</section>
-
-<section class="question-card">
-  <div class="question-row">
-    <p class="question-text" id="questionText">Loading…</p>
-  </div>
-  <div class="answer-buttons" id="answerButtons"></div>
-  <div class="feedback" id="feedback"></div>
-  <div class="submit-area" id="submitArea">
-    <input type="number" inputmode="numeric" class="submit-input" id="submitInput" placeholder="?">
-    <button type="button" class="submit-btn" id="submitBtn">Serve it up!</button>
-  </div>
-  <div class="strategy-reveal" id="strategyReveal">
-    <div class="strategy-eq" id="strategyEq"></div>
-  </div>
-  <!-- v146: Skip-to-next-question button. Hidden until the play loop starts;
-       hidden again during 'boot' and 'complete' phases. Skipping advances to
-       the next recipe (not the next micro-question) so Nigel cleanly moves
-       past a recipe he's stuck on without grinding through every bunch. -->
-  <button type="button" class="skip-btn" id="skipQuestionBtn" hidden>Skip ▶</button>
 </section>
 
 <!-- Today's Special overlay (5 AI word problems from daily cron) -->
@@ -659,6 +696,31 @@
       tts(state.currentMessage);
     }
   });
+
+  // v168: Explicit Repeat button in the question card. Same behavior as the
+  // floating Humphrey portrait, but obvious and labeled. Disabled when there's
+  // no message to repeat.
+  (function wireRepeatButton(){
+    const btn = $('repeatBtn');
+    if (!btn) return;
+    function refresh(){
+      btn.disabled = !state.currentMessage;
+    }
+    btn.addEventListener('click', () => {
+      if (!state.currentMessage) return;
+      btn.classList.add('speaking');
+      const p = tts(state.currentMessage);
+      Promise.resolve(p).finally(() => btn.classList.remove('speaking'));
+    });
+    refresh();
+    // Re-evaluate every time the question text changes (covers boot, new
+    // recipe, new bunch, etc.). MutationObserver is cheap and avoids us
+    // having to instrument every setHumphreyMessage call site.
+    const qt = $('questionText');
+    if (qt && window.MutationObserver) {
+      new MutationObserver(refresh).observe(qt, { childList: true, characterData: true, subtree: true });
+    }
+  })();
 
   // ----- Bunch derivation -----
   // Educational strategy:
@@ -1339,6 +1401,7 @@
   var DAILY_VOICE_CAP_MS = 10 * 60 * 1000;
   var DAILY_VOICE_CAP_COUNT = 15;
   var session = null, capTimer = null, transcript = [], startedAt = null, endReason = null, conversationId = null;
+  var lastSyncedQuestion = '';  // v168: tracks what question Humphrey has been told about, so MutationObserver only pushes diffs
   function $(id) { return document.getElementById(id); }
   function NS() { return window.HeroAcademy && window.HeroAcademy.Telemetry; }
   function childId() { var t = NS(); return (t && t.childId && t.childId()) || null; }
@@ -1412,6 +1475,10 @@
     if (overlay) overlay.hidden = false;
     setStatus('Connecting to Humphrey…');
     transcript = []; startedAt = Date.now(); endReason = null; conversationId = null;
+    // v168: seed the sync tracker with the question that will be sent as
+    // current_problem in dynamicVariables, so the MutationObserver only
+    // pushes UPDATES (not the initial state, which was already sent).
+    lastSyncedQuestion = question;
     capTimer = setTimeout(function () {
       console.warn('[cauldron-conv] 90s cap reached');
       endReason = 'time_cap'; endSession();
@@ -1510,6 +1577,7 @@
       recipe_progress: ($('potReadout') && $('potReadout').textContent || '').trim()
     });
     session = null; transcript = []; startedAt = null; conversationId = null; endReason = null;
+    lastSyncedQuestion = '';
   }
   function wireEndButton() {
     var btn = $('ccVoiceEnd');
@@ -1523,7 +1591,38 @@
     wireEndButton();
     var qt = $('questionText');
     if (qt && window.MutationObserver) {
-      new MutationObserver(injectBadge).observe(qt, { childList: true, subtree: true, characterData: true });
+      new MutationObserver(function(){
+        injectBadge();
+        // v168 — THE FIX: when an Ask Humphrey conversation is OPEN and the
+        // question changes (next bunch, next recipe, etc.), push the new
+        // problem to the live session as a contextual update so Humphrey
+        // is helping with the actual current problem, not the one that was
+        // on screen when Nigel hit "Ask Humphrey". Without this, she keeps
+        // scaffolding the stale question and Nigel's "what about THIS one"
+        // gets a confused / off-topic response.
+        if (session) {
+          var newQ = ($('questionText') && $('questionText').textContent || '').trim();
+          if (newQ && newQ !== lastSyncedQuestion){
+            lastSyncedQuestion = newQ;
+            var recipeName = ($('recipeName') && $('recipeName').textContent || '').trim();
+            var potReadout = ($('potReadout') && $('potReadout').textContent || '').trim();
+            try {
+              if (typeof session.sendContextualUpdate === 'function'){
+                session.sendContextualUpdate(
+                  'The problem on screen just changed. ' +
+                  'Nigel is now working on: "' + newQ + '". ' +
+                  (recipeName ? 'Recipe: ' + recipeName + '. ' : '') +
+                  (potReadout ? 'Pot progress: ' + potReadout + '. ' : '') +
+                  'Help him with THIS problem, not the previous one.'
+                );
+                console.log('[cauldron-conv] question synced to live session:', newQ);
+              }
+            } catch(e){
+              console.warn('[cauldron-conv] live question sync failed:', e);
+            }
+          }
+        }
+      }).observe(qt, { childList: true, subtree: true, characterData: true });
     }
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
