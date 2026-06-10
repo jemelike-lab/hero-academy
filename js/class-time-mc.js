@@ -854,6 +854,15 @@
     $('demo-board').hidden = false;
     $('demo-next-btn').hidden = true;
 
+    // v171 hotfix: setting `hidden = false` doesn't synchronously force a
+    // layout pass. If we call Board.mount() immediately, fitCanvas runs
+    // getBoundingClientRect on a host that still measures 0×0, the canvas
+    // gets sized to 1×1 pixels, and every subsequent drawEquation renders
+    // to an invisible canvas. Two RAF ticks guarantee the browser has
+    // painted the now-visible panel and the canvas host has its true
+    // dimensions when mount() reads them.
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+
     // Mount/clear the board (class-time-board.js exposes ClassTimeBoard)
     const Board = NS.ClassTimeBoard;
     if (Board && typeof Board.mount === 'function') {
