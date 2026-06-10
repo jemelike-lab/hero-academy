@@ -1,5 +1,7 @@
 // js/class-time.js
-// v158 — Class Time v2: full school day = 4 courses × 7-10 min, 15-min breaks
+// v165 — Class Time v2: full school day = 4 courses × 7-10 min, 15-min breaks
+// Fixed: exit no longer marks course as completed (was causing false completions)
+// Fixed: removed duplicate SessionProgress bar (class-time has its own header)
 // between courses, subject-aware board mode, resumable on reload.
 //
 // Each course is its own ConvAI conversation with course-specific dynamic
@@ -232,7 +234,6 @@
     if (label && state.lesson.topics[state.currentTopicIdx]){
       label.textContent = state.lesson.topics[state.currentTopicIdx].title;
     }
-    if (NS.SessionProgress) NS.SessionProgress.update(state.currentTopicIdx + 1, state.lesson.topics.length, 'Topic');
   }
 
   // ---------- Humphrey portrait state ----------
@@ -597,38 +598,6 @@
   }
 
 
-  // ---------- Progress save (v163) ----------
-  // Fires on exit, beforeunload, and visibilitychange so interrupted
-  // sessions don't lose completed courses.
-  function saveCurrentCourseProgress(reason){
-    if (!state.lesson || state.completed || state.inBreak) return;
-    const courseOrder = state.currentCourseIdx + 1;
-    const subject = state.lesson?.subject || 'unknown';
-    const topicIds = (state.lesson?.topics || []).map(t => t.id);
-    const payload = JSON.stringify({
-      child_id: CHILD_ID,
-      date: state.today,
-      course_order: courseOrder,
-      subject,
-      topics_covered: topicIds
-    });
-    // Use sendBeacon for reliability during page unload
-    if (navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: 'application/json' });
-      navigator.sendBeacon('/api/class-time/record-course', blob);
-      console.log('[class-time] beacon save course', courseOrder, reason);
-    } else {
-      // Fallback: fire-and-forget fetch
-      fetch('/api/class-time/record-course', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: payload,
-        keepalive: true
-      }).catch(() => {});
-      console.log('[class-time] fetch save course', courseOrder, reason);
-    }
-  }
-
   // ---------- Course lifecycle ----------
   async function startCourse(idx){
     const course = state.dayPlan?.courses?.[idx];
@@ -852,22 +821,20 @@
   }
 
   async function exit(){
-    if (!state.completed) {
-      state.completed = true;
-      // v163: save the current course before leaving so progress isn't lost
-      saveCurrentCourseProgress('exit');
-      try { if (state.conversation) await state.conversation.endSession(); } catch(e){}
-      clearInterval(state.timerInterval);
-      clearInterval(state.captureInterval);
-      clearInterval(state.topicWatcherInterval);
-      clearInterval(state.breakInterval);
-      logEvent('class_time_exit_early', {
-        lesson_date: state.today,
-        course_order: state.currentCourseIdx + 1,
-        in_break: state.inBreak,
-        time_in_course_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0
-      });
-    }
+    // v165: do NOT mark course as complete on exit — only endCourse() does
+    // that when the timer runs out or Humphrey calls endClass. Early exits
+    // simply clean up and go home; the course resumes on re-entry.
+    try { if (state.conversation) await state.conversation.endSession(); } catch(e){}
+    clearInterval(state.timerInterval);
+    clearInterval(state.captureInterval);
+    clearInterval(state.topicWatcherInterval);
+    clearInterval(state.breakInterval);
+    logEvent('class_time_exit_early', {
+      lesson_date: state.today,
+      course_order: state.currentCourseIdx + 1,
+      in_break: state.inBreak,
+      time_in_course_sec: state.sessionStartedAt ? Math.round((Date.now() - state.sessionStartedAt) / 1000) : 0
+    });
     exitToHome();
   }
 
@@ -896,20 +863,6 @@
     if (resumeBtn) resumeBtn.addEventListener('click', resumeFromBreak);
     const capBack = $('cap-back-btn');
     if (capBack) capBack.addEventListener('click', exitToHome);
-
-    // v163: Save progress when page is unloading or going to background
-    window.addEventListener('beforeunload', () => {
-      saveCurrentCourseProgress('beforeunload');
-    });
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
-        saveCurrentCourseProgress('visibilitychange');
-      }
-    });
-    // Android PWA: pagehide fires more reliably than beforeunload
-    window.addEventListener('pagehide', () => {
-      saveCurrentCourseProgress('pagehide');
-    });
 
     // 5. Resume: find first incomplete course
     const startIdx = findFirstIncompleteCourse();
