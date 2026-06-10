@@ -652,6 +652,16 @@
     bunches: [],          // derived bunch sizes for current ingredient: e.g. [5,4]
     phase: 'boot',        // 'boot' | 'count' | 'bridge' | 'cross' | 'submit' | 'complete' | 'recipe-done'
     currentMessage: '',   // the most recent Humphrey utterance (for tab-replay)
+    // v170: separate tracking for what Nigel is actually being ASKED, vs. whatever
+    // Humphrey is currently SAYING. Bug we caught in production transcripts: when
+    // Nigel clicked Ask Humphrey while feedback like "Let's count together. 18"
+    // was on screen, that text got sent as current_problem and Humphrey said
+    // "we're missing part of the question." currentQuestion is updated ONLY by
+    // renderQuestion + startStrategyReveal (the four actual question-posing paths)
+    // and is what Ask Humphrey sees. currentMessage continues to hold whatever
+    // Humphrey last spoke so the Repeat button still replays the latest line.
+    currentQuestion: '',
+    currentAnswerOptions: [],
     currentAudio: null,
   };
 
@@ -884,6 +894,15 @@
 
   // ----- Question / answer UI -----
   function renderQuestion(text, options, correctValue, onCorrect, onWrongHint) {
+    // v170: mark this as THE current math question so Ask Humphrey sees it
+    // even if Humphrey later overwrites the on-screen text with feedback.
+    state.currentQuestion = text;
+    state.currentAnswerOptions = (options || []).map(String);
+    const qt = $('questionText');
+    if (qt) {
+      qt.dataset.question = text;
+      qt.dataset.options = JSON.stringify(state.currentAnswerOptions);
+    }
     setHumphreyMessage(text);
     const btns = $('answerButtons');
     btns.innerHTML = '';
@@ -956,6 +975,16 @@
     state.currentBunchIdx = 0;
     state.ingredientCounts = {};
     state.wrongServeAttempts = 0;  // v169
+    state.currentQuestion = '';    // v170: clear question slot until renderQuestion fires
+    state.currentAnswerOptions = [];
+    {
+      const qt = $('questionText');
+      if (qt) {
+        delete qt.dataset.question;
+        delete qt.dataset.options;
+        delete qt.dataset.equation;
+      }
+    }
     hideMoveOn();                   // v169
     r.ingredients.forEach(ing => { state.ingredientCounts[ing.veggie.id] = 0; });
     renderRecipeHeader();
@@ -1135,7 +1164,19 @@
     emptyBasket('Recipe ready!');
     const eqParts = r.ingredients.map(i => i.count);
     const eqStr = eqParts.join(' + ') + ' = ?';
-    setHumphreyMessage(`All the ingredients are in! Let's count it all up: ${eqParts.join(' plus ')}. What's your answer?`);
+    const prompt = `All the ingredients are in! Let's count it all up: ${eqParts.join(' plus ')}. What's your answer?`;
+    // v170: Serve It Up is a real question — record it for Ask Humphrey. No
+    // discrete answer options (it's a free-form input), so options is empty
+    // and we instead surface the equation as the hint.
+    state.currentQuestion = prompt;
+    state.currentAnswerOptions = [];
+    const qt = $('questionText');
+    if (qt) {
+      qt.dataset.question = prompt;
+      qt.dataset.options = '[]';
+      qt.dataset.equation = eqStr;
+    }
+    setHumphreyMessage(prompt);
     $('answerButtons').innerHTML = '';
     $('strategyReveal').classList.add('visible');
     $('strategyEq').textContent = eqStr;
@@ -1567,7 +1608,17 @@
     }
     var SDK = window.ElevenLabsClient && window.ElevenLabsClient.Conversation;
     if (!SDK) { console.warn('[cauldron-conv] SDK not loaded'); return; }
-    var question = ($('questionText') && $('questionText').textContent || '').trim();
+    // v170: use the structured currentQuestion (set only when an actual math
+    // question is posed) instead of whatever happens to be in #questionText.
+    // Falls back to the on-screen text if no dataset.question has been set yet
+    // (e.g. boot phase, before the first renderQuestion fires).
+    var qt = $('questionText');
+    var question = (qt && qt.dataset && qt.dataset.question) ||
+                   ((qt && qt.textContent) || '').trim();
+    var answerOptionsRaw = (qt && qt.dataset && qt.dataset.options) || '[]';
+    var answerOptions = [];
+    try { answerOptions = JSON.parse(answerOptionsRaw); } catch (_) {}
+    var equation = (qt && qt.dataset && qt.dataset.equation) || '';
     // v130b: capture recipe context for richer agent grounding
     var recipeName = ($('recipeName') && $('recipeName').textContent || '').trim();
     var recipeSub = ($('recipeSub') && $('recipeSub').textContent || '').trim();
@@ -1585,12 +1636,20 @@
       console.warn('[cauldron-conv] 90s cap reached');
       endReason = 'time_cap'; endSession();
     }, CONVERSATION_CAP_MS);
+    // v170: build a human-readable hint about the visible answer choices, so
+    // Humphrey can say things like "the answer is one of these three numbers"
+    // even though she can't see the screen.
+    var optionsHint = answerOptions && answerOptions.length
+      ? ' The visible answer choices on screen are: ' + answerOptions.join(', ') + '. One of them is correct.'
+      : (equation ? ' On screen is an equation he needs to solve: ' + equation : '');
     try {
       var p = SDK.startSession({
         agentId: AGENT_ID,
         dynamicVariables: {
           topic: question,
           current_problem: question,
+          answer_options: answerOptions.join(', '),
+          equation_on_screen: equation,
           current_zone: 'Cauldron Cafe',
           recipe_name: recipeName,
           recipe_today: recipeSub,
@@ -1600,7 +1659,8 @@
                    (recipeSub ? ' (' + recipeSub + ')' : '') +
                    '. Pot progress: ' + (potReadout || 'just starting') +
                    '. The current problem he needs help with is: ' + question +
-                   '. Scaffold him toward the answer using counting strategies, ten-frames, or doubles -- do not just give the answer.'
+                   '.' + optionsHint +
+                   ' Scaffold him toward the answer using counting strategies, ten-frames, or doubles -- do not just give the answer.'
         },
         overrides: {
           agent: {
@@ -1695,24 +1755,39 @@
     if (qt && window.MutationObserver) {
       new MutationObserver(function(){
         injectBadge();
-        // v168 — THE FIX: when an Ask Humphrey conversation is OPEN and the
-        // question changes (next bunch, next recipe, etc.), push the new
-        // problem to the live session as a contextual update so Humphrey
-        // is helping with the actual current problem, not the one that was
-        // on screen when Nigel hit "Ask Humphrey". Without this, she keeps
-        // scaffolding the stale question and Nigel's "what about THIS one"
-        // gets a confused / off-topic response.
+        // v168/v170 — THE FIX: when an Ask Humphrey conversation is OPEN and a
+        // NEW MATH QUESTION fires (next bunch, next recipe, Serve It Up), push
+        // it to the live session as a contextual update so Humphrey is helping
+        // with the actual current problem, not the one that was on screen when
+        // Nigel hit "Ask Humphrey".
+        //
+        // v170 critical refinement: we now read from `data-question` (set ONLY
+        // by renderQuestion + startStrategyReveal), NOT from textContent.
+        // textContent gets clobbered by every setHumphreyMessage call — including
+        // feedback like "Let's count together. 18" and "Yes — 5 + 4 = 9!" — and
+        // pre-v170 those falsely triggered context updates that confused
+        // Humphrey ("we're missing part of the question"). Now feedback messages
+        // pass through silently while real question changes still sync.
         if (session) {
-          var newQ = ($('questionText') && $('questionText').textContent || '').trim();
+          var qtNow = $('questionText');
+          var newQ = (qtNow && qtNow.dataset && qtNow.dataset.question) || '';
           if (newQ && newQ !== lastSyncedQuestion){
             lastSyncedQuestion = newQ;
+            var newOptionsRaw = (qtNow && qtNow.dataset && qtNow.dataset.options) || '[]';
+            var newOptions = [];
+            try { newOptions = JSON.parse(newOptionsRaw); } catch(_){}
+            var newEquation = (qtNow && qtNow.dataset && qtNow.dataset.equation) || '';
             var recipeName = ($('recipeName') && $('recipeName').textContent || '').trim();
             var potReadout = ($('potReadout') && $('potReadout').textContent || '').trim();
+            var optionsLine = newOptions.length
+              ? 'Visible answer choices on screen: ' + newOptions.join(', ') + '. One of them is correct. '
+              : (newEquation ? 'On screen is an equation to solve: ' + newEquation + '. ' : '');
             try {
               if (typeof session.sendContextualUpdate === 'function'){
                 session.sendContextualUpdate(
                   'The problem on screen just changed. ' +
                   'Nigel is now working on: "' + newQ + '". ' +
+                  optionsLine +
                   (recipeName ? 'Recipe: ' + recipeName + '. ' : '') +
                   (potReadout ? 'Pot progress: ' + potReadout + '. ' : '') +
                   'Help him with THIS problem, not the previous one.'
@@ -1724,7 +1799,7 @@
             }
           }
         }
-      }).observe(qt, { childList: true, subtree: true, characterData: true });
+      }).observe(qt, { attributes: true, attributeFilter: ['data-question', 'data-options', 'data-equation'], childList: true, subtree: true });
     }
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
