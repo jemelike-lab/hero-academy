@@ -186,6 +186,35 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '- correct_index is the 0-based index of the right answer.',
     '- Distractors must be plausible — no obvious silly wrong answers like "potato".',
     '- explanation ≤ 200 chars, hint ≤ 150 chars — both kid-friendly, no jargon.',
+    '',
+    '== CRITICAL — NO VISUAL REFERENCES IN THE QUESTION ==',
+    'The question card shows ONLY text + answer buttons. NO ten frame, picture, diagram,',
+    'number line, chart, graph, image, or drawing is rendered alongside the question. The',
+    'whiteboard only appears DURING REMEDIATION (after wrong twice) — never during the',
+    'question itself. So questions must be SELF-CONTAINED TEXT.',
+    'FORBIDDEN question phrasings (the visual referenced does not exist on screen):',
+    '  ✗ "How many dots are in the ten frame?"',
+    '  ✗ "Look at the picture and pick the answer"',
+    '  ✗ "What does this number line show?"',
+    '  ✗ "Count the apples in the image"',
+    '  ✗ "Use the diagram to figure out..."',
+    '  ✗ "How many shapes are shown below?"',
+    '  ✗ "Which picture matches..."',
+    '  ✗ "See the chart above..."',
+    'OK question phrasings (purely text — no visual needed):',
+    '  ✓ "How much is 7 + 3?"',
+    '  ✓ "What is the sum of 4 and 5?"',
+    '  ✓ "Nigel had 8 marbles and gave 3 away. How many are left?"',
+    '  ✓ "Which word is a noun? dog, run, blue, quickly"',
+    '  ✓ "What letter makes the /sh/ sound at the start of \'ship\'?"',
+    '  ✓ "Which sentence has correct capitalization?"',
+    'If the topic naturally calls for a picture (e.g. \'identify the butterfly\'), reframe',
+    'as a text question (\'Which insect has wings, sips nectar, and starts as a caterpillar?\')',
+    'OR describe the visual in words inside the question (\'I am thinking of a shape with four',
+    'equal sides — which is it?\').',
+    'remediation.steps CAN use board tools (writeWord, drawEquation, showVisual etc.) — that',
+    'is the place to bring visuals in, AFTER Nigel has missed the question twice.',
+    '',
     '- remediation.steps has 2-5 steps. Each step has BOTH "say" (kid-friendly TTS narration, ≤ 200 chars)',
     '  AND "board" which is either null OR { tool, args }.',
     '- ALLOWED board tools: writeWord, writeLetter, drawEquation, showVisual, clearBoard',
@@ -274,11 +303,34 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
 // conform gets dropped — better to return fewer good questions than to
 // ship a broken one.
 // =====================================================================
+// v175: question text MUST be self-contained — the question card has only
+// text + answer buttons. Any reference to a visual aid (ten frame, picture,
+// number line, etc.) leaves Nigel staring at a blank space wondering what
+// to count. Reject these in case Haiku ignores the prompt rule.
+const VISUAL_REFERENCE_PATTERNS = [
+  /\bten[- ]?frame\b/i,
+  /\bnumber\s*line\b/i,
+  /\b(the|this|that|these|those|each)\s+(picture|image|diagram|chart|graph|drawing|photo|figure|illustration|shape\s+below|shapes\s+below|shape\s+above|shapes\s+above)\b/i,
+  /\b(in|on|from|using)\s+the\s+(picture|image|diagram|chart|graph|drawing|photo|figure|illustration)\b/i,
+  /\blook\s+at\s+(the|this|these)\b/i,
+  /\bsee\s+the\b/i,
+  /\bshown\s+(above|below|here)\b/i,
+  /\b(above|below)\s*[?:.]/i,
+  /\bwhich\s+picture\b/i,
+  /\bcount\s+the\s+(dots|apples|stars|shapes|circles|squares|triangles)\s+(in|on|above|below)\b/i,
+];
+function referencesNonExistentVisual(text) {
+  if (!text) return false;
+  return VISUAL_REFERENCE_PATTERNS.some((pat) => pat.test(text));
+}
+
 function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return null;
   const topic = clipStr(q.topic, 80);
   const question = clipStr(q.question, 280);
   if (!question) return null;
+  // v175 board/question sync: drop questions that reference visuals not on screen.
+  if (referencesNonExistentVisual(question)) return null;
   if (!Array.isArray(q.options)) return null;
   const options = q.options.map((o) => clipStr(o, 30)).filter((s) => s && s.length > 0);
   if (options.length < 3 || options.length > 4) return null;
