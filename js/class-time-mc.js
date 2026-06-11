@@ -40,12 +40,11 @@
   const TTS_FALLBACK_MS = 25000; // Max time to wait for TTS before unlocking buttons anyway
   const STEP_PAUSE_MS = 600;     // Pause between demo steps
   const FEEDBACK_PAUSE_MS = 1200; // Pause after right/wrong feedback before advancing
-  // v173b: after a CORRECT answer, give Humphrey 5 full seconds to finish
-  // her "Yes! ..." reinforcement before advancing. Previously was 2600ms
-  // (FEEDBACK_PAUSE_MS + 1400) which cut her off mid-sentence on longer
-  // explanations. 5000ms covers all reasonable explanations cleanly across
-  // every subject.
-  const POST_CORRECT_DELAY_MS = 5000;
+  // v175: POST_CORRECT used to be a fixed 5000ms race against TTS, meaning
+  // Humphrey got cut off on longer explanations. Now we WAIT for TTS to
+  // finish, then add a breathing-room pause for Nigel to absorb.
+  const POST_SPEECH_PAUSE_MS = 2000; // pause AFTER TTS finishes, not a race against it
+  const TTS_SAFETY_MS = 20000; // safety cap in case TTS promise never resolves
 
   const SUBJECTS = ['math', 'reading', 'spelling', 'science'];
   const SUBJECT_LABEL = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science' };
@@ -720,6 +719,31 @@
       return Promise.resolve();
     }
   }
+  // v175: wait for TTS to actually finish THEN run the callback after a pause.
+  // Replaces the old pattern of fixed-ms setTimeout that raced against TTS.
+  function waitForSpeechThenDo(ttsPromise, pauseMs, callback) {
+    let done = false;
+    const safety = setTimeout(() => {
+      if (done) return;
+      done = true;
+      console.warn('[class-time-mc] TTS safety timeout — advancing');
+      callback();
+    }, TTS_SAFETY_MS);
+    ttsPromise.then(() => {
+      if (done) return;
+      setTimeout(() => {
+        if (done) return;
+        done = true;
+        clearTimeout(safety);
+        callback();
+      }, pauseMs);
+    }).catch(() => {
+      if (done) return;
+      done = true;
+      clearTimeout(safety);
+      callback();
+    });
+  }
   function pulseHumphreyOn() { $('humphrey-portrait')?.classList.add('speaking'); }
   function pulseHumphreyOff() { $('humphrey-portrait')?.classList.remove('speaking'); }
 
@@ -916,8 +940,8 @@
       // v173: only counts as "passed" if FIRST tap was correct
       recordTopicAttempt(q.topic, state.wrongAttempts === 0);
       logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: true, attempts: state.wrongAttempts + 1 });
-      tts(`Yes! ${q.explanation}`);
-      setTimeout(advanceQuestion, POST_CORRECT_DELAY_MS); // v173b: 5s, no more mid-praise cutoffs
+      const ttsP = tts(`Yes! ${q.explanation}`);
+      waitForSpeechThenDo(ttsP, POST_SPEECH_PAUSE_MS, advanceQuestion); // v175: waits for her to finish
       return;
     }
 

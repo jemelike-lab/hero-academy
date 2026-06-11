@@ -32,7 +32,9 @@
   var NS = window.HeroAcademy = window.HeroAcademy || {};
 
   var WORDS_PER_SESSION  = 8;
-  var POST_CORRECT_DELAY_MS = 4000;  // matches v173b Class Time
+  // v175: wait for TTS to finish + pause, not a fixed race
+  var POST_SPEECH_PAUSE_MS = 2000;
+  var TTS_SAFETY_MS = 20000;
   var WRONG_REVEAL_DELAY_MS = 2200;
   var STORAGE_KEY = 'ha_word_tower_words';
 
@@ -122,6 +124,26 @@
     } catch (_) {}
     return Promise.resolve();
   }
+  // v175: wait for TTS to actually finish, then run callback after pause
+  function waitForSpeechThenDo(ttsPromise, pauseMs, callback) {
+    var done = false;
+    var safety = setTimeout(function () {
+      if (done) return; done = true;
+      callback();
+    }, TTS_SAFETY_MS);
+    ttsPromise.then(function () {
+      if (done) return;
+      setTimeout(function () {
+        if (done) return; done = true;
+        clearTimeout(safety);
+        callback();
+      }, pauseMs);
+    }).catch(function () {
+      if (done) return; done = true;
+      clearTimeout(safety);
+      callback();
+    });
+  }
 
   // ---- Render the current word card + MC options ----------------------
   function renderCurrentWord() {
@@ -198,8 +220,8 @@
       var passed = session.wrongAttempts === 0;
       recordWordResult(w.word, passed);
       session.results.push({ word: w.word, passed: passed, attempts: session.wrongAttempts + 1 });
-      speak('Yes! ' + w.word + '.', 'cheering');
-      setTimeout(advance, POST_CORRECT_DELAY_MS);
+      var ttsP = speak('Yes! ' + w.word + '.', 'cheering');
+      waitForSpeechThenDo(ttsP, POST_SPEECH_PAUSE_MS, advance);
       return;
     }
 
@@ -220,8 +242,8 @@
       }
       recordWordResult(w.word, false);
       session.results.push({ word: w.word, passed: false, attempts: session.wrongAttempts });
-      speak('The word is ' + w.word + '. ' + (w.hint || ''), 'encouraging');
-      setTimeout(advance, WRONG_REVEAL_DELAY_MS + POST_CORRECT_DELAY_MS - 1000);
+      var ttsP2 = speak('The word is ' + w.word + '. ' + (w.hint || ''), 'encouraging');
+      waitForSpeechThenDo(ttsP2, POST_SPEECH_PAUSE_MS + 1000, advance); // extra 1s for wrong-reveal
       return;
     }
 

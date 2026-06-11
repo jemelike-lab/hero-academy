@@ -31,7 +31,9 @@
   var WORD_HIGHLIGHT_MS_PER_WORD = 380;  // 2nd-grade fluent pace
   var WRONG_HINT_DELAY_MS = 1200;
   var WRONG_REVEAL_DELAY_MS = 1800;
-  var POST_CORRECT_DELAY_MS = 4000;
+  // v175: wait for TTS to finish + pause, not a fixed race
+  var POST_SPEECH_PAUSE_MS = 2000;
+  var TTS_SAFETY_MS = 20000;
 
   var state = {
     title: '',
@@ -57,6 +59,26 @@
       }
     } catch (_) {}
     return Promise.resolve();
+  }
+  // v175: wait for TTS to actually finish, then run callback after pause
+  function waitForSpeechThenDo(ttsPromise, pauseMs, callback) {
+    var done = false;
+    var safety = setTimeout(function () {
+      if (done) return; done = true;
+      callback();
+    }, TTS_SAFETY_MS);
+    ttsPromise.then(function () {
+      if (done) return;
+      setTimeout(function () {
+        if (done) return; done = true;
+        clearTimeout(safety);
+        callback();
+      }, pauseMs);
+    }).catch(function () {
+      if (done) return; done = true;
+      clearTimeout(safety);
+      callback();
+    });
   }
 
   // -------- Boot + passage generation --------
@@ -243,8 +265,8 @@
       $('st-mc-feedback').textContent = '✓ ' + q.explanation;
       $('st-mc-feedback').className = 'st-mc-feedback correct';
       if (state.wrongAttempts === 0) state.correctOnFirstTry += 1;
-      speakAndUnlock('Yes! ' + q.explanation, 'cheering');
-      setTimeout(advanceQuestion, POST_CORRECT_DELAY_MS);
+      var ttsP = speakAndUnlock('Yes! ' + q.explanation, 'cheering');
+      waitForSpeechThenDo(ttsP, POST_SPEECH_PAUSE_MS, advanceQuestion);
       return;
     }
 
@@ -259,8 +281,8 @@
       allBtns.forEach(function (b) { b.disabled = true; });
       $('st-mc-feedback').textContent = 'The answer is ' + q.options[q.correct_index] + '. ' + q.explanation;
       $('st-mc-feedback').className = 'st-mc-feedback reveal';
-      speakAndUnlock('The answer is ' + q.options[q.correct_index] + '. ' + q.explanation, 'encouraging');
-      setTimeout(advanceQuestion, WRONG_REVEAL_DELAY_MS + POST_CORRECT_DELAY_MS - 1000);
+      var ttsP2 = speakAndUnlock('The answer is ' + q.options[q.correct_index] + '. ' + q.explanation, 'encouraging');
+      waitForSpeechThenDo(ttsP2, POST_SPEECH_PAUSE_MS + 1000, advanceQuestion); // extra 1s for wrong-reveal
       return;
     }
 
