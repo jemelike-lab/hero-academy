@@ -59,7 +59,7 @@
 }
 .ha-canvas-color:hover { transform: translateY(-2px); }
 .ha-canvas-color.is-active {
-  border-color: #ffd147;
+  border-color:var(--gold-text);
   transform: translateY(-2px);
   box-shadow: 0 0 0 2px rgba(255, 209, 71, 0.4);
 }
@@ -83,7 +83,7 @@
 .ha-canvas-tool--eraser { font-size: 18px; padding: 0 8px; }
 .ha-canvas-tool.is-active {
   background: rgba(255, 209, 71, 0.3);
-  border-color: #ffd147;
+  border-color:var(--gold-text);
 }
 
 /* ---- Inline mount inside zones ---- */

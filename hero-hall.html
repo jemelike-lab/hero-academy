@@ -92,7 +92,7 @@
     font-family: var(--font-retro);
     font-size: clamp(36px, 8vw, 60px);
     margin: 0;
-    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 50%, var(--orange));
+    background: linear-gradient(180deg,var(--orange),var(--magenta) 50%,var(--violet));
     -webkit-background-clip: text; background-clip: text; color: transparent;
     text-shadow: 0 0 30px rgba(255,209,71,.4);
     letter-spacing: 1px;
@@ -175,7 +175,7 @@
   .modal .ep-row:first-child { border-top:none; }
   .modal .ep-badge { flex:none; font-size:0.68rem; font-weight:700; letter-spacing:0.1em;
                      padding:4px 8px; border-radius:8px; background:rgba(255,209,71,0.16);
-                     color:#ffd147; min-width:48px; text-align:center; }
+                     color:var(--gold-text); min-width:48px; text-align:center; }
   .modal .ep-row.locked .ep-badge { color:rgba(30,41,59,0.4);
                                     background:rgba(255,255,255,0.05); }
   .modal .ep-text { flex:1; font-size:0.95rem; line-height:1.5;
@@ -327,7 +327,7 @@
     padding: 10px 14px;
     border-radius: 10px;
     font-style: italic;
-    color: var(--gold-bright);
+    color:var(--gold-text);
     margin-top: 14px;
     text-align: left;
   }
@@ -376,7 +376,7 @@
   .hero-level-title {
     font-size: 18px;
     font-weight: 700;
-    color: #ffd147;
+    color:var(--gold-text);
     margin-bottom: 8px;
   }
   .hero-level-progress-bar-frame {
@@ -417,7 +417,7 @@
     font-family: var(--font-retro, 'Press Start 2P', monospace);
     font-size: 11px;
     letter-spacing: 1.5px;
-    color: #ffd147;
+    color:var(--gold-text);
     padding: 12px;
   }
   .next-step.is-almost {

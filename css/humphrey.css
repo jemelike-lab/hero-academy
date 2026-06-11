@@ -311,7 +311,7 @@
 .answer-btn.is-being-read {
   position: relative;
   z-index: 1;
-  border-color: #ffd147 !important;
+  border-color:var(--gold-text) !important;
   background: linear-gradient(135deg, rgba(255, 209, 71, 0.36), rgba(255, 139, 61, 0.30)) !important;
   color: #fff !important;
   transform: scale(1.05);

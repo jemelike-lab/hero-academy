@@ -25,7 +25,7 @@
   .st-back:hover{background:rgba(255,255,255,0.12);}
   .st-title-wrap{font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:0.04em;color:#fff;text-align:center;}
   .st-title-wrap small{display:block;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--magenta-bright);font-weight:600;margin-top:2px;}
-  .st-counter{font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--gold-bright);background:rgba(0,0,0,0.35);border:1px solid var(--border-light);border-radius:50px;padding:6px 12px;}
+  .st-counter{font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--gold-text);background:rgba(0,0,0,0.35);border:1px solid var(--border-light);border-radius:50px;padding:6px 12px;}
 
   /* Loading state */
   .st-loading{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
@@ -36,7 +36,7 @@
   /* Stage */
   .st-stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:8px 18px 36px;gap:18px;position:relative;}
 
-  .st-passage-title{font-family:var(--font-display);font-weight:700;font-size:22px;color:var(--gold-bright);letter-spacing:0.06em;text-align:center;}
+  .st-passage-title{font-family:var(--font-display);font-weight:700;font-size:22px;color:var(--gold-text);letter-spacing:0.06em;text-align:center;}
 
   /* Full passage with current-sentence highlight */
   .st-passage{background:linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03));border:1px solid var(--border-light);border-radius:24px;padding:20px 24px;max-width:680px;font-family:var(--font-body);font-weight:700;font-size:20px;line-height:1.6;color:var(--text-dim);}
@@ -46,7 +46,7 @@
 
   /* Big current-sentence card — what kid actually reads */
   .st-current-card{background:linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04));border:2px solid var(--magenta);border-radius:28px;padding:24px 24px;max-width:680px;text-align:center;box-shadow:0 12px 32px rgba(236,72,153,0.25);}
-  .st-current{font-family:var(--font-display);font-weight:700;font-size:clamp(28px,5.5vw,42px);line-height:1.35;background:linear-gradient(135deg,#fff,var(--gold-bright) 50%,var(--magenta-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .st-current{font-family:var(--font-display);font-weight:700;font-size:clamp(28px,5.5vw,42px);line-height:1.35;background:linear-gradient(135deg,var(--orange),var(--magenta) 50%,var(--violet));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
   .st-current .st-word-err{background:rgba(239,68,68,0.30);border-bottom:3px solid var(--red-bright);border-radius:6px;padding:0 4px;-webkit-text-fill-color:#fff;color:#fff;}
 
   /* Mic + Done buttons */
@@ -115,7 +115,7 @@
 
   .st-done-btn{background:rgba(255,255,255,0.95);color:var(--bg-deep);border:none;font-family:var(--font-display);font-weight:700;font-size:16px;padding:14px 24px;border-radius:50px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,0.30);}
   .st-done-btn:hover{transform:translateY(-1px);}
-  .st-tryagain-btn{background:rgba(0,0,0,0.4);border:2px solid var(--gold);color:var(--gold-bright);font-family:var(--font-display);font-weight:700;font-size:15px;padding:10px 24px;border-radius:50px;cursor:pointer;}
+  .st-tryagain-btn{background:rgba(0,0,0,0.4);border:2px solid var(--gold);color:var(--gold-text);font-family:var(--font-display);font-weight:700;font-size:15px;padding:10px 24px;border-radius:50px;cursor:pointer;}
   .st-tryagain-btn:hover{background:rgba(255,209,71,0.18);}
 
   /* Status */
@@ -127,9 +127,9 @@
 
   /* End card */
   .st-end-card{background:linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04));border:2px solid var(--gold);border-radius:32px;padding:36px 28px;max-width:480px;margin:40px auto;text-align:center;box-shadow:0 16px 48px rgba(255,209,71,0.25);}
-  .st-end-title{font-family:var(--font-display);font-weight:700;font-size:30px;background:linear-gradient(135deg,var(--gold-bright),var(--magenta));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:18px;}
+  .st-end-title{font-family:var(--font-display);font-weight:700;font-size:30px;background:linear-gradient(135deg,var(--orange),var(--magenta));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:18px;}
   .st-end-line{font-family:var(--font-body);font-weight:700;font-size:17px;color:#fff;margin:8px 0;}
-  .st-end-line strong{color:var(--gold-bright);font-size:22px;font-family:var(--font-display);}
+  .st-end-line strong{color:var(--gold-text);font-size:22px;font-family:var(--font-display);}
   .st-end-line--soft{color:var(--text-dim);font-size:14px;font-weight:600;margin-top:14px;line-height:1.5;}
   .st-end-actions{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;}
   .st-end-restart{background:linear-gradient(135deg,var(--magenta),var(--orange));border:none;color:#fff;font-family:var(--font-display);font-weight:700;font-size:15px;padding:12px 26px;border-radius:50px;cursor:pointer;box-shadow:0 6px 20px rgba(236,72,153,0.45);}

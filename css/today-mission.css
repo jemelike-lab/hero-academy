@@ -29,7 +29,7 @@
   font-family: var(--font-display, 'Fredoka', sans-serif);
   font-weight: 700;
   font-size: 17px;
-  color: #ffd147;
+  color:var(--gold-text);
   letter-spacing: -0.01em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   line-height: 1.2;

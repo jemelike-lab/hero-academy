@@ -29,7 +29,7 @@
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 14px;
-  color: var(--gold-bright);
+  color:var(--gold-text);
   background: var(--surface-glass);
   border: 1px solid var(--border-light);
   padding: 6px 12px;
@@ -90,7 +90,7 @@
   color: var(--text);
 }
 .ll-prompt-text strong {
-  color: var(--gold-bright);
+  color:var(--gold-text);
   font-size: 22px;
 }
 .ll-target-letter {
