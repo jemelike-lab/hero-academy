@@ -909,7 +909,7 @@
     $('feedback').textContent = '';
     $('feedback').className = 'feedback';
     $('submitArea').classList.remove('visible');
-    $('strategyReveal').classList.remove('visible');
+    $('strategyReveal').classList.remove('visible'); $('strategyEq').textContent = '';
     options.forEach((opt) => {
       const b = document.createElement('button');
       b.className = 'answer-btn';
@@ -1207,7 +1207,7 @@
       $('feedback').textContent = `Yes — ${r.ingredients.map(i => i.count).join(' + ')} = ${r.answer}!`;
       $('feedback').className = 'feedback correct';
       $('submitArea').classList.remove('visible');
-      $('strategyReveal').classList.remove('visible');
+      $('strategyReveal').classList.remove('visible'); $('strategyEq').textContent = '';
       hideMoveOn(); // v169
       state.wrongServeAttempts = 0;
       // Advance to next recipe
@@ -1263,7 +1263,7 @@
     $('feedback').textContent = `${r.ingredients.map(i => i.count).join(' + ')} = ${r.answer}`;
     $('feedback').className = 'feedback hint';
     $('submitArea').classList.remove('visible');
-    $('strategyReveal').classList.remove('visible');
+    $('strategyReveal').classList.remove('visible'); $('strategyEq').textContent = '';
     hideMoveOn();
     state.wrongServeAttempts = 0;
     try { if (window.HeroAcademy?.Telemetry?.rpc) {
@@ -1327,7 +1327,7 @@
     setHumphreyMessage(`Beautiful work, Nigel. You served ${state.recipes.length} dishes today.`);
     $('answerButtons').innerHTML = '<button class="answer-btn" onclick="location.reload()">Cook again</button>';
     $('submitArea').classList.remove('visible');
-    $('strategyReveal').classList.remove('visible');
+    $('strategyReveal').classList.remove('visible'); $('strategyEq').textContent = '';
     emptyBasket('Service complete');
   }
 
@@ -1344,7 +1344,7 @@
     } else {
       // Clear in-progress submit UI before the next recipe boots.
       $('submitArea').classList.remove('visible');
-      $('strategyReveal').classList.remove('visible');
+      $('strategyReveal').classList.remove('visible'); $('strategyEq').textContent = '';
       $('feedback').textContent = '';
       $('feedback').className = 'feedback';
       startRecipe();

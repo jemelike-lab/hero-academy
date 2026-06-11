@@ -25,8 +25,10 @@
     .ll-reveal-card.hers  { border-color: #f472b6; }
     .ll-reveal-label { color: #e6e9f2; font-size: 16px; font-weight: 600; margin: 0; }
     .ll-reveal-img {
-      width: 240px; height: 200px; background: #fff8e7; border-radius: 12px;
+      /* v174f: pure white bg + inset shadow for better contrast on faint ink */
+      width: 240px; height: 200px; background: #ffffff; border-radius: 12px;
       object-fit: contain; display: block;
+      box-shadow: inset 0 0 0 2px rgba(0,0,0,0.08);
     }
     .ll-selfassess { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
     .ll-selfassess button {

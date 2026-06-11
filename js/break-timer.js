@@ -41,9 +41,12 @@
     return Date.now() >= end ? 'expired' : 'running';
   }
   function msLeft() { var e = readEndTs(); return e ? Math.max(0, e - Date.now()) : 0; }
+  /* v174f: zero-pad minutes so the pill matches the overlay's MM:SS format */
   function fmt(ms) {
     var s = Math.ceil(ms / 1000), mm = Math.floor(s / 60), ss = s % 60;
-    return mm + ':' + (ss < 10 ? '0' + ss : ss);
+    var mmStr = (mm < 10 ? '0' + mm : String(mm));
+    var ssStr = (ss < 10 ? '0' + ss : String(ss));
+    return mmStr + ':' + ssStr;
   }
 
   // --- Alarm (Web Audio API chime) ---
