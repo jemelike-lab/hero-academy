@@ -65,11 +65,10 @@
       <button class="mastery-rest" id="masteryRest">TAKE A BREAK</button>
     </section>
   </main>
-  <button class="humphrey-btn" id="humphreyBtn" aria-label="Talk to Miss Humphrey">
-    <span class="humphrey-pulse"></span>
-    <span class="humphrey-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></span>
-    <span class="humphrey-label">Ms. Humphrey</span>
-  </button>
+  <!-- v174a: Floating Ms. Humphrey microphone button REMOVED — there's no
+       listener loaded in this zone anymore. TTS-with-highlighting via
+       humphrey-choices.js handles narration. The Take a Break pill from
+       break-timer.js continues to live bottom-left. -->
   <script src="js/math-skills.js"></script>
   <script src="js/number-lab.js"></script>
   <script src="js/canvas.js"></script>
@@ -120,28 +119,21 @@
   </script>
 
   <script src="js/humphrey.js"></script>
-  <script src="js/humphrey-listener.js"></script>
-  <script src="js/humphrey-chat.js"></script>
+  <!-- v174a: humphrey-listener / -chat / -qna REMOVED. Number Lab is already
+       a pure multiple-choice activity (see js/number-lab.js renderCurrentProblem) —
+       Nigel never produced anything for AI to judge here. The microphone /
+       voice-chat stack was just background noise. Kept: humphrey.js (TTS
+       wrapper) and humphrey-choices.js (which provides speakWithHighlights —
+       the lovely "TTS reads the question and lights up each answer choice
+       in sync" behavior that drives this zone's narration). -->
   <script src="js/humphrey-memory.js"></script>
-  <script src="js/humphrey-qna.js"></script>
   <script src="js/humphrey-choices.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
       window.HeroAcademy.Humphrey.init({ position: 'bottom-left', audioEnabled: true, debug: false });
       window.HeroAcademy.Humphrey.say('zone-enter', { kidName: 'Nigel', zone: 'the Number Lab' });
     }
-    // Hand Claude the active problem so Q&A answers are grounded in what Nigel
-    // is currently looking at. number-lab.js defines `session.currentProblem`.
-    if (window.HeroAcademy && window.HeroAcademy.QnA) {
-      window.HeroAcademy.QnA.setContextProvider(function () {
-        var s = (typeof session !== 'undefined') ? session : null;
-        if (!s || !s.currentProblem) return {};
-        return {
-          activeProblem: s.currentProblem.question || '',
-          activeProblemAnswer: s.currentProblem.answer
-        };
-      });
-    }
+    // v174a: the QnA context-provider block is gone — QnA no longer exists.
   </script>
   <script src="js/telemetry.js"></script>
   <script src="js/characters.js"></script>
