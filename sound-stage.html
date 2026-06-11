@@ -19,9 +19,9 @@
     --orange:#ff8b3d; --orange-bright:#ffa86b;
     --magenta:#ec4899; --emerald:#2ec27e; --violet:#a855f7;
     --cyan:#14b8d4; --red:#ef4444;
-    --surface-glass:rgba(255,255,255,0.08);
-    --border-light:rgba(255,255,255,0.18);
-    --text:#fff;
+    --surface-glass:rgba(255,255,255,0.78);
+    --border-light:rgba(91,33,182,0.18);
+    --text:#1e293b;
     --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
     --font-title:'Cherry Bomb One',var(--font-display);
     --safe-top:env(safe-area-inset-top,0px);
@@ -42,7 +42,7 @@
   /* === Floating music notes background === */
   .note-bg { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:0; }
   .note-bg span {
-    position:absolute; color:rgba(255,255,255,0.08);
+    position:absolute; color:rgba(30,41,59,0.08);
     font-size:36px; animation:floatNote 18s linear infinite;
   }
   .note-bg span:nth-child(1){ left:5%; top:120%; animation-duration:22s; animation-delay:0s; font-size:42px; color:rgba(168,85,247,0.18); }
@@ -103,7 +103,7 @@
   .marquee-sub {
     font-family:var(--font-display);
     font-size:clamp(15px, 4vw, 18px);
-    color:rgba(255,255,255,0.78);
+    color:rgba(30,41,59,0.78);
     max-width:520px;
     margin:0 auto;
     font-weight:500;
@@ -176,7 +176,7 @@
   .stage-card-sub {
     font-family:var(--font-display);
     font-size:13px; font-weight:500;
-    color:rgba(255,255,255,0.92);
+    color:rgba(30,41,59,0.92);
     line-height:1.25;
     z-index:1; position:relative;
   }
@@ -215,7 +215,7 @@
   .welcome-strip-text {
     flex:1;
     font-family:var(--font-display);
-    font-size:14px; color:rgba(255,255,255,0.88); line-height:1.35;
+    font-size:14px; color:rgba(30,41,59,0.88); line-height:1.35;
   }
   .welcome-strip-text strong { color:var(--gold); font-weight:700; }
 

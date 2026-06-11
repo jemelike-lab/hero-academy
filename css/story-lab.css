@@ -276,7 +276,7 @@
 .sl-action--secondary {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(30,41,59,0.3);
 }
 .sl-action--secondary:hover { background: rgba(255, 255, 255, 0.2); }
 
