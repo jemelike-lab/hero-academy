@@ -15,6 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;padding:0;height:100%;width:100%;overflow-x:hidden;}
+  /* v174c: ensure [hidden] always wins over .wt-stage display:flex */
+  [hidden]{display:none!important;}
   body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);min-height:100dvh;display:flex;flex-direction:column;}
 
   /* Header */
@@ -41,6 +43,26 @@
   .wt-mic-btn.passed{background:linear-gradient(135deg,var(--emerald),#42d59c);box-shadow:0 8px 28px rgba(46,194,126,0.6);}
   .wt-mic-btn.failed{background:linear-gradient(135deg,var(--orange),var(--gold));box-shadow:0 8px 28px rgba(255,139,61,0.5);}
   @keyframes wt-pulse{0%,100%{box-shadow:0 8px 28px rgba(56,204,234,0.45),0 0 0 0 rgba(56,204,234,0.55);}50%{box-shadow:0 8px 28px rgba(56,204,234,0.45),0 0 0 20px rgba(56,204,234,0);}}
+
+  /* v174c: MC option cards — Nigel taps the word that matches what Humphrey said. */
+  .wt-options { display: grid; grid-template-columns: repeat(2, minmax(160px, 220px)); gap: 14px; justify-content: center; margin: 14px 0; }
+  .wt-option {
+    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+    color: #fff; border: 2px solid rgba(255,255,255,0.20);
+    border-radius: 18px; padding: 22px 18px;
+    font: 700 32px/1 'Fredoka', system-ui, sans-serif;
+    cursor: pointer; transition: transform .12s var(--ease-bounce), border-color .15s, background .15s;
+    text-align: center; min-height: 64px;
+  }
+  .wt-option:hover:not(:disabled) { border-color: var(--cyan); transform: translateY(-2px); }
+  .wt-option:disabled { cursor: not-allowed; opacity: 0.65; }
+  .wt-option.correct { background: linear-gradient(135deg, #16a34a, #22c55e); border-color: #16a34a; }
+  .wt-option.wrong   { background: linear-gradient(135deg, #b91c1c, #dc2626); border-color: #b91c1c; opacity: 0.85; }
+  .wt-option.reveal  { background: linear-gradient(135deg, #d97706, #f59e0b); border-color: #d97706; box-shadow: 0 0 0 3px rgba(245,158,11,0.4); }
+  @media (max-width: 480px) {
+    .wt-options { grid-template-columns: 1fr; }
+    .wt-option { font-size: 28px; padding: 18px 14px; }
+  }
 
   /* Status line */
   .wt-status{font-family:var(--font-body);font-weight:600;font-size:16px;color:var(--text-dim);max-width:560px;text-align:center;line-height:1.45;min-height:24px;padding:0 16px;}
@@ -98,13 +120,11 @@
     </div>
   </section>
 
-  <!-- Ms. Humphrey passive presence (corner portrait + speech bubble) -->
+  <!-- v174c: tap-the-word MC. No microphone, no listener, no /api/humphrey/assess-reading. -->
   <script src="js/humphrey.js"></script>
-  <script src="js/humphrey-listener.js"></script>
-  <script src="js/humphrey-chat.js"></script>
   <script src="js/humphrey-memory.js"></script>
 
-  <!-- Read-aloud session -->
+  <!-- Tap-the-word session -->
   <script src="js/word-lists.js"></script>
   <script src="js/word-tower-reading.js"></script>
 

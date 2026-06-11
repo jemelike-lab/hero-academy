@@ -15,6 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;padding:0;height:100%;width:100%;overflow-x:hidden;}
+  /* v174b: ensure [hidden] attribute always wins over .st-loading/.st-stage display:flex */
+  [hidden]{display:none!important;}
   body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);min-height:100dvh;display:flex;flex-direction:column;}
 
   /* Header */
