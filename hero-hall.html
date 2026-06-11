@@ -22,8 +22,8 @@
     --emerald:#2ec27e;
     --purple:#a855f7;
     --red:#ef4444;
-    --surface-glass:rgba(255,255,255,0.78);
-    --border-light:rgba(91,33,182,0.18);
+    --surface-glass:rgba(255,255,255,0.92);
+    --border-light:rgba(91,33,182,0.28);
     --text:#1e293b;
     --font-display:'Fredoka','SF Pro Rounded',system-ui,sans-serif;
     --font-retro:'Bungee',var(--font-display);
@@ -104,28 +104,87 @@
     font-size: 16px; font-weight: 500;
   }
 
-  /* --- Stats bar --- */
+  /* --- Stats bar — v175 stage 8: colored variants + inline SVG icons ---
+     Each card has its own pastel gradient + colored shadow tied to its meaning.
+     The colored anchor lifts the card off the cream bg instead of relying on
+     glass-on-cream contrast, which doesn't work for small UI elements. */
   .stats {
-    display: flex; justify-content: center; gap: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    max-width: 1000px;
     margin: 0 auto 28px;
-    flex-wrap: wrap;
   }
   .stat {
-    background: var(--surface-glass);
-    border: 1px solid var(--border-light);
-    border-radius: 18px;
-    padding: 12px 20px;
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px;
+    border-radius: 20px;
+    padding: 18px 14px 16px;
     text-align: center;
-    backdrop-filter: blur(10px);
+    border: 2px solid var(--stat-border, rgba(91,33,182,0.28));
+    background: var(--stat-bg, rgba(255,255,255,0.92));
+    box-shadow: 0 8px 22px var(--stat-shadow, rgba(91,33,182,0.22));
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .stat:hover { transform: translateY(-3px); box-shadow: 0 12px 28px var(--stat-shadow, rgba(91,33,182,0.32)); }
+  .stat-icon {
+    width: 30px; height: 30px;
+    color: var(--stat-icon-color, #475569);
+    margin-bottom: 4px;
+    stroke-width: 2.5;
   }
   .stat .num {
     font-family: var(--font-retro);
-    font-size: 28px; color:var(--gold-text);
+    font-size: 30px;
+    color: var(--stat-num-color, #1e293b);
     line-height: 1;
   }
   .stat .lbl {
-    font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px;
-    color: rgba(30,41,59,.7); margin-top: 4px; font-weight: 600;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px;
+    color: var(--stat-lbl-color, rgba(30,41,59,0.78));
+    margin-top: 4px; font-weight: 700;
+  }
+  /* Per-card color themes — pastel BG with saturated text/icon */
+  .stat--unlocked {
+    --stat-bg: linear-gradient(180deg, #d1fae5, #a7f3d0);
+    --stat-border: #6ee7b7;
+    --stat-shadow: rgba(16,185,129,0.32);
+    --stat-icon-color: #047857;
+    --stat-num-color: #064e3b;
+    --stat-lbl-color: rgba(6,78,59,0.85);
+  }
+  .stat--total {
+    --stat-bg: linear-gradient(180deg, #e0e7ff, #c7d2fe);
+    --stat-border: #a5b4fc;
+    --stat-shadow: rgba(99,102,241,0.32);
+    --stat-icon-color: #4338ca;
+    --stat-num-color: #312e81;
+    --stat-lbl-color: rgba(49,46,129,0.85);
+  }
+  .stat--complete {
+    --stat-bg: linear-gradient(180deg, #fce7f3, #fbcfe8);
+    --stat-border: #f9a8d4;
+    --stat-shadow: rgba(236,72,153,0.32);
+    --stat-icon-color: #be185d;
+    --stat-num-color: #831843;
+    --stat-lbl-color: rgba(131,24,67,0.85);
+  }
+  .stat--skills {
+    --stat-bg: linear-gradient(180deg, #fef3c7, #fde68a);
+    --stat-border: #fcd34d;
+    --stat-shadow: rgba(234,179,8,0.32);
+    --stat-icon-color: #b45309;
+    --stat-num-color: #78350f;
+    --stat-lbl-color: rgba(120,53,15,0.85);
+  }
+  .stat--coins {
+    --stat-bg: linear-gradient(180deg, #fed7aa, #fdba74);
+    --stat-border: #fb923c;
+    --stat-shadow: rgba(234,88,12,0.34);
+    --stat-icon-color: #c2410c;
+    --stat-num-color: #7c2d12;
+    --stat-lbl-color: rgba(124,45,18,0.85);
   }
 
   /* --- Grid --- */
@@ -474,11 +533,46 @@
     </section>
 
     <div class="stats">
-      <div class="stat"><div class="num" id="stat-unlocked">0</div><div class="lbl">Unlocked</div></div>
-      <div class="stat"><div class="num" id="stat-total">0</div><div class="lbl">Total Cards</div></div>
-      <div class="stat"><div class="num" id="stat-percent">0%</div><div class="lbl">Complete</div></div>
-      <div class="stat"><div class="num" id="stat-skills">0</div><div class="lbl">Skills ⭐</div></div>
-      <div class="stat"><div class="num" id="stat-coins">0</div><div class="lbl">Coins 🪙</div></div>
+      <div class="stat stat--unlocked">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+        </svg>
+        <div class="num" id="stat-unlocked">0</div>
+        <div class="lbl">Unlocked</div>
+      </div>
+      <div class="stat stat--total">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="7" width="13" height="14" rx="2"/>
+          <rect x="8" y="3" width="13" height="14" rx="2" opacity="0.55"/>
+        </svg>
+        <div class="num" id="stat-total">0</div>
+        <div class="lbl">Total Cards</div>
+      </div>
+      <div class="stat stat--complete">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="7.5 12.5 10.5 15.5 16.5 9.5"/>
+        </svg>
+        <div class="num" id="stat-percent">0%</div>
+        <div class="lbl">Complete</div>
+      </div>
+      <div class="stat stat--skills">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <polygon points="12 2 14.9 8.6 22 9.3 16.6 14.1 18.2 21 12 17.3 5.8 21 7.4 14.1 2 9.3 9.1 8.6"/>
+        </svg>
+        <div class="num" id="stat-skills">0</div>
+        <div class="lbl">Skills</div>
+      </div>
+      <div class="stat stat--coins">
+        <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity="0.18"/>
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 6.5v11M14.5 9.5h-3.5a1.8 1.8 0 0 0 0 3.6h2a1.8 1.8 0 0 1 0 3.6H9.5"/>
+        </svg>
+        <div class="num" id="stat-coins">0</div>
+        <div class="lbl">Coins</div>
+      </div>
     </div>
 
     <div class="grid" id="grid"></div>
