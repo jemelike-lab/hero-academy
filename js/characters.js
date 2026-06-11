@@ -192,7 +192,7 @@
         border: 4px solid var(--gold, #ffd147);
         border-radius: 28px;
         padding: 24px 30px 26px;
-        color: #fff;
+        color: #1e293b;
         text-align: center;
         box-shadow: 0 18px 50px rgba(0,0,0,.5), 0 0 0 4px rgba(255,209,71,.22), 0 0 80px rgba(255,209,71,.18);
         max-width: 86vw;
@@ -240,7 +240,7 @@
       }
       .hero-surprise-banner.return {
         background: var(--cyan, #14b8d4);
-        color: #fff;
+        color: #1e293b;
       }
       .hero-surprise-sparkle {
         position:absolute; font-size:34px; pointer-events:none;
@@ -642,7 +642,7 @@
         'border:1px solid rgba(255,209,71,0.35)';
       arc.innerHTML =
         '<div style="font-weight:700;font-size:0.78rem;letter-spacing:0.08em;' +
-        'color:#ffd147;margin-bottom:8px">EPISODE ' + episode + '</div>' +
+        'color:#d97706;margin-bottom:8px">EPISODE ' + episode + '</div>' +
         '<div>' + escapeHTML(story) + '</div>';
       card.appendChild(arc);
 

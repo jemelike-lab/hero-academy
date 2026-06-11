@@ -704,7 +704,7 @@
       '.dd-card-fact{font-size:1.05rem;line-height:1.45;text-align:center;' +
       'padding:0 8px;margin-bottom:18px;color:var(--ink-on-dark,#f5e8c8)}' +
       '.dd-card-question{font-weight:700;font-size:1.15rem;text-align:center;' +
-      'margin-top:8px;color:#fff}' +
+      'margin-top:8px;color:#1e293b}' +
       '#problemQuestion{text-align:center}';
     document.head.appendChild(s);
   })();

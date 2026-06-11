@@ -72,7 +72,7 @@
   border-radius: 999px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: #1e293b;
   font-family: inherit;
   font-weight: 600;
   font-size: 0.9rem;
@@ -98,7 +98,7 @@
   appearance: none;
   padding: 9px 18px;
   background: linear-gradient(135deg, #14b8d4, #0ea5e9);
-  color: #fff;
+  color: #1e293b;
   border: none;
   border-radius: 999px;
   font-family: Fredoka, system-ui, sans-serif;

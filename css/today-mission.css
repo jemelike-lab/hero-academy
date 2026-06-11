@@ -112,7 +112,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #fff;
+  color: #1e293b;
   background: var(--badge);
   padding: 2px 8px;
   border-radius: 999px;
@@ -204,7 +204,7 @@
   max-width: 380px;
   width: calc(100% - 32px);
   text-align: center;
-  color: #fff;
+  color: #1e293b;
   box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.55),
     0 0 60px rgba(255, 209, 71, 0.25),
