@@ -655,11 +655,20 @@
     });
   });
 
-  function showToast(text) {
+  function showToast(text, opts) {
     var t = document.getElementById('toast');
     t.textContent = text;
     t.classList.add('show');
-    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+    var ms = (opts && opts.durationMs) || 1800;
+    setTimeout(function(){ t.classList.remove('show'); }, ms);
+  }
+  function logSaveTelemetry(eventType, payload) {
+    try {
+      if (window.HeroAcademy && window.HeroAcademy.Telemetry &&
+          typeof window.HeroAcademy.Telemetry.event === 'function') {
+        window.HeroAcademy.Telemetry.event(eventType, payload || {});
+      }
+    } catch(_) {}
   }
 
   // ---------- Save to gallery ----------
@@ -667,8 +676,10 @@
     persistCurrentFrame();
     var frameDataUrls = frames.map(function(c){ return c.toDataURL('image/png'); });
     var thumbDataUrl = HeroAcademy.ArtGallery.makeThumb(frames[0], 128);
+    var sizeBytes = frameDataUrls.reduce(function(a, s){ return a + Math.ceil(s.length * 0.75); }, 0);
+    var est = await HeroAcademy.ArtGallery.storageEstimate();
     try {
-      await HeroAcademy.ArtGallery.save({
+      var id = await HeroAcademy.ArtGallery.save({
         type: 'animation',
         title: "Nigel's animation",
         thumbDataUrl: thumbDataUrl,
@@ -676,9 +687,18 @@
         frames: frameDataUrls,
         fps: state.fps,
       });
+      var landed = await HeroAcademy.ArtGallery.verify(id);
+      if (!landed) throw new Error('verify_failed');
       showToast('✓ Saved to your gallery!');
+      logSaveTelemetry('art_save_ok', { surface:'animation-studio', id:id, size_bytes:sizeBytes, frames:frames.length, quota:est.quota||0, usage:est.usage||0 });
       if (Observer) Observer.observe(captureForObserve, { force: true, actionSummary: 'just saved an animation with ' + frames.length + ' frames' });
-    } catch(e){ showToast('Save failed'); }
+    } catch(e){
+      var detail = String(e && (e.message || e.name || e)) .slice(0, 200);
+      var isQuota = !!(e && (e.code === 'quota_exceeded' || /quota/i.test(detail)));
+      showToast(isQuota ? '⚠️ Tablet storage full — tell Dad!' : '⚠️ Save failed — tell Dad!', { durationMs: 6000 });
+      logSaveTelemetry('art_save_failed', { surface:'animation-studio', err:detail, size_bytes:sizeBytes, frames:frames.length, is_quota:isQuota, quota:est.quota||0, usage:est.usage||0 });
+      console.error('[animation-studio] save failed', e);
+    }
   });
 
   // ---------- GIF export ----------

@@ -78,11 +78,52 @@
     if (!creation.id) creation.id = genId();
     if (!creation.createdAt) creation.createdAt = Date.now();
     if (!creation.type) creation.type = 'sketch';
-    return tx('readwrite').then(function(store){
+    // v176 fix: resolve on transaction *commit* (tx.oncomplete), not on
+    // req.onsuccess. Previously, the put could be "successful" but the
+    // transaction could abort during commit (quota exceeded, storage policy)
+    // and the data would be silently lost while the UI showed a success toast.
+    return openDb().then(function(db){
       return new Promise(function(resolve, reject){
-        var req = store.put(creation);
-        req.onsuccess = function(){ resolve(creation.id); };
-        req.onerror = function(e){ reject(e.target.error); };
+        var tx, req;
+        try {
+          tx = db.transaction(STORE, 'readwrite');
+        } catch (e) { reject(e); return; }
+        var settled = false;
+        tx.oncomplete = function(){
+          if (settled) return;
+          settled = true;
+          resolve(creation.id);
+        };
+        tx.onerror = function(e){
+          if (settled) return;
+          settled = true;
+          reject((e.target && e.target.error) || tx.error || new Error('tx error'));
+        };
+        tx.onabort = function(e){
+          if (settled) return;
+          settled = true;
+          var err = (tx.error) || (e.target && e.target.error) || new Error('tx aborted');
+          // Tag quota errors so callers can surface a sensible message
+          if (err && /quota/i.test(String(err.name) + ' ' + String(err.message))) {
+            err.code = 'quota_exceeded';
+          }
+          reject(err);
+        };
+        try {
+          req = tx.objectStore(STORE).put(creation);
+          req.onerror = function(e){
+            // The transaction will also fire onabort/onerror; let those resolve.
+            // We still capture the per-request error for diagnostics.
+            if (e && e.stopPropagation) e.stopPropagation();
+          };
+        } catch (e) {
+          // Defensive: synchronous throw from put (rare). Force-reject.
+          if (!settled) {
+            settled = true;
+            try { tx.abort(); } catch(_){}
+            reject(e);
+          }
+        }
       });
     });
   }
@@ -156,6 +197,22 @@
     return out.toDataURL('image/png');
   }
 
+  // v176: storage estimate so callers can detect quota pressure before saving.
+  function storageEstimate() {
+    try {
+      if (navigator.storage && typeof navigator.storage.estimate === 'function') {
+        return navigator.storage.estimate();
+      }
+    } catch (_) {}
+    return Promise.resolve({ usage: 0, quota: 0 });
+  }
+
+  // v176: verify a record actually landed (roundtrip check after save).
+  // Returns true if the row is readable after the save completes.
+  function verify(id) {
+    return get(id).then(function(rec){ return !!rec; }).catch(function(){ return false; });
+  }
+
   global.HeroAcademy = global.HeroAcademy || {};
   global.HeroAcademy.ArtGallery = {
     save: save,
@@ -164,5 +221,7 @@
     delete: del,
     count: count,
     makeThumb: makeThumb,
+    storageEstimate: storageEstimate,
+    verify: verify,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
