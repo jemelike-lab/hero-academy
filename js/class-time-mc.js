@@ -40,6 +40,12 @@
   const TTS_FALLBACK_MS = 25000; // Max time to wait for TTS before unlocking buttons anyway
   const STEP_PAUSE_MS = 600;     // Pause between demo steps
   const FEEDBACK_PAUSE_MS = 1200; // Pause after right/wrong feedback before advancing
+  // v173b: after a CORRECT answer, give Humphrey 5 full seconds to finish
+  // her "Yes! ..." reinforcement before advancing. Previously was 2600ms
+  // (FEEDBACK_PAUSE_MS + 1400) which cut her off mid-sentence on longer
+  // explanations. 5000ms covers all reasonable explanations cleanly across
+  // every subject.
+  const POST_CORRECT_DELAY_MS = 5000;
 
   const SUBJECTS = ['math', 'reading', 'spelling', 'science'];
   const SUBJECT_LABEL = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science' };
@@ -796,6 +802,10 @@
           p_child_id: NS.Telemetry.childId ? NS.Telemetry.childId() : CHILD_ID,
           p_topic_id: topicId,
           p_passed: !!passedFirstTry,
+          // v173b: pass subject so the auto-registered ha_topics row gets
+          // the right subject column instead of defaulting to 'unknown'.
+          p_subject: state.subject || 'unknown',
+          p_zone_id: 'class-time',
         });
       }
     } catch (e) { console.warn('[class-time-mc] recordTopicAttempt failed', e); }
@@ -907,7 +917,7 @@
       recordTopicAttempt(q.topic, state.wrongAttempts === 0);
       logEvent('class_time_question_answered', { course_idx: state.courseIdx, q_idx: state.qIdx, correct: true, attempts: state.wrongAttempts + 1 });
       tts(`Yes! ${q.explanation}`);
-      setTimeout(advanceQuestion, FEEDBACK_PAUSE_MS + 1400);
+      setTimeout(advanceQuestion, POST_CORRECT_DELAY_MS); // v173b: 5s, no more mid-praise cutoffs
       return;
     }
 
@@ -1064,9 +1074,6 @@
     overlay.style.display = 'flex';
 
     // v173: warm the cache for the NEXT course while Nigel is on break.
-    // Haiku takes ~17s; the break is 15 min. By the time he resumes, the
-    // next course's questions are sitting in the Supabase cache and the
-    // start is instant.
     const prefetchUrl = `/api/class-time/questions?date=${state.today}&child_id=${CHILD_ID}&course_order=${nextCourseIdx + 1}`;
     fetch(prefetchUrl).then(r => r.ok ? r.json() : null).then((data) => {
       if (data && data.ok) {
@@ -1076,37 +1083,116 @@
       console.log('[class-time-mc] prefetch failed (no big deal — will re-fetch on resume):', e);
     });
 
-    // Wire the resume button — break-timer.js will enable it after 15 min
     const resumeBtn = $('break-resume-btn');
+    const timerDisplay = $('break-timer');
+    const pickerWrap = $('break-picker');
+
+    // v173b: ALWAYS unify with break-timer.js. The floating pill bottom-left
+    // and this overlay both read from the SAME break state (localStorage
+    // 'ha_break_end_ts'). Previously we were calling BreakTimer.start with an
+    // options object, but startBreak takes durationMs as a number — so it
+    // NaN'd and the floating pill + overlay diverged. Now they're locked.
+    const BT = NS.BreakTimer;
+    let pollHandle = null;
+
+    function startBreakWith(durationMs) {
+      // Hide the duration picker once a length is locked in
+      if (pickerWrap) pickerWrap.style.display = 'none';
+      timerDisplay.style.display = '';
+      resumeBtn.style.display = '';
+      resumeBtn.disabled = true;
+      resumeBtn.textContent = 'Take your break first…';
+      if (BT && typeof BT.start === 'function') {
+        try { BT.start(durationMs); } catch (e) { console.warn('[class-time-mc] BT.start threw', e); }
+      } else {
+        // No break timer module — fall back to a local countdown
+        console.warn('[class-time-mc] BreakTimer module missing — using local countdown');
+        const endTs = Date.now() + durationMs;
+        try { localStorage.setItem('ha_break_end_ts', String(endTs)); } catch (_) {}
+      }
+      beginPoll();
+    }
+
+    function beginPoll() {
+      if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+      pollHandle = setInterval(() => {
+        const remaining = (BT && typeof BT.remainingMs === 'function')
+          ? BT.remainingMs()
+          : Math.max(0, (parseInt(localStorage.getItem('ha_break_end_ts'), 10) || 0) - Date.now());
+        const s = Math.ceil(remaining / 1000);
+        const m = Math.floor(s / 60);
+        const ss = s % 60;
+        timerDisplay.textContent = `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+        const phase = (BT && typeof BT.state === 'function') ? BT.state() : (remaining > 0 ? 'running' : 'expired');
+        if (phase === 'expired' || remaining <= 0) {
+          clearInterval(pollHandle); pollHandle = null;
+          timerDisplay.textContent = '00:00';
+          resumeBtn.disabled = false;
+          resumeBtn.textContent = `✓ Ready! Start ${SUBJECT_LABEL[nextSubject]} →`;
+        }
+      }, 500);
+    }
+
+    // v173b: resume button does ONE thing — end the break and advance to
+    // next course. Idempotent against double-clicks because we tear down
+    // the poll first.
     resumeBtn.onclick = () => {
+      if (resumeBtn.disabled) return;
+      if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+      // Clear the unified break state so the floating pill clears too
+      if (BT && typeof BT.end === 'function') { try { BT.end(); } catch (_) {} }
+      else { try { localStorage.removeItem('ha_break_end_ts'); localStorage.removeItem('ha_break_done'); } catch (_) {} }
       overlay.style.display = 'none';
-      startCourse(nextCourseIdx);
+      console.log(`[class-time-mc] break ended, starting course ${nextCourseIdx + 1}`);
+      // v173b: explicit advance to next course. fire-and-forget the async startCourse.
+      startCourse(nextCourseIdx).catch((e) => console.error('[class-time-mc] startCourse from break failed', e));
     };
 
-    // Defer to break-timer.js if present
-    if (NS.BreakTimer && typeof NS.BreakTimer.start === 'function') {
-      try {
-        NS.BreakTimer.start({
-          minutes: 15,
-          onTick: (sec) => {
-            const m = Math.floor(sec / 60);
-            const s = sec % 60;
-            $('break-timer').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-          },
-          onEnd: () => {
-            resumeBtn.disabled = false;
-            resumeBtn.textContent = '✓ Ready! Start next course →';
-          },
-        });
-      } catch (e) {
-        console.warn('[class-time-mc] BreakTimer start failed', e);
-        // Fall back: enable after 1 minute so we don't lock Nigel out forever
-        setTimeout(() => { resumeBtn.disabled = false; resumeBtn.textContent = 'Continue →'; }, 60000);
-      }
+    // v173b: ALSO offer an early-exit "Skip break ▶" button via wrap (small)
+    // so Nigel can skip the break entirely if he wants to keep going.
+    const skipBtn = $('break-skip-btn');
+    if (skipBtn) {
+      skipBtn.onclick = () => {
+        if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+        if (BT && typeof BT.end === 'function') { try { BT.end(); } catch (_) {} }
+        else { try { localStorage.removeItem('ha_break_end_ts'); localStorage.removeItem('ha_break_done'); } catch (_) {} }
+        overlay.style.display = 'none';
+        console.log(`[class-time-mc] break skipped, starting course ${nextCourseIdx + 1}`);
+        startCourse(nextCourseIdx).catch((e) => console.error('[class-time-mc] startCourse skip failed', e));
+      };
+    }
+
+    // v173b: check if a break is ALREADY in flight (e.g. Nigel tapped the
+    // floating pill before finishing the course). If so, adopt it and skip
+    // the duration picker.
+    const existingRemaining = (BT && typeof BT.remainingMs === 'function') ? BT.remainingMs() : 0;
+    const existingPhase = (BT && typeof BT.state === 'function') ? BT.state() : 'idle';
+    if (existingPhase === 'running' && existingRemaining > 0) {
+      console.log(`[class-time-mc] adopting in-flight break (${Math.round(existingRemaining/1000)}s left)`);
+      if (pickerWrap) pickerWrap.style.display = 'none';
+      timerDisplay.style.display = '';
+      resumeBtn.style.display = '';
+      resumeBtn.disabled = true;
+      resumeBtn.textContent = 'Take your break first…';
+      beginPoll();
+      return;
+    }
+
+    // Otherwise show the duration picker first
+    if (pickerWrap) {
+      pickerWrap.style.display = '';
+      timerDisplay.style.display = 'none';
+      resumeBtn.style.display = 'none';
+      // Wire the three duration buttons
+      [5, 10, 15].forEach((mins) => {
+        const btn = document.getElementById(`break-${mins}-btn`);
+        if (!btn) return;
+        btn.classList.toggle('default', mins === 10);
+        btn.onclick = () => startBreakWith(mins * 60 * 1000);
+      });
     } else {
-      // No BreakTimer? Allow immediate continue (still shows the break overlay).
-      resumeBtn.disabled = false;
-      resumeBtn.textContent = 'Continue →';
+      // No picker — default straight to 10 min
+      startBreakWith(10 * 60 * 1000);
     }
   }
 

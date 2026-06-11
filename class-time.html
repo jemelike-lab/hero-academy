@@ -226,8 +226,30 @@
   .break-timer-display { font-size:64px; font-weight:800; color:#22d3ee; font-variant-numeric:tabular-nums; margin:8px 0; }
   .break-sub { color:#cbd5e1; font-size:16px; margin:8px 0; }
   .break-next { color:#a78bfa; font-size:14px; font-weight:600; margin:16px 0 8px 0; }
+  /* v173b: duration picker */
+  .break-picker { margin:20px 0 12px 0; }
+  .break-picker-label { color:#fde68a; font-size:16px; font-weight:600; margin:8px 0 12px 0; }
+  .break-picker-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .break-picker-btn {
+    background:rgba(255,255,255,0.08); color:#e6e9f2;
+    border:2px solid rgba(255,255,255,0.15); border-radius:14px;
+    padding:14px 22px; font-size:18px; font-weight:700; cursor:pointer;
+    min-width:96px; transition:transform .1s, border-color .15s, background .15s, box-shadow .15s;
+  }
+  .break-picker-btn:hover { border-color:#22d3ee; transform:translateY(-1px); }
+  .break-picker-btn.default {
+    background:rgba(34, 211, 238, 0.18); border-color:#22d3ee; color:#22d3ee;
+    box-shadow:0 0 0 4px rgba(34, 211, 238, 0.12);
+  }
+  .break-picker-hint { color:#94a3b8; font-size:13px; margin:14px 0 0 0; }
+  .break-buttons { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
   #break-resume-btn { background:#22d3ee; color:#0b0d14; border:none; border-radius:14px; padding:14px 28px; font-size:18px; font-weight:700; cursor:pointer; }
   #break-resume-btn:disabled { background:rgba(255,255,255,0.1); color:#cbd5e1; cursor:not-allowed; }
+  .break-skip-btn {
+    background:transparent; color:#94a3b8; border:1px dashed rgba(148,163,184,0.4);
+    border-radius:14px; padding:14px 18px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .break-skip-btn:hover { color:#e6e9f2; border-color:#e6e9f2; }
 
   /* Phone responsive */
   @media (max-width:640px) {
@@ -318,10 +340,26 @@
 <div id="break-overlay">
   <div class="break-card">
     <h2>🌿 Break time!</h2>
-    <div class="break-timer-display" id="break-timer">15:00</div>
     <p class="break-sub">🤸 Stretch · 🍎 Grab a snack · 🌳 Go outside</p>
+
+    <!-- v173b: duration picker — default highlight on 10 min -->
+    <div id="break-picker" class="break-picker">
+      <p class="break-picker-label">How long would you like the break?</p>
+      <div class="break-picker-row">
+        <button type="button" class="break-picker-btn" id="break-5-btn">5 min</button>
+        <button type="button" class="break-picker-btn default" id="break-10-btn">10 min</button>
+        <button type="button" class="break-picker-btn" id="break-15-btn">15 min</button>
+      </div>
+      <p class="break-picker-hint">Tap one to start your break.</p>
+    </div>
+
+    <!-- Active break state (hidden until a duration is chosen) -->
+    <div class="break-timer-display" id="break-timer" style="display:none;">10:00</div>
     <p class="break-next" id="break-next-label">Next: …</p>
-    <button id="break-resume-btn" disabled>Take your break first…</button>
+    <div class="break-buttons">
+      <button id="break-resume-btn" disabled style="display:none;">Take your break first…</button>
+      <button id="break-skip-btn" class="break-skip-btn" type="button">Skip break ▶</button>
+    </div>
   </div>
 </div>
 
