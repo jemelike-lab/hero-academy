@@ -216,14 +216,17 @@
     $('[data-ll-clear]').addEventListener('click', function () {
       if (NS.Canvas && NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
     });
-    $('[data-ll-submit]').addEventListener('click', submitDrawing);
-    $('[data-ll-next]').addEventListener('click', advance);
-    $('[data-ll-finish]').addEventListener('click', finishSession);
-    $('[data-ll-watch]').addEventListener('click', demoCurrentTarget);
-    $('[data-ll-retry]').addEventListener('click', retryCurrentTarget);
-    $('[data-ll-skip]').addEventListener('click', advance);
-    // v107: Try Again — re-enters drawing phase WITHOUT showing the demo.
-    $('[data-ll-tryagain]').addEventListener('click', tryAgainCurrentTarget);
+    $('[data-ll-submit]').addEventListener('click', showReveal);
+
+    // v174: self-assess buttons — Nigel is the only judge here.
+    $('[data-ll-good]').addEventListener('click', function () {
+      logSelfAssess(true);
+      advance();
+    });
+    $('[data-ll-tryagain]').addEventListener('click', function () {
+      logSelfAssess(false);
+      retrySameTarget();
+    });
 
     // v104: replay-prompt button (hidden target → memory practice)
     var replayBtn = $('[data-ll-replay]');
@@ -263,17 +266,12 @@
   }
 
   function resetToDrawingPhase() {
-    setHidden($('[data-ll-result]'), true);
-    setHidden($('[data-ll-spinner]'), true);
-    setHidden($('[data-ll-reaction-card]'), true);
-    setHidden($('[data-ll-next]'), true);
-    setHidden($('[data-ll-finish]'), true);
-    setHidden($('[data-ll-watch]'), true);
-    setHidden($('[data-ll-retry]'), true);
-    setHidden($('[data-ll-skip]'), true);
-    setHidden($('[data-ll-tryagain]'), true);  // v107
+    // v174: there's no result card / spinner / vision check anymore. Just
+    // toggle between the writing phase and the reveal phase.
     setHidden($('[data-ll-prompt-panel]'), false);
     setHidden($('[data-ll-action-bar]'), false);
+    var reveal = $('[data-ll-reveal]');
+    if (reveal) reveal.setAttribute('data-visible', '0');
     if (NS.Canvas) {
       if (NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
       if (NS.Canvas.humphreyClear)   NS.Canvas.humphreyClear();
@@ -282,199 +280,112 @@
     $('[data-ll-submit]').disabled = false;
   }
 
-  function submitDrawing() {
+  // v174: Trace + Reveal — replaces vision-judged submission entirely.
+  //
+  // OLD (v107): POST canvas to /api/humphrey/see-letter → AI vision returns
+  // {correct, score, reaction} → branch on score → retry/watch/skip flow.
+  //
+  // NEW (v174): Capture Nigel's drawing → animate Humphrey's version on the
+  // live canvas → show side-by-side reveal → Nigel SELF-ASSESSES. No vision
+  // call, no AI judgment, no false negatives. The pedagogical value is in
+  // the comparison + the stroke animation, not in the "right/wrong" verdict.
+  function showReveal() {
     if (state.submitting) return;
     state.submitting = true;
     state.attempts += 1;
     $('[data-ll-submit]').disabled = true;
 
     var target = state.targets[state.index];
-    var dataUrl;
-    try {
-      dataUrl = NS.Canvas && NS.Canvas.getDataURL ? NS.Canvas.getDataURL() : null;
-    } catch (e) { dataUrl = null; }
 
-    if (!dataUrl) {
-      showReaction('Hmm, I couldn\u2019t see what you drew. Tap Clear and try again, Nigel!', 'concerned', false, 0);
+    // Capture Nigel's drawing as a thumbnail BEFORE we clear the canvas
+    var nigelThumb;
+    try {
+      nigelThumb = NS.Canvas && NS.Canvas.getDataURL ? NS.Canvas.getDataURL() : null;
+    } catch (e) { nigelThumb = null; }
+
+    if (!nigelThumb) {
+      // No drawing detected — bring back the writing phase with a friendly nudge
+      humphreySay('letter_lab_empty',
+        'Looks like you haven\'t drawn anything yet, Nigel. Tap and drag to write.', 'encouraging');
+      state.submitting = false;
+      $('[data-ll-submit]').disabled = false;
       return;
     }
 
+    // Stash his thumb on the reveal panel + hide the writing UI
+    $('[data-ll-img-mine]').src = nigelThumb;
     setHidden($('[data-ll-prompt-panel]'), true);
     setHidden($('[data-ll-action-bar]'), true);
-    setHidden($('[data-ll-result]'), false);
-    setHidden($('[data-ll-spinner]'), false);
-    setHidden($('[data-ll-reaction-card]'), true);
 
-    fetch('/api/humphrey/see-letter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image:         dataUrl,
-        media_type:    'image/png',
-        target_letter: target.char,
-        target_kind:   target.kind,
-      }),
-    })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function (json) {
-        var reaction = (json && json.reaction) ||
-          'I can see you worked hard on that, Nigel \u2014 great job!';
-        var correct = !!(json && json.correct);
-        var score = (json && typeof json.score === 'number') ? json.score : (correct ? 4 : 2);
-        showReaction(reaction, correct ? 'cheering' : 'encouraging', correct, score);
-        recordAttempt(target, json);
-      })
-      .catch(function (err) {
-        var fallback = 'I had trouble seeing your writing clearly, but I can tell you worked hard! Let\u2019s keep going.';
-        showReaction(fallback, 'encouraging', false, 0);
-        recordAttempt(target, { error: err && err.message || 'unknown' });
-      });
-  }
+    // Clear Nigel's layer so Humphrey has a clean canvas to draw on
+    if (NS.Canvas && NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
+    if (NS.Canvas && NS.Canvas.humphreyClear)   NS.Canvas.humphreyClear();
 
-  function showReaction(text, expression, correct, score) {
-    setHidden($('[data-ll-spinner]'), true);
-    setHidden($('[data-ll-reaction-card]'), false);
-    $('[data-ll-reaction]').textContent = text;
-    setHumphreyExpression(expression);
-
-    var isLast = state.index >= state.targets.length - 1;
-    var wrong = !correct || score < 4;
-
-    // v107: progressive support
-    //   attempt 1 + wrong → "Try Again" + Skip  (let him retry from memory)
-    //   attempt 2 + wrong + no demo → "Watch" + Skip  (he's struggling, demo time)
-    //   else → Next / Finish (correct, OR exhausted retry attempts)
-    if (wrong && state.attempts === 1 && !state.showedDemoForCurrent) {
-      // First wrong attempt — give him another shot before showing the demo
-      setHidden($('[data-ll-tryagain]'), false);
-      setHidden($('[data-ll-skip]'),     false);
-      setHidden($('[data-ll-watch]'),    true);
-      setHidden($('[data-ll-next]'),     true);
-      setHidden($('[data-ll-finish]'),   true);
-    } else if (wrong && state.attempts === 2 && !state.showedDemoForCurrent) {
-      // Second wrong attempt — now offer the demo
-      setHidden($('[data-ll-tryagain]'), true);
-      setHidden($('[data-ll-skip]'),     false);
-      setHidden($('[data-ll-watch]'),    false);
-      setHidden($('[data-ll-next]'),     true);
-      setHidden($('[data-ll-finish]'),   true);
-    } else {
-      // Correct, OR third attempt after demo+retry — advance
-      setHidden($('[data-ll-tryagain]'), true);
-      setHidden($('[data-ll-watch]'),    true);
-      setHidden($('[data-ll-skip]'),     true);
-      setHidden($('[data-ll-next]'),     isLast);
-      setHidden($('[data-ll-finish]'),   !isLast);
-    }
-
-    humphreySay('letter_lab_reaction', text, expression);
-
-    // v105: ensure Watch/Skip/Next buttons are in viewport. On wide screens
-    // and tablets the result card lives below the canvas and was 400+ px
-    // below the fold — Nigel saw text but not the path forward.
-    setTimeout(function () { scrollIntoView($('[data-ll-reaction-card]')); }, 120);
-  }
-
-  // v107: complete demo flow rewrite.
-  //
-  // OLD BUG: This function used to hide [data-ll-result]. But the retry/next
-  // buttons are CHILDREN of that section, so hiding it made the whole UI
-  // disappear — after the demo, Nigel could see nothing to tap. Stuck.
-  //
-  // NEW FLOW:
-  //   1. Show reaction card with "Watch me write X!" message, all buttons hidden
-  //   2. Scroll to canvas so kid focuses on the drawing
-  //   3. Animation plays (constant pen speed + visible pen tip)
-  //   4. On completion: reaction text updates, "My turn again" + "Next" appear
-  //   5. Scroll back to card so buttons are visible — path forward exists
-  function demoCurrentTarget() {
-    if (!NS.Canvas || !NS.Canvas.humphreyDrawText) {
-      advance();
-      return;
-    }
-    state.showedDemoForCurrent = true;
-    var target = state.targets[state.index];
-    var isLast = state.index >= state.targets.length - 1;
-
-    // Set up reaction-card with the "Watch me" message
-    setHidden($('[data-ll-result]'),         false);
-    setHidden($('[data-ll-spinner]'),        true);
-    setHidden($('[data-ll-reaction-card]'),  false);
-    setHidden($('[data-ll-prompt-panel]'),   true);
-    setHidden($('[data-ll-action-bar]'),     true);
-    $('[data-ll-reaction]').textContent = 'Watch me write ' + target.label + '!';
-    setHumphreyExpression('encouraging');
-
-    // Hide ALL choice buttons during demo (no decisions while watching)
-    setHidden($('[data-ll-tryagain]'), true);
-    setHidden($('[data-ll-watch]'),    true);
-    setHidden($('[data-ll-skip]'),     true);
-    setHidden($('[data-ll-retry]'),    true);
-    setHidden($('[data-ll-next]'),     true);
-    setHidden($('[data-ll-finish]'),   true);
-
-    var spoken = 'Let me show you how to write ' + target.label + '. Watch carefully.';
-    humphreySay('letter_lab_demo', spoken, 'encouraging');
-
-    setTimeout(function () { scrollIntoView($('[data-ll-canvas-wrap]')); }, 100);
-
-    if (NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
-    NS.Canvas.humphreyClear();
+    humphreySay('letter_lab_reveal_intro',
+      'Nice work, Nigel. Here\'s how I write ' + target.label + ':',
+      'encouraging');
 
     var LS = NS.LetterStrokes;
     var canStroke = false;
     if (LS) {
-      if (target.kind === 'multi-digit') {
-        canStroke = target.char.split('').every(function (c) { return LS.has(c); });
-      } else {
-        canStroke = LS.has(target.char);
-      }
+      canStroke = target.kind === 'multi-digit'
+        ? target.char.split('').every(function (c) { return LS.has(c); })
+        : LS.has(target.char);
     }
 
-    setTimeout(function () {
-      var animPromise;
-      if (canStroke) {
-        if (target.kind === 'multi-digit') {
-          animPromise = LS.animateSequence(target.char.split(''), { color: '#ec4899' });
-        } else {
-          animPromise = LS.animate(target.char, { color: '#ec4899' });
-        }
-      } else {
-        animPromise = Promise.resolve().then(function () {
-          fallbackTextDemo(target);
-          return new Promise(function (r) { setTimeout(r, 1500); });
-        });
+    var animPromise;
+    if (canStroke) {
+      animPromise = target.kind === 'multi-digit'
+        ? LS.animateSequence(target.char.split(''), { color: '#ec4899' })
+        : LS.animate(target.char, { color: '#ec4899' });
+    } else {
+      animPromise = Promise.resolve().then(function () {
+        fallbackTextDemo(target);
+        return new Promise(function (r) { setTimeout(r, 1500); });
+      });
+    }
+
+    animPromise.catch(function () {
+      // Stroke animation failed — fall back to text fade
+      NS.Canvas.humphreyClear();
+      fallbackTextDemo(target);
+    }).then(function () {
+      // Animation complete — capture Humphrey's drawing as a thumbnail
+      var herThumb;
+      try {
+        herThumb = NS.Canvas && NS.Canvas.getDataURL ? NS.Canvas.getDataURL() : null;
+      } catch (e) { herThumb = null; }
+      if (herThumb) $('[data-ll-img-hers]').src = herThumb;
+
+      // Update the reveal title + button labels for context
+      var isLast = state.index >= state.targets.length - 1;
+      var attemptsRemaining = state.attempts < 2;
+      var titleEl = $('[data-ll-reveal-title]');
+      var goodBtn = $('[data-ll-good]');
+      var tryBtn = $('[data-ll-tryagain]');
+
+      if (titleEl) {
+        titleEl.textContent = state.attempts === 1
+          ? 'Nice work! How does yours look?'
+          : 'Great practice! Ready to move on?';
+      }
+      if (goodBtn) {
+        goodBtn.textContent = isLast ? '✓ Looks great! All done 🎉' : '✓ Looks great! Next →';
+      }
+      if (tryBtn) {
+        // After 2 attempts, hide retry — let Nigel move on without pressure
+        setHidden(tryBtn, !attemptsRemaining);
       }
 
-      animPromise.catch(function () {
-        // Stroke animation failed mid-flight — fall back to text fade
-        NS.Canvas.humphreyClear();
-        fallbackTextDemo(target);
-      }).then(function () {
-        // v107: DEMO IS DONE. Surface the path forward.
-        // Updated reaction text + show "My turn again" + Next/Finish.
-        $('[data-ll-reaction]').textContent =
-          'There — that\u2019s how you write ' + target.label + '. ' +
-          (isLast
-            ? 'Tap All Done to finish, or My Turn to try it yourself.'
-            : 'Tap My Turn to try it yourself, or Next to move on.');
-        setHumphreyExpression('cheering');
+      // Show the reveal panel
+      var reveal = $('[data-ll-reveal]');
+      if (reveal) reveal.setAttribute('data-visible', '1');
+      setTimeout(function () { scrollIntoView($('[data-ll-reveal]')); }, 200);
 
-        setHidden($('[data-ll-retry]'),  false);                 // My turn again
-        setHidden($('[data-ll-next]'),   isLast);                // Next (if not last)
-        setHidden($('[data-ll-finish]'), !isLast);               // All done (if last)
-        // Above three stay hidden: tryagain/watch/skip remain false
-
-        humphreySay('letter_lab_demo_done',
-          isLast
-            ? 'Tap All Done to finish, or My Turn to try it yourself.'
-            : 'Tap My Turn to try it yourself, or Next to move on.',
-          'encouraging');
-
-        // Scroll buttons into view so Nigel can see what to do
-        setTimeout(function () { scrollIntoView($('[data-ll-reaction-card]')); }, 200);
-      });
-    }, 700);
+      state.submitting = false;
+      $('[data-ll-submit]').disabled = false;
+      recordSelfAssessmentOpportunity(target);
+    });
   }
 
   function fallbackTextDemo(target) {
@@ -488,31 +399,16 @@
     });
   }
 
-  function retryCurrentTarget() {
+  // v174: retry on the SAME target — clears both canvases, returns to writing
+  // phase. The attempts counter persists so a 2nd retry attempt won't show
+  // the retry button again.
+  function retrySameTarget() {
+    var reveal = $('[data-ll-reveal]');
+    if (reveal) reveal.setAttribute('data-visible', '0');
     if (NS.Canvas) {
       if (NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
       if (NS.Canvas.humphreyClear)   NS.Canvas.humphreyClear();
     }
-    setHidden($('[data-ll-retry]'), true);
-    setHidden($('[data-ll-action-bar]'), false);
-    state.submitting = false;
-    $('[data-ll-submit]').disabled = false;
-
-    var target = state.targets[state.index];
-    humphreySay('letter_lab_your_turn', 'Now you try ' + target.label + ' again.', 'encouraging');
-  }
-
-  // v107: First-retry path. Returns to drawing phase without playing the
-  // demo. Attempts counter stays — next submit will be #2.
-  function tryAgainCurrentTarget() {
-    if (NS.Canvas) {
-      if (NS.Canvas.clearNigelLayer) NS.Canvas.clearNigelLayer();
-      if (NS.Canvas.humphreyClear)   NS.Canvas.humphreyClear();
-    }
-    setHidden($('[data-ll-result]'), true);
-    setHidden($('[data-ll-reaction-card]'), true);
-    setHidden($('[data-ll-tryagain]'), true);
-    setHidden($('[data-ll-skip]'), true);
     setHidden($('[data-ll-prompt-panel]'), false);
     setHidden($('[data-ll-action-bar]'), false);
     state.submitting = false;
@@ -520,10 +416,44 @@
 
     var target = state.targets[state.index];
     humphreySay('letter_lab_try_again',
-      'Take another look and give it one more try, Nigel.', 'encouraging');
+      'Give it another try, Nigel. You saw my version — now show me yours.',
+      'encouraging');
+    setTimeout(function () { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+  }
 
-    // Scroll back up so the canvas is visible for the next attempt
-    setTimeout(function () { window.scrollTo(0, 0); }, 50);
+  function logSelfAssess(satisfied) {
+    var target = state.targets[state.index];
+    try {
+      var T = NS.Telemetry;
+      if (T && typeof T.rpc === 'function' && typeof T.childId === 'function') {
+        T.rpc('ha_record_letter_practice', {
+          p_child_id:      T.childId(),
+          p_practice_date: todayKey(),
+          p_letter:        target.char,
+          p_kind:          target.kind,
+          p_attempt:       state.attempts,
+          p_score:         null,            // v174: no AI score
+          p_correct:       satisfied,       // v174: self-assessment, not AI judgment
+        }, { keepalive: true }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  // Telemetry-only — logs that Nigel reached the reveal phase for this target.
+  // Distinct from logSelfAssess which fires only on his button tap.
+  function recordSelfAssessmentOpportunity(target) {
+    var key = 'ha_letter_lab_attempts_' + todayKey();
+    var existing = [];
+    try { var raw = localStorage.getItem(key); if (raw) existing = JSON.parse(raw) || []; }
+    catch (e) { existing = []; }
+    existing.push({
+      target:  target.char,
+      kind:    target.kind,
+      attempt: state.attempts,
+      ts:      Date.now(),
+      phase:   'reveal_shown',  // v174 marker
+    });
+    try { localStorage.setItem(key, JSON.stringify(existing)); } catch (e) {}
   }
 
   function recordAttempt(target, result) {
@@ -577,20 +507,15 @@
       }));
     } catch (e) {}
 
+    // v174: simple wrap-up — hide writing phase + reveal phase, show a
+    // celebratory header, then redirect home.
     setHidden($('[data-ll-prompt-panel]'), true);
     setHidden($('[data-ll-action-bar]'), true);
-    setHidden($('[data-ll-result]'), false);
-    setHidden($('[data-ll-spinner]'), true);
-    setHidden($('[data-ll-reaction-card]'), false);
-    setHidden($('[data-ll-watch]'), true);
-    setHidden($('[data-ll-skip]'), true);
-    setHidden($('[data-ll-retry]'), true);
-    setHidden($('[data-ll-next]'), true);
-    setHidden($('[data-ll-finish]'), true);
-    setHumphreyExpression('cheering');
-    $('[data-ll-reaction]').textContent =
-      'You practiced ' + state.targets.length + ' things with me today, Nigel! Beautiful work. ' +
-      'See you back here next time.';
+    var reveal = $('[data-ll-reveal]');
+    if (reveal) reveal.setAttribute('data-visible', '0');
+
+    var title = $('[data-ll-title]') || document.querySelector('.ll-title');
+    if (title) title.textContent = '🎉 Beautiful work, Nigel!';
 
     humphreySay('letter_lab_finish',
       'You practiced ' + state.targets.length + ' things with me today, Nigel. Beautiful work!',

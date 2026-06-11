@@ -10,6 +10,41 @@
   <link rel="stylesheet" href="css/canvas.css">
   <link rel="stylesheet" href="css/humphrey.css">
   <link rel="stylesheet" href="css/letter-lab.css">
+  <style>
+    /* v174: side-by-side reveal panel — replaces the old AI-judge result card */
+    .ll-reveal { display: none; flex-direction: column; align-items: center; gap: 18px; padding: 20px 0; }
+    .ll-reveal[data-visible="1"] { display: flex; }
+    .ll-reveal-title { color: #f9d423; font-size: 22px; font-weight: 700; text-align: center; margin: 0; }
+    .ll-reveal-row { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+    .ll-reveal-card {
+      background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 18px; padding: 16px; width: 280px;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .ll-reveal-card.mine  { border-color: #6ee7b7; }
+    .ll-reveal-card.hers  { border-color: #f472b6; }
+    .ll-reveal-label { color: #e6e9f2; font-size: 16px; font-weight: 600; margin: 0; }
+    .ll-reveal-img {
+      width: 240px; height: 200px; background: #fff8e7; border-radius: 12px;
+      object-fit: contain; display: block;
+    }
+    .ll-selfassess { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
+    .ll-selfassess button {
+      border: none; border-radius: 14px; padding: 16px 26px;
+      font-size: 18px; font-weight: 700; cursor: pointer;
+      font-family: 'Fredoka', system-ui, sans-serif;
+      transition: transform .1s, box-shadow .15s;
+    }
+    .ll-selfassess button:active { transform: translateY(1px); }
+    .ll-selfassess .ll-btn--good { background: #16a34a; color: #fff; box-shadow: 0 4px 14px rgba(22, 163, 74, .35); }
+    .ll-selfassess .ll-btn--retry { background: rgba(255,255,255,0.1); color: #e6e9f2; border: 1px dashed rgba(255,255,255,0.3); }
+    .ll-selfassess .ll-btn--good:hover { background: #15803d; }
+    .ll-selfassess .ll-btn--retry:hover { background: rgba(255,255,255,0.15); }
+    @media (max-width: 480px) {
+      .ll-reveal-card { width: 100%; max-width: 320px; }
+      .ll-reveal-img { width: 100%; height: 180px; }
+    }
+  </style>
 </head>
 <body class="ll-body">
 
@@ -21,11 +56,11 @@
 
   <main class="ll-main">
 
-    <!-- v104: Target character is HIDDEN — Nigel must draw from memory after
-         hearing Ms. Humphrey say it. The "Say it again" button lets him hear
-         the prompt repeated if he missed it. The target letter element is
-         intentionally removed; there's no visual reveal until the demo
-         phase (after a wrong attempt). -->
+    <!-- v174: The prompt + canvas + actions stay the same as v107. What changes
+         is what happens after Nigel taps "Show me yours" — instead of sending
+         his drawing to an AI vision endpoint for a right/wrong verdict, we
+         simply REVEAL Humphrey's version (via letter-strokes.js animation)
+         next to his and let Nigel self-assess. No AI judgment anywhere. -->
     <section class="ll-prompt" data-ll-prompt-panel>
       <div class="ll-prompt-meta">
         <img class="ll-humphrey" src="assets/humphrey/humphrey_base_256.webp"
@@ -39,65 +74,50 @@
       </button>
     </section>
 
-    <!-- Drawing canvas (mounted by canvas.js) -->
+    <!-- Drawing canvas (mounted by canvas.js). Used for BOTH Nigel's writing
+         and Humphrey's stroke-by-stroke demo (just on different layers). -->
     <section class="ll-canvas-wrap" data-ll-canvas-wrap></section>
 
-    <!-- Drawing actions -->
+    <!-- Drawing actions. v174: "Show me yours" replaces "Show Ms. Humphrey". -->
     <div class="ll-actions" data-ll-action-bar>
       <button class="ll-btn ll-btn--ghost" type="button" data-ll-undo>↶ Undo</button>
       <button class="ll-btn ll-btn--ghost" type="button" data-ll-clear>🗑️ Clear</button>
-      <button class="ll-btn ll-btn--primary" type="button" data-ll-submit>✨ Show Ms. Humphrey</button>
+      <button class="ll-btn ll-btn--primary" type="button" data-ll-submit>✨ Show me yours</button>
     </div>
 
-    <!-- Result phase (after submit) -->
-    <section class="ll-result" data-ll-result hidden>
-      <div class="ll-result-spinner" data-ll-spinner hidden>
-        <div class="ll-spinner-ring" aria-hidden="true"></div>
-        <p class="ll-spinner-text">Ms. Humphrey is looking at your letter…</p>
-      </div>
-      <div class="ll-result-card" data-ll-reaction-card hidden>
-        <img class="ll-humphrey ll-humphrey--big" src="assets/humphrey/humphrey_base_512.webp"
-             alt="Ms. Humphrey" width="128" height="128"
-             data-ll-humphrey-portrait>
-        <p class="ll-result-text" data-ll-reaction></p>
-        <div class="ll-result-actions">
-          <!-- v102: struggle-recovery flow. After first wrong attempt, Watch
-               appears instead of Next; tap Watch → Humphrey draws the target
-               on her canvas layer → "My turn again" button clears and lets
-               him retry the same target. On second attempt, just advance. -->
-          <!-- v107: Try Again gets one more attempt before Watch is offered.
-               Wrong on attempt 1 -> Try Again + Skip
-               Wrong on attempt 2 -> Watch (demo) + Skip
-               After demo + retry -> Next (no more options) -->
-          <button class="ll-btn ll-btn--primary" type="button" data-ll-tryagain hidden>🖊️ Try Again</button>
-          <button class="ll-btn ll-btn--primary" type="button" data-ll-watch hidden>👁️ Watch Ms. Humphrey draw it</button>
-          <button class="ll-btn ll-btn--ghost"   type="button" data-ll-skip  hidden>Skip →</button>
-          <button class="ll-btn ll-btn--primary" type="button" data-ll-retry hidden>🖊️ My turn again</button>
-          <button class="ll-btn ll-btn--primary" type="button" data-ll-next  hidden>Next →</button>
-          <button class="ll-btn ll-btn--primary" type="button" data-ll-finish hidden>🎉 All done!</button>
+    <!-- v174: Side-by-side reveal phase. Shown after Humphrey's animation
+         completes. Nigel sees his work next to hers and self-assesses. -->
+    <section class="ll-reveal" data-ll-reveal aria-live="polite">
+      <p class="ll-reveal-title" data-ll-reveal-title>Nice work! Let's compare.</p>
+      <div class="ll-reveal-row">
+        <div class="ll-reveal-card mine">
+          <p class="ll-reveal-label">Yours ✏️</p>
+          <img class="ll-reveal-img" data-ll-img-mine alt="Your drawing">
         </div>
+        <div class="ll-reveal-card hers">
+          <p class="ll-reveal-label">Ms. Humphrey's 🌸</p>
+          <img class="ll-reveal-img" data-ll-img-hers alt="Ms. Humphrey's drawing">
+        </div>
+      </div>
+      <div class="ll-selfassess">
+        <button class="ll-btn--good" type="button" data-ll-good>✓ Looks great! Next →</button>
+        <button class="ll-btn--retry" type="button" data-ll-tryagain>🔁 Try one more time</button>
       </div>
     </section>
 
   </main>
 
-  <!-- Scripts: shared utilities → full Humphrey stack → Letter Lab activity.
-       The full Humphrey stack matches what every other zone loads so Nigel
-       can also tap her portrait to ask questions while practicing. -->
+  <!-- v174: scripts trimmed. Listener / chat / qna / choices REMOVED — Letter
+       Lab no longer listens to Nigel's voice or interprets his canvas. TTS
+       (humphrey.js) and telemetry remain. -->
   <script src="js/telemetry.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/letter-strokes.js"></script>
   <script src="js/humphrey.js"></script>
-  <script src="js/humphrey-listener.js"></script>
-  <script src="js/humphrey-chat.js"></script>
   <script src="js/humphrey-memory.js"></script>
-  <script src="js/humphrey-qna.js"></script>
-  <script src="js/humphrey-choices.js"></script>
 
   <!-- v101: explicit init() so Humphrey actually mounts. Without this,
-       say() calls queue but never play (pump() bails on !state.mounted).
-       letter-lab.js handles the first speak via humphreySay() inside
-       renderCurrentLetter, so no welcomeEvent is needed here. -->
+       say() calls queue but never play (pump() bails on !state.mounted). -->
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
       window.HeroAcademy.Humphrey.init({
