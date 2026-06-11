@@ -685,17 +685,24 @@
   }
   async function recordCourseComplete(courseIdx, subject, topicsCovered) {
     try {
-      await fetch('/api/class-time/record-course', {
+      const r = await fetch('/api/class-time/record-course', {
         method: 'POST', keepalive: true,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           child_id: CHILD_ID,
           plan_date: state.today,
+          date: state.today, // v174: belt-and-suspenders — server accepts either
           course_order: courseIdx + 1,
           subject,
           topics_covered: topicsCovered,
         }),
       });
+      if (!r.ok) {
+        let detail = '';
+        try { detail = await r.text(); } catch (_) {}
+        console.error('[class-time-mc] record-course HTTP', r.status, detail.slice(0, 300));
+        logEvent('class_time_save_failed', { status: r.status, course_idx: courseIdx, subject, detail: detail.slice(0, 200) });
+      }
     } catch (e) { console.warn('[class-time-mc] record-course failed', e); }
   }
   function findFirstIncompleteCourse() {

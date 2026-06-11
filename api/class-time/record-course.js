@@ -47,7 +47,11 @@ export default async function handler(req, res) {
   if (!body || typeof body !== 'object') body = {};
 
   const childId      = String(body.child_id || '').trim();
-  const date         = String(body.date || '').trim();
+  // v174 fix: client sends `plan_date`, accept either for compatibility.
+  // Previously this read only `body.date`, returned 400 silently, and
+  // every course completion failed to write to ha_course_attempts even
+  // though ha_events logged the class_time_course_complete event.
+  const date         = String(body.plan_date || body.date || '').trim();
   const courseOrder  = parseInt(body.course_order, 10);
   const subject      = String(body.subject || '').trim();
   const topicsRaw    = body.topics_covered;
