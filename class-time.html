@@ -59,6 +59,7 @@
   }
   .ct-question-card {
     width:100%; max-width:1100px;
+    min-width:0; /* v176: shrink with viewport instead of overflowing */
     background:rgba(255,255,255,0.86); border:1px solid rgba(91,33,182,0.22);
     border-radius:24px; padding:32px 32px 28px;
     box-shadow:0 8px 28px rgba(91,33,182,0.20);
@@ -72,10 +73,19 @@
     to   { opacity: 1; transform: translateY(0); }
   }
   .ct-answers {
-    display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
     gap:14px; width:100%; max-width:1100px;
     /* v173: subtle stagger-feel slide-in alongside question */
     animation: ct-card-in 380ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
+  }
+  /* v176: Galaxy Tab landscape (≈1280px) was getting 4 cards crammed in a row
+     with long answer text overflowing/clipping. Force 2x2 below 1300px so each
+     card has real room for multi-line text. */
+  @media (max-width: 1300px) {
+    .ct-answers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 520px) {
+    .ct-answers { grid-template-columns: 1fr; }
   }
   .ct-q-topic {
     color:#7c3aed; font-weight:600; font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
@@ -84,6 +94,7 @@
   .ct-q-text {
     font-size:30px; line-height:1.35; color:#1e293b; font-weight:600;
     margin:0 0 6px 0;
+    overflow-wrap:anywhere; word-break:break-word; /* v176: wrap long words instead of clipping */
   }
   .ct-q-status {
     margin-top:14px; font-size:14px; color:#475569; min-height:20px;
@@ -113,6 +124,8 @@
     cursor:pointer;
     display:flex; align-items:center; gap:14px;
     min-height:80px;
+    min-width:0; /* v176: allow shrinking below content width inside the grid */
+    overflow-wrap:anywhere; word-break:break-word; /* v176: long words wrap */
     text-align:left;
     transition:transform .1s ease, box-shadow .15s ease, border-color .15s ease, opacity .15s ease;
     box-shadow:0 4px 0 rgba(0,0,0,0.3);
@@ -126,6 +139,12 @@
     flex:0 0 36px; height:36px; border-radius:50%; background:rgba(251,191,36,0.2);
     color:#b45309; font-size:18px; font-weight:800;
     display:inline-flex; align-items:center; justify-content:center;
+  }
+  /* v176: the text span takes remaining flex space, can shrink, wraps cleanly */
+  .ct-answer-btn .text {
+    flex:1 1 auto; min-width:0;
+    overflow-wrap:anywhere; word-break:break-word;
+    white-space:normal;
   }
   .ct-answer-btn.correct .letter { background:rgba(134,239,172,0.25); color:#86efac; }
   .ct-answer-btn.wrong .letter { background:rgba(252,165,165,0.25); color:#fca5a5; }
