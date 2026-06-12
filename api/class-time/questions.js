@@ -182,7 +182,7 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '== ABSOLUTE RULES ==',
     `- Generate EXACTLY ${QUESTIONS_PER_COURSE} questions.`,
     '- Each question has 3 OR 4 options (prefer 4 for math/spelling, 3 is fine for reading/science).',
-    '- Each option string ≤ 30 characters (kid-readable buttons).',
+    '- Each option string ≤ 56 characters. MUST be a complete sentence with closing punctuation. NEVER truncate mid-word.',
     '- correct_index is the 0-based index of the right answer.',
     '- Distractors must be plausible — no obvious silly wrong answers like "potato".',
     '- explanation ≤ 200 chars, hint ≤ 150 chars — both kid-friendly, no jargon.',
@@ -332,7 +332,12 @@ function normalizeQuestion(q) {
   // v175 board/question sync: drop questions that reference visuals not on screen.
   if (referencesNonExistentVisual(question)) return null;
   if (!Array.isArray(q.options)) return null;
-  const options = q.options.map((o) => clipStr(o, 30)).filter((s) => s && s.length > 0);
+  // v179: REJECT (don't truncate) options > 56 chars + dedup check
+  const optionsRaw = q.options.map((o) => String(o == null ? '' : o).trim());
+  if (optionsRaw.some((s) => !s || s.length > 56)) return null;
+  const lower = optionsRaw.map((s) => s.toLowerCase().replace(/\s+/g, ' ').trim());
+  if (new Set(lower).size !== lower.length) return null;
+  const options = optionsRaw;
   if (options.length < 3 || options.length > 4) return null;
   const correct_index = parseInt(q.correct_index, 10);
   if (!Number.isInteger(correct_index) || correct_index < 0 || correct_index >= options.length) return null;

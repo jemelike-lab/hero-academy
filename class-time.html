@@ -148,6 +148,16 @@
   }
   .ct-answer-btn.correct .letter { background:rgba(134,239,172,0.25); color:#86efac; }
   .ct-answer-btn.wrong .letter { background:rgba(252,165,165,0.25); color:#fca5a5; }
+  /* v179: highlight ring + soft pulse while Humphrey is reading this card aloud. */
+  .ct-answer-btn.is-being-read {
+    border-color:#fbbf24;
+    box-shadow:0 4px 0 rgba(0,0,0,0.3), 0 0 0 4px rgba(251,191,36,0.35), 0 0 24px rgba(251,191,36,0.45);
+    animation: ct-being-read 1.1s ease-in-out infinite;
+  }
+  @keyframes ct-being-read {
+    0%, 100% { box-shadow:0 4px 0 rgba(0,0,0,0.3), 0 0 0 4px rgba(251,191,36,0.35), 0 0 24px rgba(251,191,36,0.30); }
+    50%      { box-shadow:0 4px 0 rgba(0,0,0,0.3), 0 0 0 6px rgba(251,191,36,0.55), 0 0 32px rgba(251,191,36,0.60); }
+  }
 
   /* Feedback line + move-on */
   .ct-feedback {

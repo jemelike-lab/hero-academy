@@ -37,14 +37,14 @@
   const CHILD_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165'; // Nigel
   const COURSES_PER_DAY = 4;
   const QUESTIONS_PER_COURSE = 8;
-  const TTS_FALLBACK_MS = 25000; // Max time to wait for TTS before unlocking buttons anyway
+  const TTS_FALLBACK_MS = 35000; // v179: bumped from 25000
   const STEP_PAUSE_MS = 600;     // Pause between demo steps
   const FEEDBACK_PAUSE_MS = 1200; // Pause after right/wrong feedback before advancing
   // v175: POST_CORRECT used to be a fixed 5000ms race against TTS, meaning
   // Humphrey got cut off on longer explanations. Now we WAIT for TTS to
   // finish, then add a breathing-room pause for Nigel to absorb.
   const POST_SPEECH_PAUSE_MS = 2000; // pause AFTER TTS finishes, not a race against it
-  const TTS_SAFETY_MS = 20000; // safety cap in case TTS promise never resolves
+  const TTS_SAFETY_MS = 35000; // v179: bumped from 20000
 
   const SUBJECTS = ['math', 'reading', 'spelling', 'science'];
   const SUBJECT_LABEL = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science' };
@@ -872,16 +872,51 @@
     });
     setListeningStatus();
 
-    // Build the read-aloud script and play it
-    const readAloud = buildReadAloud(q);
-    speakAndUnlock(readAloud);
+    // v179: sequential per-option read with highlight
+    readQuestionWithHighlights(q);
   }
 
-  function buildReadAloud(q) {
-    // "Question: <text>. Your choices are: A, <opt1>. B, <opt2>. C, <opt3>."
-    const opts = q.options.map((o, i) => `${letterFor(i)}, ${o}.`).join(' ');
-    return `Question: ${q.question} Your choices are: ${opts}`;
+  async function readQuestionWithHighlights(q) {
+    lockButtons();
+    pulseHumphreyOn();
+    state.readGen = (state.readGen || 0) + 1;
+    const gen = state.readGen;
+    try {
+      await sayWithTimeout(`Question. ${q.question}`, 30000);
+      if (gen !== state.readGen) return;
+      await pause(450);
+      for (let i = 0; i < q.options.length; i++) {
+        if (gen !== state.readGen) return;
+        const cardBtn = document.querySelector(`#answer-buttons .ct-answer-btn[data-index="${i}"]`);
+        cardBtn?.classList.add('is-being-read');
+        try {
+          await sayWithTimeout(`${letterFor(i)}. ${q.options[i]}.`, 30000);
+        } finally {
+          cardBtn?.classList.remove('is-being-read');
+        }
+        if (gen !== state.readGen) return;
+        await pause(320);
+      }
+    } catch (e) {
+      console.warn('[class-time-mc] readQuestionWithHighlights error', e);
+    } finally {
+      if (gen === state.readGen) {
+        pulseHumphreyOff();
+        unlockButtons();
+      }
+    }
   }
+
+  function sayWithTimeout(text, maxMs) {
+    return new Promise((resolve) => {
+      let done = false;
+      const t = setTimeout(() => { if (done) return; done = true; resolve(); }, maxMs || 30000);
+      tts(text).then(() => { if (done) return; done = true; clearTimeout(t); resolve(); })
+        .catch(() => { if (done) return; done = true; clearTimeout(t); resolve(); });
+    });
+  }
+
+  function pause(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   function setListeningStatus() {
     const s = $('q-status');
@@ -1363,8 +1398,8 @@
       if (!q) return;
       const btn = $('read-again-btn');
       btn.classList.add('speaking');
-      speakAndUnlock(buildReadAloud(q));
-      setTimeout(() => btn.classList.remove('speaking'), 25000);
+      // v179: sequential reader
+      readQuestionWithHighlights(q).finally(() => btn.classList.remove('speaking'));
     });
 
     // Mount the board ahead of time so the canvas DOM exists.
