@@ -74,8 +74,8 @@
   background: linear-gradient(135deg, rgba(255, 209, 71, 0.22), rgba(255, 139, 61, 0.28));
   border-color: rgba(255, 139, 61, 0.6);
 }
-.daily-practice--friday .daily-practice-eyebrow { color: #ffb648; }
-.daily-practice--friday .daily-practice-count { color: #ffb648; }
+.daily-practice--friday .daily-practice-eyebrow { color: #d97706; }
+.daily-practice--friday .daily-practice-count { color: #d97706; }
 
 /* ------------ Review page shell ------------------------------------- */
 .review-hud {
@@ -321,8 +321,8 @@
   font-size: 18px;
   font-weight: 600;
 }
-.review-feedback.is-correct { color: #4ade80; }
-.review-feedback.is-wrong   { color: #fda4af; }
+.review-feedback.is-correct { color: #16a34a; }
+.review-feedback.is-wrong   { color: #dc2626; }
 
 .review-next-btn {
   display: block;

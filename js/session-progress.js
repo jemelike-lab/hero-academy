@@ -26,7 +26,7 @@
       '.ha-sp { position:fixed; top:0; left:0; right:0; z-index:8500;',
       '  height:28px; background:rgba(15,23,42,0.88);',
       '  display:flex; align-items:center; gap:10px; padding:0 14px;',
-      '  font:600 12px/1 "Fredoka",system-ui,sans-serif; color:#e2e8f0;',
+      '  font:600 12px/1 "Fredoka",system-ui,sans-serif; color:#475569;',
       '  box-shadow:0 2px 8px rgba(0,0,0,0.3); transition:opacity .3s; }',
       '.ha-sp.hidden { opacity:0; pointer-events:none; }',
       '.ha-sp-track { flex:1; height:6px; border-radius:99px;',

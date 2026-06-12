@@ -14,16 +14,16 @@
     /* v174: side-by-side reveal panel — replaces the old AI-judge result card */
     .ll-reveal { display: none; flex-direction: column; align-items: center; gap: 18px; padding: 20px 0; }
     .ll-reveal[data-visible="1"] { display: flex; }
-    .ll-reveal-title { color: #f9d423; font-size: 22px; font-weight: 700; text-align: center; margin: 0; }
+    .ll-reveal-title { color: #d97706; font-size: 22px; font-weight: 700; text-align: center; margin: 0; }
     .ll-reveal-row { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
     .ll-reveal-card {
-      background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.82); border: 2px solid rgba(91,33,182,0.18);
       border-radius: 18px; padding: 16px; width: 280px;
       display: flex; flex-direction: column; align-items: center; gap: 10px;
     }
     .ll-reveal-card.mine  { border-color: #6ee7b7; }
     .ll-reveal-card.hers  { border-color: #f472b6; }
-    .ll-reveal-label { color: #e6e9f2; font-size: 16px; font-weight: 600; margin: 0; }
+    .ll-reveal-label { color: #475569; font-size: 16px; font-weight: 600; margin: 0; }
     .ll-reveal-img {
       /* v174f: pure white bg + inset shadow for better contrast on faint ink */
       width: 240px; height: 200px; background: #ffffff; border-radius: 12px;
@@ -39,9 +39,9 @@
     }
     .ll-selfassess button:active { transform: translateY(1px); }
     .ll-selfassess .ll-btn--good { background: #16a34a; color: #fff; box-shadow: 0 4px 14px rgba(22, 163, 74, .35); }
-    .ll-selfassess .ll-btn--retry { background: rgba(255,255,255,0.1); color: #e6e9f2; border: 1px dashed rgba(255,255,255,0.3); }
+    .ll-selfassess .ll-btn--retry { background: rgba(30,41,59,0.06); color: #475569; border: 1px dashed rgba(30,41,59,0.25); }
     .ll-selfassess .ll-btn--good:hover { background: #15803d; }
-    .ll-selfassess .ll-btn--retry:hover { background: rgba(255,255,255,0.15); }
+    .ll-selfassess .ll-btn--retry:hover { background: rgba(30,41,59,0.10); }
     @media (max-width: 480px) {
       .ll-reveal-card { width: 100%; max-width: 320px; }
       .ll-reveal-img { width: 100%; height: 180px; }
