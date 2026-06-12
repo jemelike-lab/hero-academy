@@ -1129,6 +1129,26 @@
       return;
     }
 
+    // v180: 5-min analog clock practice runs once per day, right after the
+    // math course finishes and BEFORE the between-course break. Guarded by
+    // localStorage so a re-entry the same day doesn't double-run it.
+    const clockKey = `ha_clock_activity_${state.today}`;
+    const alreadyDone = (() => { try { return localStorage.getItem(clockKey) === '1'; } catch (_) { return false; } })();
+    if (subject === 'math' && !alreadyDone && NS.ClockActivity && typeof NS.ClockActivity.start === 'function') {
+      logEvent('clock_activity_gate_enter', { course_idx: courseIdx });
+      try { document.getElementById('classroom').style.display = 'none'; } catch (_) {}
+      NS.ClockActivity.start({
+        date: state.today,
+        onComplete: (info) => {
+          try { localStorage.setItem(clockKey, '1'); } catch (_) {}
+          logEvent('clock_activity_gate_exit', { reason: (info && info.reason) || 'done', answered: (info && info.answered) || 0 });
+          try { document.getElementById('classroom').style.display = 'flex'; } catch (_) {}
+          showBreakOverlay(courseIdx + 1);
+        },
+      });
+      return;
+    }
+
     // Show break overlay (15 min) then start next course
     showBreakOverlay(courseIdx + 1);
   }
@@ -1292,31 +1312,61 @@
   // caches per (child_id, plan_date, course_order), so two visits to the same
   // course in the same day see the same questions — but the next day brings
   // a fresh set.
+  // v180: for math, interleave 4 coded double-digit problems with 4 Haiku
+  // problems so the kid sees a stable progression (coded bank) alongside
+  // fresh daily variety (Haiku). When math-bank is absent (e.g. module
+  // failed to load), we fall through to the original Haiku-only flow.
   async function fetchQuestionsForCourse(courseIdx) {
     const courseOrder = courseIdx + 1;
     const subject = SUBJECTS[courseIdx] || 'math';
     state.subject = subject;
     state.courseIdx = courseIdx;
+    let serverQuestions = null;
+    let serverSource = 'unknown';
     try {
       const url = `/api/class-time/questions?date=${state.today}&child_id=${CHILD_ID}&course_order=${courseOrder}`;
       const r = await fetch(url);
-      if (!r.ok) throw new Error(`api ${r.status}`);
-      const data = await r.json();
-      if (data && Array.isArray(data.questions) && data.questions.length >= 3) {
-        console.log(`[class-time-mc] questions source=${data.source} count=${data.questions.length}`);
-        // If the server's source is 'fallback' AND the subject is non-math, the
-        // server returned math questions — use the subject-specific V171_BANK
-        // instead.
-        if (data.source === 'fallback' && subject !== 'math') {
-          return (V171_BANK[subject] || V171_BANK.math).slice(0, QUESTIONS_PER_COURSE);
+      if (r.ok) {
+        const data = await r.json();
+        if (data && Array.isArray(data.questions) && data.questions.length >= 3) {
+          serverQuestions = data.questions;
+          serverSource = data.source || 'haiku';
+          console.log(`[class-time-mc] questions source=${serverSource} count=${serverQuestions.length}`);
+          // If the server's source is 'fallback' AND the subject is non-math, the
+          // server returned math questions — use the subject-specific V171_BANK
+          // instead.
+          if (serverSource === 'fallback' && subject !== 'math') {
+            return (V171_BANK[subject] || V171_BANK.math).slice(0, QUESTIONS_PER_COURSE);
+          }
         }
-        return data.questions.slice(0, QUESTIONS_PER_COURSE);
+      } else {
+        console.warn('[class-time-mc] questions api ' + r.status);
       }
-      throw new Error('empty_questions');
     } catch (e) {
-      console.warn('[class-time-mc] questions fetch failed, using V171_BANK:', e);
-      return (V171_BANK[subject] || V171_BANK.math).slice(0, QUESTIONS_PER_COURSE);
+      console.warn('[class-time-mc] questions fetch failed:', e);
     }
+
+    // v180 — Math: interleave 4 coded double-digit problems with 4 Haiku.
+    if (subject === 'math' && NS.MathBank && typeof NS.MathBank.pickForDate === 'function') {
+      const coded = NS.MathBank.pickForDate(state.today, 4);
+      const fromServer = (serverQuestions || V171_BANK.math).slice(0, 4);
+      const interleaved = [];
+      for (let i = 0; i < 4; i++) {
+        // Even slots: coded (stable). Odd slots: Haiku/server (fresh).
+        if (coded[i]) interleaved.push(coded[i]);
+        if (fromServer[i]) interleaved.push(fromServer[i]);
+      }
+      const out = interleaved.slice(0, QUESTIONS_PER_COURSE);
+      console.log(`[class-time-mc] math: ${coded.length} coded + ${fromServer.length} server, interleaved to ${out.length}`);
+      if (out.length >= 4) return out;
+      // Fall through if somehow we didn't get enough
+    }
+
+    if (serverQuestions && serverQuestions.length >= 3) {
+      return serverQuestions.slice(0, QUESTIONS_PER_COURSE);
+    }
+    console.warn('[class-time-mc] using V171_BANK fallback for ' + subject);
+    return (V171_BANK[subject] || V171_BANK.math).slice(0, QUESTIONS_PER_COURSE);
   }
 
   async function startCourse(courseIdx) {

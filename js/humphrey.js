@@ -804,9 +804,18 @@
     debug('say()', event, '→', utterance.text);
 
     if (context.priority === 'high') {
+      // v180: ensure the in-flight utterance's promise resolves before we
+      // clobber state.speaking. Without this, the caller of the previous
+      // say() awaits forever (we then sit on a stale promise until its 30s
+      // sayWithTimeout race in class-time-mc kicks in). Calling finish()
+      // here also clears its displayTimer and emits finished-speaking.
+      if (typeof state.currentUtteranceFinish === 'function') {
+        try { state.currentUtteranceFinish(); } catch(e){}
+      }
       state.queue = [];
       stopAudio();
       state.speaking = false;
+      state.currentUtteranceFinish = null;
     }
 
     return new Promise((resolve) => {
@@ -1018,7 +1027,12 @@
         });
       }
 
+      let finished = false;
       const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(displayTimer);
+        if (state.currentUtteranceFinish === finish) state.currentUtteranceFinish = null;
         // If a visual aid landed on this bubble, leave it visible so the kid
         // can still see the picture while reading the question on the page.
         // We still mark speaking as done and drop her expression to idle.
@@ -1034,13 +1048,30 @@
         resolve();
       };
 
-      const displayTimer = setTimeout(finish, utterance.duration);
+      // v180 BUGFIX — Humphrey-getting-cut-off:
+      // The previous timer fired finish() at the *estimated* utterance duration
+      // (minDurationMs 2400, msPerCharacter 55, maxDurationMs 12000). That
+      // estimate is WAY too short for ElevenLabs Emory, which reads slower
+      // with natural prosody. e.g. "Question. What is 23 plus 14?" estimated
+      // ~2.5s but actually played ~4s. finish() resolved early, and the next
+      // sayWithTimeout() in class-time-mc came in with priority:'high', which
+      // calls stopAudio() — chopping her off mid-sentence. We now treat
+      // displayTimer as a long SAFETY net (90s) and rely on audio.onended /
+      // SpeechSynthesisUtterance.onend (piped through onAudioComplete) as
+      // the real "audio finished" signal.
+      const displayTimer = setTimeout(finish, 90000);
+      // Register finish so a priority:'high' barge-in can resolve us before
+      // clobbering state — otherwise the original caller's promise hangs.
+      state.currentUtteranceFinish = finish;
 
       panelLog('speak gate: audioEnabled=' + state.cfg.audioEnabled +
                ' muted=' + isMuted() + ' unlocked=' + state.audioUnlocked);
       // Muted / disabled = no audio attempt at all (correct silent path).
       if (!state.cfg.audioEnabled || isMuted()) {
         panelLog('SKIP audio (disabled or muted)');
+        // Silent path: show bubble for estimated reading time, then finish.
+        clearTimeout(displayTimer);
+        setTimeout(finish, Math.max(800, utterance.duration));
         return;
       }
 
@@ -1053,8 +1084,10 @@
       // it on the next user gesture via drainPendingUnlock(). The bubble
       // stays visible during this attempt — same UX as today; the only
       // difference is that successful PWA playback now happens immediately.
-      playAudio(utterance).then((played) => {
-        if (played) return;
+      // v180: pass `finish` into playAudio so the chosen engine can fire it
+      // on real audio end (not on play-start, not on a guessed timer).
+      playAudio(utterance, finish).then((played) => {
+        if (played) return; // finish() will fire from audio.onended / u.onend
         panelLog('audio chain returned false');
         // Defer for retry only if we never unlocked. If audio was unlocked
         // but TTS still failed (network, etc), don't loop — let the bubble
@@ -1063,7 +1096,15 @@
           panelLog('audio failed pre-unlock → stashing for next gesture');
           state.pendingUnlockUtterance = utterance;
         }
-      }).catch((err) => { panelLog('playAudio threw: ' + (err && err.message)); });
+        // No engine actually played — fall back to estimated read time so
+        // we don't sit on the safety-net 90s.
+        clearTimeout(displayTimer);
+        setTimeout(finish, Math.max(800, utterance.duration));
+      }).catch((err) => {
+        panelLog('playAudio threw: ' + (err && err.message));
+        clearTimeout(displayTimer);
+        setTimeout(finish, Math.max(800, utterance.duration));
+      });
     });
   }
 
@@ -1132,10 +1173,10 @@
   }
 
   /** Audio chain: pre-rendered MP3 → ElevenLabs TTS → Web Speech API → silent */
-  function playAudio(utterance) {
+  function playAudio(utterance, onAudioComplete) {
     const prerendered = state.cfg.skipPrerendered
       ? Promise.resolve(false)
-      : tryPrerendered(utterance.audioUrl, utterance);
+      : tryPrerendered(utterance.audioUrl, utterance, onAudioComplete);
     return prerendered.then((played) => {
       if (played) return true;
       // Stale-arrival guard: if a newer utterance has taken over before the
@@ -1144,19 +1185,19 @@
         panelLog('playAudio: skipping TTS — utterance no longer current');
         return false;
       }
-      return tryTTS(utterance.text, utterance);
+      return tryTTS(utterance.text, utterance, onAudioComplete);
     }).then((played) => {
       if (played) return true;
       if (state.currentUtterance && state.currentUtterance !== utterance) {
         panelLog('playAudio: skipping WebSpeech — utterance no longer current');
         return false;
       }
-      if (state.cfg.fallbackToWebSpeech) return tryWebSpeech(utterance.text, utterance);
+      if (state.cfg.fallbackToWebSpeech) return tryWebSpeech(utterance.text, utterance, onAudioComplete);
       return false;
     });
   }
 
-  function tryPrerendered(url, utteranceRef) {
+  function tryPrerendered(url, utteranceRef, onAudioComplete) {
     return new Promise((resolve) => {
       if (!url) return resolve(false);
       const audio = new Audio();
@@ -1174,6 +1215,10 @@
         succeed();
         stopAudio();
         state.currentAudio = audio;
+        // v180: fire onAudioComplete on natural end of playback so speak()
+        // can resolve at the right moment instead of relying on a guessed
+        // timer that fired before audio actually finished.
+        audio.onended = () => { if (onAudioComplete) { try { onAudioComplete(); } catch(e){} } };
         audio.play().catch(fail);
       }, { once: true });
       audio.addEventListener('error', fail, { once: true });
@@ -1188,7 +1233,7 @@
    *  Accepts the utterance ref so we can detect stale arrivals — if a new
    *  utterance has displaced this one by the time the network blob lands,
    *  we silently drop instead of speaking over the new one. */
-  function tryTTS(text, utteranceRef) {
+  function tryTTS(text, utteranceRef, onAudioComplete) {
     const endpoint = state.cfg.ttsEndpoint;
     if (!endpoint || !text) { panelLog('TTS skip: no endpoint or text'); return Promise.resolve(false); }
     panelLog('TTS fetch "' + text.slice(0, 30) + '"');
@@ -1231,7 +1276,15 @@
           // Cancel any current playback on this element before swapping source
           try { audio.pause(); audio.currentTime = 0; } catch(e) {}
           // Reset listeners (avoid accumulation across reuse)
-          audio.onended = () => { panelLog('TTS ended naturally'); try { URL.revokeObjectURL(blobUrl); } catch(e){} };
+          audio.onended = () => {
+            panelLog('TTS ended naturally');
+            try { URL.revokeObjectURL(blobUrl); } catch(e){}
+            // v180 BUGFIX: this is the real "she finished talking" signal.
+            // Previously nothing called finish() from here, so speak()'s
+            // resolve fired off the displayTimer (a too-short estimate),
+            // causing the next high-priority say() to stopAudio() mid-word.
+            if (onAudioComplete) { try { onAudioComplete(); } catch(e){} }
+          };
           audio.onerror = () => {
             const e = audio.error;
             console.error('[Humphrey] TTS audio element error:',
@@ -1276,7 +1329,7 @@
       });
   }
 
-  function tryWebSpeech(text, _utteranceRef) {
+  function tryWebSpeech(text, _utteranceRef, onAudioComplete) {
     return new Promise((resolve) => {
       if (typeof window.speechSynthesis === 'undefined') return resolve(false);
       try {
@@ -1289,7 +1342,12 @@
                        || voices.find(v => /en-/.test(v.lang) && /female/i.test(v.name))
                        || voices.find(v => /en-/.test(v.lang));
         if (preferred) u.voice = preferred;
-        u.onend = () => resolve(true);
+        u.onend = () => {
+          // v180: same as tryTTS — fire onAudioComplete so speak()
+          // resolves at real end of speech, not at guessed timer.
+          if (onAudioComplete) { try { onAudioComplete(); } catch(e){} }
+          resolve(true);
+        };
         u.onerror = () => resolve(false);
         state.currentAudio = { stop: () => window.speechSynthesis.cancel() };
         window.speechSynthesis.cancel();
