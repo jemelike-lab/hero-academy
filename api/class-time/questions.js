@@ -236,8 +236,14 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '== STYLE ==',
     '- Warm tutor voice. Use Nigel\'s name occasionally (not every question).',
     '- Difficulty: 2nd-grade stretch — not too easy, not frustrating.',
-    '- v180 MATH DIFFICULTY UPGRADE: When subject is "math", default to TWO-DIGIT ADDITION (operands 10-79, sums up to 99). Mix problems that DON\'T require regrouping (e.g., 23 + 14, 45 + 32) with problems that DO require regrouping (e.g., 27 + 15, 38 + 26). At least 4 of the 8 should be regrouping problems. Subtraction is fine for variety but addition is the working level. Avoid single-digit-only problems like "3 + 4" — Nigel has outgrown those. Word problems should also use two-digit numbers ("Nigel had 24 stickers and got 17 more — how many now?"). Place-value and comparing-numbers questions should use 2-digit numbers too.',
+    '- v180 MATH DIFFICULTY: When subject is "math", ALL 8 questions MUST use TWO-DIGIT ADDITION. Operands 10-79, sums to 99. NO single-digit problems. NO subtraction. NO place-value. NO comparing. ONLY addition. Mix regrouping (27+15, 38+26) with non-regrouping (23+14, 45+32). At least FOUR of eight MUST require regrouping. Word problems use two-digit numbers ("Nigel had 24 stickers and got 17 more"). This is non-negotiable.',
     '- Variety across the 8 questions — no two should look the same.',
+    '',
+    '== CRITICAL — CORRECT ANSWER POSITION ==',
+    'correct_index MUST be distributed across positions 0, 1, 2, 3. Use each position at least once.',
+    'NEVER put all correct answers at position 0. NEVER put more than 3 at the same position.',
+    'Example distribution: Q1→2, Q2→0, Q3→3, Q4→1, Q5→2, Q6→0, Q7→3, Q8→1.',
+    'This is MANDATORY. Uniform position = rejected.',
     '',
     '== OUTPUT — ONE JSON OBJECT, NO MARKDOWN, NO PREAMBLE ==',
     '{',
@@ -246,7 +252,7 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '      "topic": "string (matches one of the course topics)",',
     '      "question": "string",',
     '      "options": ["string", "string", "string", "string"],',
-    '      "correct_index": 0,',
+    '      "correct_index": 2,',
     '      "explanation": "string ≤ 200 chars",',
     '      "hint": "string ≤ 150 chars",',
     '      "remediation": {',
@@ -325,6 +331,22 @@ function referencesNonExistentVisual(text) {
   return VISUAL_REFERENCE_PATTERNS.some((pat) => pat.test(text));
 }
 
+
+// v181: Shuffle options to prevent Haiku's correct_index=0 bias.
+// Fisher-Yates on options array, then update correct_index to match.
+function shuffleQuestionOptions(q) {
+  if (!q || !Array.isArray(q.options) || typeof q.correct_index !== 'number') return q;
+  const opts = [...q.options];
+  const correctText = opts[q.correct_index];
+  // Fisher-Yates
+  for (let i = opts.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [opts[i], opts[j]] = [opts[j], opts[i]];
+  }
+  const newIdx = opts.indexOf(correctText);
+  return { ...q, options: opts, correct_index: newIdx >= 0 ? newIdx : 0 };
+}
+
 function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return null;
   const topic = clipStr(q.topic, 80);
@@ -346,7 +368,7 @@ function normalizeQuestion(q) {
   const hint = clipStr(q.hint, 150) || 'Try again — you can do this.';
   const remediation = normalizeRemediation(q.remediation);
   if (!remediation) return null;
-  return {
+  return shuffleQuestionOptions({
     topic: topic || 'practice',
     question,
     options,
@@ -354,7 +376,7 @@ function normalizeQuestion(q) {
     explanation,
     hint,
     remediation,
-  };
+  });
 }
 
 function normalizeRemediation(r) {
