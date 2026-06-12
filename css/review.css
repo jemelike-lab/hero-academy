@@ -224,9 +224,9 @@
   color:var(--gold-text);
   margin-bottom: 14px;
 }
-.review-kind-math       { background: rgba(20, 184, 212, 0.25); color: #6ee7f0; }
-.review-kind-discovery  { background: rgba(167, 139, 250, 0.25); color: #c4b5fd; }
-.review-kind-word       { background: rgba(236, 72, 153, 0.22); color: #fbcfe8; }
+.review-kind-math       { background: rgba(20, 184, 212, 0.18); color: #0e7490; }
+.review-kind-discovery  { background: rgba(167, 139, 250, 0.18); color: #6d28d9; }
+.review-kind-word       { background: rgba(236, 72, 153, 0.18); color: #be185d; }
 
 .review-question {
   font-family: Fredoka, system-ui, sans-serif;

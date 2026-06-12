@@ -134,7 +134,7 @@
 .tm-step-time {
   font-size: 11px;
   font-weight: 600;
-  color: #94a3b8;
+  color: #475569;
   background: rgba(0,0,0,0.04);
   padding: 2px 6px;
   border-radius: 6px;
@@ -251,7 +251,7 @@
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--reward-color, #ffd147);
+  color: var(--reward-color, #d97706);
   margin-bottom: 6px;
 }
 
@@ -284,7 +284,7 @@
   font-family: var(--font-display, 'Fredoka', sans-serif);
   font-weight: 700;
   font-size: 18px;
-  color: var(--reward-color, #ffd147);
+  color: var(--reward-color, #d97706);
 }
 .tm-celebrate__unlock-tag {
   font-size: 12px;
