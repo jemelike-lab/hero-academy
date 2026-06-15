@@ -640,6 +640,31 @@
         "Welcome back, artist. Pick something to revisit.",
       ],
     },
+    // -----------------------------------------------------------------------
+    // Training Gym (PE / movement break) - added v190.
+    // -----------------------------------------------------------------------
+    'welcome-gym': {
+      expression: 'cheering',
+      lines: [
+        "Welcome to the Training Gym, {kidName}! Let's get those muscles moving.",
+        "Hi {kidName}! Time to wake up your body. Tap START when you are ready.",
+        "Training Gym is open! Four exercises, two minutes, all energy.",
+        "Welcome in, {kidName}. Tap that start button and let us get moving.",
+        "Hi friend! Body needs to move just like the brain does. Let us go.",
+        "Training Gym! Big breaths, big energy, big fun.",
+        "Hey {kidName}! Quick movement break - your body will thank you.",
+      ],
+    },
+    'gym-cadence': {
+      expression: 'encouraging',
+      lines: [
+        "You are doing great, {kidName}.",
+        "Keep going, friend!",
+        "Strong work, {kidName}.",
+        "Atta kid.",
+        "That is it - beautiful form.",
+      ],
+    },
     // Fallback used if an unknown event is fired AND no { text } override
     // is supplied. Kept benign — no thinking-aloud filler.
     '_default': {
