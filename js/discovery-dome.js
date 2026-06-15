@@ -700,9 +700,9 @@
       '100%{transform:translate(var(--drift),80vh) rotate(var(--rot));opacity:0}}' +
       '.dd-card-emoji{font-size:64px;line-height:1;text-align:center;margin:8px 0 6px}' +
       '.dd-card-title{font-family:Fredoka,system-ui,sans-serif;font-weight:700;' +
-      'font-size:1.6rem;text-align:center;color:var(--gold,#ffd147);margin:0 0 12px}' +
+      'font-size:1.6rem;text-align:center;color:var(--gold-text,#d97706);margin:0 0 12px}' +
       '.dd-card-fact{font-size:1.05rem;line-height:1.45;text-align:center;' +
-      'padding:0 8px;margin-bottom:18px;color:var(--ink-on-dark,#f5e8c8)}' +
+      'padding:0 8px;margin-bottom:18px;color:#1e293b}' +
       '.dd-card-question{font-weight:700;font-size:1.15rem;text-align:center;' +
       'margin-top:8px;color:#1e293b}' +
       '#problemQuestion{text-align:center}';

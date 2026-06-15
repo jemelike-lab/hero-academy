@@ -663,7 +663,8 @@
     persisted: loadPersisted(),
     idleTimer: null,
     stickyBubbleActive: false,         // true while a visual aid is "frozen" on the bubble after Humphrey finishes speaking
-    refs: { root: null, portrait: null, bubble: null, bubbleText: null, bubbleFigure: null, bubbleImg: null, bubbleCaption: null, muteBtn: null },
+    lastUtterance: null,
+    refs: { root: null, portrait: null, bubble: null, bubbleText: null, bubbleFigure: null, bubbleImg: null, bubbleCaption: null, muteBtn: null, repeatBtn: null },
     listeners: {},
   };
 
@@ -719,6 +720,7 @@
                 title="Mute voice">
           <span class="ha-humphrey__mute-icon" aria-hidden="true"></span>
         </button>
+        <button class="ha-humphrey__repeat" type="button" aria-label="Have Ms. Humphrey read that again" title="Read that again" hidden><span class="ha-humphrey__repeat-icon" aria-hidden="true"></span></button>
       </div>
     `;
     document.body.appendChild(root);
@@ -732,6 +734,7 @@
     state.refs.bubbleImg = root.querySelector('.ha-humphrey__bubble-img');
     state.refs.bubbleCaption = root.querySelector('.ha-humphrey__bubble-caption');
     state.refs.muteBtn = root.querySelector('.ha-humphrey__mute');
+    state.refs.repeatBtn = root.querySelector('.ha-humphrey__repeat');
 
     // Wire up controls
     // Portrait stays as passive presence: face, expression, speech bubble.
@@ -740,6 +743,7 @@
     // so the two UIs stop battling each other.
     // (Was: state.refs.portrait.addEventListener('click', onPortraitClick);)
     state.refs.muteBtn.addEventListener('click', toggleMute);
+    state.refs.repeatBtn.addEventListener('click', repeat);
 
     // Tap the speech bubble to dismiss a lingering visual aid. Only acts when
     // the bubble is sticky (i.e. carries an image and Humphrey is done
@@ -979,6 +983,10 @@
     speak(utterance).then(() => {
       state.speaking = false;
       state.currentUtterance = null;
+      if (utterance && utterance.text) {
+        state.lastUtterance = utterance;
+        reflectRepeatAvailable(true);
+      }
       utterance._resolve?.({
         event: utterance.event,
         text: utterance.text,
@@ -987,6 +995,18 @@
       emit('finished-speaking', utterance);
       pump();
     });
+  }
+
+  function repeat() {
+    const u = state.lastUtterance;
+    if (!u || !u.text) return Promise.resolve({ skipped: 'no-prior-utterance' });
+    if (state.speaking) return Promise.resolve({ skipped: 'currently-speaking' });
+    return say(u.event || '_repeat', { text: u.text, expression: u.expression, audioUrl: u.audioUrl, priority: 'high' });
+  }
+
+  function reflectRepeatAvailable(available) {
+    if (!state.refs.repeatBtn) return;
+    state.refs.repeatBtn.hidden = !available;
   }
 
   function speak(utterance) {
@@ -1643,6 +1663,7 @@
     VERSION,
     init,
     say,
+    repeat,
     stop,
     show,
     hide,
