@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#fed7aa">
+<title>Training Gym · Hero Academy</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/humphrey.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;height:100%;width:100%;overflow-x:hidden;}
+  [hidden]{display:none!important;}
+  body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);min-height:100dvh;display:flex;flex-direction:column;background:linear-gradient(180deg,#fff7ed 0%,#fed7aa 100%);}
+
+  /* Header */
+  .tg-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;z-index:10;flex-wrap:wrap;gap:8px;}
+  .tg-back{background:rgba(255,255,255,0.7);border:2px solid var(--border-light,#fde68a);border-radius:50px;color:#1e293b;padding:8px 16px;font:600 14px var(--font-display,Fredoka);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px;transition:background .2s;}
+  .tg-back:hover{background:rgba(255,255,255,0.95);}
+  .tg-title{font-family:var(--font-display,Fredoka);font-weight:700;font-size:18px;letter-spacing:0.04em;color:#1e293b;}
+  .tg-title small{display:block;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#dc2626;font-weight:600;margin-top:2px;}
+  .tg-counter{font-family:var(--font-display,Fredoka);font-weight:600;font-size:14px;color:#9a3412;background:rgba(255,255,255,0.7);border:1px solid #fde68a;border-radius:50px;padding:6px 12px;}
+
+  /* Stage */
+  .tg-stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 40px;gap:24px;position:relative;}
+
+  /* Hero (intro) screen */
+  .tg-hero-emoji{font-size:clamp(120px,28vw,200px);line-height:1;filter:drop-shadow(0 6px 20px rgba(220,38,38,0.3));animation:tg-bounce 2s ease-in-out infinite;}
+  .tg-hero-title{font-family:var(--font-display,Fredoka);font-weight:700;font-size:clamp(36px,8vw,64px);text-align:center;background:linear-gradient(135deg,#dc2626,#ea580c,#f59e0b);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:0;letter-spacing:0.04em;}
+  .tg-hero-sub{font-family:var(--font-body,Nunito);font-size:18px;text-align:center;color:#7c2d12;max-width:480px;line-height:1.5;}
+  .tg-start-btn{background:linear-gradient(135deg,#dc2626,#f59e0b);border:none;color:#fff;font-family:var(--font-display,Fredoka);font-weight:700;font-size:24px;padding:22px 56px;border-radius:50px;cursor:pointer;box-shadow:0 8px 28px rgba(220,38,38,0.5),inset 0 -3px 0 rgba(0,0,0,0.18);min-width:240px;transition:transform .15s;display:inline-flex;align-items:center;justify-content:center;gap:12px;}
+  .tg-start-btn:hover{transform:translateY(-2px);}
+  .tg-start-btn:active{transform:translateY(1px);}
+  @keyframes tg-bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-14px);}}
+
+  /* Exercise screen */
+  .tg-exercise-num{font-family:var(--font-display,Fredoka);font-weight:600;font-size:14px;letter-spacing:0.2em;color:#dc2626;text-transform:uppercase;}
+  .tg-exercise-name{font-family:var(--font-display,Fredoka);font-weight:700;font-size:clamp(40px,9vw,72px);text-align:center;color:#7c2d12;line-height:1.1;margin:0;}
+  .tg-exercise-emoji{font-size:clamp(140px,32vw,220px);line-height:1;filter:drop-shadow(0 8px 22px rgba(220,38,38,0.35));animation:tg-pulse 0.9s ease-in-out infinite;}
+  @keyframes tg-pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+
+  /* Timer ring (used for time-based exercises) */
+  .tg-timer-wrap{position:relative;width:200px;height:200px;display:grid;place-items:center;}
+  .tg-timer-ring{width:200px;height:200px;transform:rotate(-90deg);}
+  .tg-timer-ring circle{fill:none;stroke-width:14;}
+  .tg-timer-ring .bg{stroke:rgba(255,255,255,0.6);}
+  .tg-timer-ring .fg{stroke:url(#tg-grad);stroke-linecap:round;transition:stroke-dashoffset 1s linear;}
+  .tg-timer-num{position:absolute;font-family:var(--font-display,Fredoka);font-weight:700;font-size:72px;color:#7c2d12;line-height:1;}
+
+  /* Rep counter (used for count-based exercises) */
+  .tg-rep-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
+  .tg-rep-big{font-family:var(--font-display,Fredoka);font-weight:700;font-size:120px;color:#7c2d12;line-height:1;background:rgba(255,255,255,0.7);border:4px solid #fde68a;border-radius:24px;padding:18px 48px;min-width:200px;text-align:center;box-shadow:0 6px 20px rgba(220,38,38,0.2);}
+  .tg-rep-label{font-family:var(--font-display,Fredoka);font-weight:600;font-size:18px;color:#9a3412;text-transform:uppercase;letter-spacing:0.18em;}
+  .tg-rep-btn{background:linear-gradient(135deg,#10b981,#059669);border:none;color:#fff;font-family:var(--font-display,Fredoka);font-weight:700;font-size:22px;padding:18px 44px;border-radius:50px;cursor:pointer;box-shadow:0 6px 20px rgba(16,185,129,0.5);transition:transform .15s;}
+  .tg-rep-btn:hover{transform:translateY(-2px);}
+  .tg-rep-btn:active{transform:translateY(1px);}
+
+  /* Completion */
+  .tg-complete-emoji{font-size:clamp(140px,30vw,220px);line-height:1;animation:tg-bounce 2s ease-in-out infinite;}
+  .tg-complete-title{font-family:var(--font-display,Fredoka);font-weight:700;font-size:clamp(40px,8vw,64px);text-align:center;background:linear-gradient(135deg,#dc2626,#ea580c,#f59e0b);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin:0;}
+  .tg-complete-sub{font-family:var(--font-body,Nunito);font-size:18px;text-align:center;color:#7c2d12;max-width:480px;line-height:1.5;}
+  .tg-home-btn{background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;color:#fff;font-family:var(--font-display,Fredoka);font-weight:700;font-size:20px;padding:18px 44px;border-radius:50px;cursor:pointer;box-shadow:0 6px 20px rgba(124,58,237,0.5);text-decoration:none;display:inline-block;transition:transform .15s;}
+  .tg-home-btn:hover{transform:translateY(-2px);}
+
+  /* Confetti container */
+  .tg-confetti{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden;}
+  @keyframes tg-confetti-fall{0%{transform:translate(0,-10vh) rotate(0);opacity:1;}100%{transform:translate(var(--drift),100vh) rotate(var(--rot));opacity:0;}}
+
+  /* Progress dots */
+  .tg-dots{display:flex;gap:10px;margin-top:8px;}
+  .tg-dot{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.7);border:2px solid #fde68a;transition:background .3s;}
+  .tg-dot.done{background:linear-gradient(135deg,#10b981,#059669);border-color:#059669;}
+  .tg-dot.active{background:linear-gradient(135deg,#dc2626,#f59e0b);border-color:#dc2626;animation:tg-pulse 0.9s ease-in-out infinite;}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <linearGradient id="tg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="50%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="tg-header">
+  <a class="tg-back" href="index.html" aria-label="Back to map">← MAP</a>
+  <div class="tg-title">Training Gym<small>Health &amp; PE</small></div>
+  <div class="tg-counter" id="tgCounter" hidden>0 / 4</div>
+</header>
+
+<!-- HERO SCREEN -->
+<main class="tg-stage" id="tgHero">
+  <div class="tg-hero-emoji">💪</div>
+  <h1 class="tg-hero-title">TIME TO MOVE!</h1>
+  <p class="tg-hero-sub">A quick 2-minute movement break. Four exercises, big breaths, big energy. Let's go, Nigel!</p>
+  <button class="tg-start-btn" id="tgStartBtn" type="button">▶ START</button>
+</main>
+
+<!-- EXERCISE SCREEN -->
+<main class="tg-stage" id="tgExercise" hidden>
+  <div class="tg-exercise-num" id="tgExerciseNum">EXERCISE 1 OF 4</div>
+  <h2 class="tg-exercise-name" id="tgExerciseName">Jumping Jacks</h2>
+  <div class="tg-exercise-emoji" id="tgExerciseEmoji">🤸</div>
+  <!-- Timer mode -->
+  <div class="tg-timer-wrap" id="tgTimerMode">
+    <svg class="tg-timer-ring" viewBox="0 0 200 200">
+      <circle class="bg" cx="100" cy="100" r="86"/>
+      <circle class="fg" cx="100" cy="100" r="86" id="tgTimerCircle" stroke-dasharray="540.4" stroke-dashoffset="0"/>
+    </svg>
+    <div class="tg-timer-num" id="tgTimerNum">30</div>
+  </div>
+  <!-- Rep mode -->
+  <div class="tg-rep-wrap" id="tgRepMode" hidden>
+    <div class="tg-rep-big" id="tgRepCount">0</div>
+    <div class="tg-rep-label" id="tgRepGoal">of 10</div>
+    <button class="tg-rep-btn" id="tgRepBtn" type="button">TAP FOR EACH ONE</button>
+  </div>
+  <div class="tg-dots" id="tgDots"></div>
+</main>
+
+<!-- COMPLETION SCREEN -->
+<main class="tg-stage" id="tgComplete" hidden>
+  <div class="tg-complete-emoji">🏆</div>
+  <h1 class="tg-complete-title">YOU DID IT!</h1>
+  <p class="tg-complete-sub" id="tgCompleteSub">Body strong, mind strong. That's how heroes train.</p>
+  <a class="tg-home-btn" href="index.html">BACK TO MAP</a>
+</main>
+
+<script src="js/humphrey.js"></script>
+<script src="js/today-mission.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/training-gym.js"></script>
+<script src="js/sw-register.js"></script>
+
+</body>
+</html>

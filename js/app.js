@@ -12,7 +12,7 @@ const ZONES=[
 {id:"creation",name:"Creation Studio",subject:"Art",emoji:"🎨",desc:"Paint, draw, and create. Bring your imagination to life.",image:"ralphie_painting",color:"magenta",glow:"rgba(236,72,153,0.5)",isNew:!0},
 {id:"hero-hall",name:"Hero Hall",subject:"Trophy Room",emoji:"🏆",desc:"Meet the Surprise Squad! Collect characters by playing across every zone.",image:"ralphie_trophy",color:"cyan",glow:"rgba(20,184,212,0.5)",isNew:true},
 {id:"sound-stage",name:"Sound Stage",subject:"Music",emoji:"🎵",desc:"Step inside Ms. Humphrey's studio. Play piano, watch music videos, and feel the beat!",image:"ralphie_guitar",color:"cyan",glow:"rgba(20,184,212,0.5)",isNew:!0},
-{id:"gym",name:"Training Gym",subject:"Health & PE",emoji:"💪",desc:"Body strong, mind strong! Movement breaks and health learning.",image:"ralphie_flexing",color:"red",glow:"rgba(239,68,68,0.5)",placeholder:!0},
+{id:"gym",name:"Training Gym",subject:"Health & PE",emoji:"💪",desc:"Body strong, mind strong! Movement breaks and health learning.",image:"ralphie_flexing",color:"red",glow:"rgba(239,68,68,0.5)"},
 {id:"writing",name:"Story Lab",subject:"Writing",emoji:"✍️",desc:"Write your own adventures. Spelling, sentences, and stories.",image:"ralphie_clapping",color:"violet",glow:"rgba(168,85,247,0.5)",isNew:!0}
 ];
 const STATE_KEY="hero_academy_state_v1";

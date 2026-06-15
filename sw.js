@@ -1,7 +1,8 @@
-const CACHE_VERSION = 'hero-academy-v188';
+const CACHE_VERSION = 'hero-academy-v189';
 const CORE = [
   "./", "./index.html", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
+  "./training-gym.html",
   "./discovery-dome.html",
   "./js/characters.js",
   "./hero-hall.html",
@@ -60,6 +61,7 @@ const CORE = [
   "./story-time.html",
   "./js/word-lists.js",
   "./js/word-tower-reading.js",
+  "./js/training-gym.js",
   "./data/nigel-profile.json",
   "./assets/humphrey/humphrey_base_256.webp",
   "./assets/humphrey/humphrey_base_256.png",
