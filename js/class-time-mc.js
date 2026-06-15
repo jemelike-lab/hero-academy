@@ -1386,6 +1386,15 @@
       finishCourse();
       return;
     }
+    // v187: brief spoken course-opening remark before diving into Q1, so the
+    // start of each course doesn't feel abrupt. We AWAIT it (buttons aren't
+    // rendered yet) so it can't collide with the question read.
+    const label = SUBJECT_LABEL[state.subject] || state.subject;
+    const ordinal = ['first', 'second', 'third', 'fourth'][courseIdx] || `course ${courseIdx + 1}`;
+    const opener = courseIdx === 0
+      ? `Welcome to class, Nigel! Let's start with ${label}. Here is your first question.`
+      : `Great, it's time for ${label} — our ${ordinal} class. Here is your first question.`;
+    try { await sayWithTimeout(opener, 30000); } catch (_) {}
     renderQuestion(state.questions[0]);
   }
 

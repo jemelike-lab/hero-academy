@@ -38,6 +38,11 @@
   const FIRST_DAY = '2026-06-15';
   const TEACH_WINDOW_DAYS = 14;
 
+  // v187: generation token. Bumped whenever a run starts or is torn down
+  // (Skip / complete / error). In-flight async reads check this and bail
+  // if it changed, so a Skip mid-read stops Ms. Humphrey cleanly.
+  let RUN_GEN = 0;
+
   // ---- date helpers ------------------------------------------------------
   function todayStr() {
     const d = new Date();
@@ -224,6 +229,10 @@
         #clock-activity-overlay .ca-opt:disabled { opacity: 0.55; cursor: default; }
         #clock-activity-overlay .ca-opt.is-correct { background: #dcfce7; border-color: #16a34a; }
         #clock-activity-overlay .ca-opt.is-wrong { background: #fee2e2; border-color: #dc2626; }
+        #clock-activity-overlay .ca-opt.ca-opt-reading {
+          background: #fef3c7; border-color: #d97706;
+          box-shadow: 0 0 0 3px rgba(217,119,6,0.25); transform: translateY(-1px);
+        }
         #clock-activity-overlay .ca-opt .letter {
           display: inline-flex; align-items: center; justify-content: center;
           width: 30px; height: 30px; border-radius: 8px; background: rgba(124,58,237,0.12);
@@ -272,16 +281,24 @@
     });
   }
 
+  // v187: read each option aloud (with letter + highlight) BEFORE enabling
+  // taps — same pattern as the MC quiz's readQuestionWithHighlights. The kid
+  // is a non-reader, so silent options were useless to him. Buttons stay
+  // disabled while Ms. Humphrey reads; a generation token (RUN_GEN) cancels
+  // an in-flight read if the kid hits Skip or the lesson tears down.
   function askMC(overlay, opts) {
     return new Promise((resolve) => {
       const wrap = overlay.querySelector('#ca-options');
       const fb = overlay.querySelector('#ca-feedback');
       fb.textContent = '';
       wrap.innerHTML = '';
+      const myGen = RUN_GEN;
+
       const buttons = opts.choices.map((c, i) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'ca-opt';
+        btn.disabled = true; // locked until she finishes reading
         btn.innerHTML = `<span class="letter">${letterFor(i)}</span><span class="text">${c}</span>`;
         btn.addEventListener('click', async () => {
           if (btn.disabled) return;
@@ -307,6 +324,28 @@
         wrap.appendChild(btn);
         return btn;
       });
+
+      // Read the options aloud, highlighting each as she says it, then unlock.
+      (async () => {
+        try {
+          await pause(300); // small beat after the question
+          for (let i = 0; i < opts.choices.length; i++) {
+            if (myGen !== RUN_GEN) return; // Skip pressed / torn down
+            buttons[i].classList.add('ca-opt-reading');
+            try {
+              await tts(`${letterFor(i)}. ${opts.choices[i]}.`);
+            } finally {
+              buttons[i].classList.remove('ca-opt-reading');
+            }
+            if (myGen !== RUN_GEN) return;
+            await pause(220);
+          }
+        } catch (e) {
+          console.warn('[clock-activity] option read error', e);
+        }
+        if (myGen !== RUN_GEN) return;
+        buttons.forEach((b) => { b.disabled = false; });
+      })();
     });
   }
 
@@ -549,10 +588,13 @@
     overlay.querySelector('#ca-clock').innerHTML = buildClockMarkup();
     overlay.style.display = 'flex';
 
+    const myGen = ++RUN_GEN; // v187: new run; cancels any prior in-flight reads
+
     let finished = false;
     const close = (reason) => {
       if (finished) return;
       finished = true;
+      RUN_GEN++; // v187: stop any in-flight option reads
       overlay.style.display = 'none';
       try { onComplete({ reason: reason || 'done', mode: 'lesson' }); } catch (_) {}
     };
@@ -648,7 +690,8 @@
 
     const questions = quizQuestions(dateStr);
     let idx = 0, finished = false;
-    const close = (reason) => { if (finished) return; finished = true; overlay.style.display = 'none'; try { onComplete({ reason: reason || 'done', answered: idx, mode: 'quiz' }); } catch (_) {} };
+    const myGen = ++RUN_GEN; // v187
+    const close = (reason) => { if (finished) return; finished = true; RUN_GEN++; overlay.style.display = 'none'; try { onComplete({ reason: reason || 'done', answered: idx, mode: 'quiz' }); } catch (_) {} };
     overlay.querySelector('#ca-skip-btn').onclick = () => { logEvent('clock_activity_skip', { answered: idx }); close('skipped'); };
 
     const renderQ = async () => {
