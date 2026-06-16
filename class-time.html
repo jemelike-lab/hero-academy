@@ -242,6 +242,41 @@
   #boot-overlay .ralphie { width:120px; height:auto; }
   #boot-overlay .label { font-size:22px; color:#b45309; font-weight:700; }
   #boot-overlay .sub { font-size:16px; color:#475569; }
+
+  /* v191: Today's Progress stat card — shows which of the 4 courses are done
+     so Nigel sees where he left off and resumes there. Rendered on the boot
+     overlay during load, and a compact version in the completion screen. */
+  .ct-progress-card {
+    background:rgba(255,255,255,0.78); border:1px solid rgba(91,33,182,0.18);
+    border-radius:18px; padding:18px 22px; margin-top:6px;
+    box-shadow:0 6px 20px rgba(124,58,237,0.12); max-width:520px; width:92%;
+  }
+  .ct-progress-card .pc-title {
+    font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+    color:#7c3aed; margin:0 0 14px 0; text-align:center;
+  }
+  .ct-progress-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .ct-course-chip {
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    background:rgba(255,255,255,0.6); border:2px solid rgba(91,33,182,0.14);
+    border-radius:14px; padding:12px 14px; min-width:92px;
+  }
+  .ct-course-chip .chip-icon { font-size:26px; line-height:1; }
+  .ct-course-chip .chip-label { font-size:13px; font-weight:700; color:#1e293b; }
+  .ct-course-chip .chip-state { font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+  .ct-course-chip.done {
+    background:linear-gradient(135deg,#dcfce7,#bbf7d0); border-color:#22c55e;
+  }
+  .ct-course-chip.done .chip-state { color:#15803d; }
+  .ct-course-chip.current {
+    background:linear-gradient(135deg,#fef3c7,#fde68a); border-color:#f59e0b;
+    box-shadow:0 0 0 3px rgba(245,158,11,0.18);
+  }
+  .ct-course-chip.current .chip-state { color:#b45309; }
+  .ct-progress-summary {
+    text-align:center; margin-top:14px; font-size:15px; font-weight:600; color:#475569;
+  }
+  .ct-progress-summary strong { color:#7c3aed; }
   #completion h2 { color:#b45309; font-size:32px; margin:0; }
   #completion p { color:#475569; font-size:18px; margin:0 0 8px 0; }
   .btn {
@@ -358,11 +393,21 @@
   <img class="ralphie" src="assets/ralphie/ralphie_waving.png" alt="Ralphie" onerror="this.style.display='none'">
   <div class="label" id="boot-label">Setting up today's class…</div>
   <div class="sub" id="boot-sub">Ms. Humphrey is getting ready</div>
+  <!-- v191: Today's Progress stat card (populated by class-time-mc on boot) -->
+  <div class="ct-progress-card" id="boot-progress-card" hidden>
+    <p class="pc-title">📚 Today's Class Progress</p>
+    <div class="ct-progress-row" id="boot-progress-row"></div>
+    <div class="ct-progress-summary" id="boot-progress-summary"></div>
+  </div>
 </div>
 
 <div id="completion">
   <h2>🎉 Great class, Nigel!</h2>
   <p id="completion-msg">Ms. Humphrey will see you tomorrow.</p>
+  <div class="ct-progress-card" id="completion-progress-card" hidden>
+    <p class="pc-title">✅ All Done Today</p>
+    <div class="ct-progress-row" id="completion-progress-row"></div>
+  </div>
   <button class="btn" id="completion-btn">Back to Hero Hall</button>
 </div>
 

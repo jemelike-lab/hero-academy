@@ -680,7 +680,7 @@
       return r;
     } catch (e) {
       console.warn('[class-time-mc] progress fetch failed', e);
-      return { completed: [] };
+      return { progress: [] };
     }
   }
   async function recordCourseComplete(courseIdx, subject, topicsCovered) {
@@ -702,15 +702,92 @@
         try { detail = await r.text(); } catch (_) {}
         console.error('[class-time-mc] record-course HTTP', r.status, detail.slice(0, 300));
         logEvent('class_time_save_failed', { status: r.status, course_idx: courseIdx, subject, detail: detail.slice(0, 200) });
+      } else {
+        // v191: optimistically reflect this completion in local state so the
+        // progress card stays accurate without a server re-fetch. Normalize
+        // state.courseProgress to the { progress: [...] } shape first.
+        try {
+          if (!state.courseProgress || !Array.isArray(state.courseProgress.progress)) {
+            const existing = Array.isArray(state.courseProgress) ? state.courseProgress
+              : (state.courseProgress && Array.isArray(state.courseProgress.progress)) ? state.courseProgress.progress
+              : [];
+            state.courseProgress = { progress: existing };
+          }
+          const arr = state.courseProgress.progress;
+          const order = courseIdx + 1;
+          if (!arr.some((c) => Number(c.course_order) === order)) {
+            arr.push({
+              course_order: order,
+              subject,
+              completed_at: new Date().toISOString(),
+              topics_covered: topicsCovered || [],
+            });
+          }
+        } catch (_) {}
       }
     } catch (e) { console.warn('[class-time-mc] record-course failed', e); }
   }
+  // v191: completedCourseOrders — normalize the /course-progress payload into a
+  // Set of completed course_order numbers. The API returns { progress: [...] }
+  // where each row has a completed_at; the old code read `.completed` (wrong
+  // key) so it ALWAYS saw zero done and ALWAYS restarted at course 1. We now
+  // read `.progress`, tolerate a bare array, and only count rows whose
+  // completed_at is set.
+  function completedCourseOrders() {
+    const cp = state.courseProgress;
+    const rows = Array.isArray(cp) ? cp
+      : (cp && Array.isArray(cp.progress)) ? cp.progress
+      : (cp && Array.isArray(cp.completed)) ? cp.completed
+      : [];
+    return new Set(
+      rows
+        .filter((c) => c && c.completed_at && c.course_order != null)
+        .map((c) => Number(c.course_order))
+    );
+  }
   function findFirstIncompleteCourse() {
-    const done = new Set((state.courseProgress?.completed || []).map((c) => c.course_order));
+    const done = completedCourseOrders();
     for (let i = 0; i < COURSES_PER_DAY; i++) {
       if (!done.has(i + 1)) return i;
     }
     return COURSES_PER_DAY;
+  }
+
+  // v191: render the "Today's Class Progress" stat card. Shows all 4 courses
+  // with done / current / upcoming state so Nigel sees where he is. Used on
+  // the boot overlay (during resume) and the completion screen.
+  function renderProgressCard(rowElId, summaryElId, currentIdx) {
+    const row = $(rowElId);
+    if (!row) return;
+    const done = completedCourseOrders();
+    row.innerHTML = '';
+    let doneCount = 0;
+    for (let i = 0; i < COURSES_PER_DAY; i++) {
+      const order = i + 1;
+      const subject = SUBJECTS[i];
+      const label = SUBJECT_LABEL[subject] || subject;
+      const isDone = done.has(order);
+      const isCurrent = !isDone && i === currentIdx;
+      if (isDone) doneCount++;
+      const chip = document.createElement('div');
+      chip.className = 'ct-course-chip' + (isDone ? ' done' : isCurrent ? ' current' : '');
+      const icon = isDone ? '\u2705' : isCurrent ? '\u25b6\ufe0f' : '\u23f3';
+      const stateLabel = isDone ? 'Done' : isCurrent ? 'Now' : 'Soon';
+      chip.innerHTML =
+        '<span class="chip-icon" aria-hidden="true">' + icon + '</span>' +
+        '<span class="chip-label">' + label + '</span>' +
+        '<span class="chip-state">' + stateLabel + '</span>';
+      row.appendChild(chip);
+    }
+    const summary = summaryElId ? $(summaryElId) : null;
+    if (summary) {
+      summary.innerHTML = doneCount === 0
+        ? 'Fresh start \u2014 <strong>0 of ' + COURSES_PER_DAY + '</strong> courses done.'
+        : doneCount >= COURSES_PER_DAY
+        ? '<strong>All ' + COURSES_PER_DAY + '</strong> courses complete! \ud83c\udf89'
+        : 'Picking up at course <strong>' + (currentIdx + 1) + '</strong> \u2014 <strong>' + doneCount + ' of ' + COURSES_PER_DAY + '</strong> done so far.';
+    }
+    return doneCount;
   }
 
   // -------- TTS --------
@@ -1295,6 +1372,14 @@
       const key = `ha_mission_zones_done_${state.today}`;
       const done = JSON.parse(localStorage.getItem(key) || '[]');
       if (!done.includes('class-time')) { done.push('class-time'); localStorage.setItem(key, JSON.stringify(done)); }
+      // v191: write the marker the home Start-School tile actually reads.
+      // Previously this key was never written, so the home tile never flipped
+      // to "All done today" even after finishing all 4 courses.
+      localStorage.setItem('ha_class_time_' + state.today, JSON.stringify({
+        completedAt: new Date().toISOString(),
+        courses_done: completedCourseOrders().size,
+        total_courses: COURSES_PER_DAY,
+      }));
     } catch (_) {}
     if (NS.TodayMission && typeof NS.TodayMission.markVisited === 'function') {
       try { NS.TodayMission.markVisited('class-time'); } catch (_) {}
@@ -1302,6 +1387,12 @@
     logEvent('class_time_complete', { reason });
 
     document.getElementById('classroom').style.display = 'none';
+    // v191: show the completed-courses card on the completion screen.
+    try {
+      renderProgressCard('completion-progress-row', null, COURSES_PER_DAY);
+      const cc = $('completion-progress-card');
+      if (cc) cc.hidden = false;
+    } catch (_) {}
     $('completion').style.display = 'flex';
     $('completion-btn').onclick = exitToHome;
   }
@@ -1468,11 +1559,27 @@
 
     // Resume from the first incomplete course
     const startIdx = findFirstIncompleteCourse();
+
+    // v191: surface the progress card on the boot overlay so Nigel sees what
+    // he's already finished today before the next course loads. If he's
+    // mid-day (some done, not all), hold the card up for ~2.4s so it reads.
+    const doneCount = renderProgressCard('boot-progress-row', 'boot-progress-summary', startIdx);
+    const card = $('boot-progress-card');
+    if (card) card.hidden = false;
+
     if (startIdx >= COURSES_PER_DAY) {
       hideBoot();
       handleDayCompletion('day-already-done');
       return;
     }
+
+    // If resuming mid-day (at least one course already done), pause on the
+    // boot overlay so the progress card is actually seen, and greet by name.
+    if (doneCount > 0) {
+      setBootMessage('Welcome back, Nigel!', 'Here\'s where we left off today.');
+      try { await pause(2400); } catch (_) {}
+    }
+
     await startCourse(startIdx);
 
     // v173: warm cache for course +1 in the background. Cheap — Haiku

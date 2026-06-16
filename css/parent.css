@@ -736,8 +736,8 @@ body.parent-overlay-open { overflow: hidden; }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #94a3b8;
-  margin-bottom: 10px;
+  color: #c4b5fd;
+  margin-bottom: 12px;
 }
 .parent-week-subjects-grid {
   display: flex;
@@ -751,13 +751,16 @@ body.parent-overlay-open { overflow: hidden; }
   align-items: center;
 }
 .parent-week-subjects-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
+  color: #f4eff8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .parent-week-subjects-bar-frame {
-  height: 8px;
-  background: rgba(0, 0, 0, 0.05);
+  height: 9px;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -767,9 +770,9 @@ body.parent-overlay-open { overflow: hidden; }
   transition: width 320ms ease;
 }
 .parent-week-subjects-val {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  color: #475569;
+  color: #cbd5e1;
   text-align: right;
 }
 
