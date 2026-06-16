@@ -6,10 +6,10 @@
   min-height: 100dvh;
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 20% -10%, rgba(236, 72, 153, 0.18), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(20, 184, 212, 0.18), transparent 55%),
-    linear-gradient(180deg, #1a0f2e 0%, #0e0820 70%);
-  color: #f4eff8;
+    radial-gradient(1200px 600px at 20% -10%, rgba(236, 72, 153, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(20, 184, 212, 0.10), transparent 55%),
+    linear-gradient(180deg, #fdf6ff 0%, #eef2fb 70%);
+  color: #1e293b;
   font-family: 'Fredoka', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-weight: 400;
   line-height: 1.4;
@@ -27,8 +27,9 @@
 }
 .parent-gate-card {
   text-align: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid rgba(91, 33, 182, 0.14);
+  box-shadow: 0 10px 30px rgba(124, 58, 237, 0.12);
   border-radius: 24px;
   padding: 40px 28px;
   max-width: 360px;
@@ -36,11 +37,11 @@
 .parent-gate-card h1 {
   font-size: 28px;
   margin: 0 0 16px;
-  color: var(--gold, #ffd147);
-  font-weight: 600;
+  color: #7c3aed;
+  font-weight: 700;
 }
 .parent-gate-msg { font-size: 18px; margin: 0 0 8px; }
-.parent-gate-sub { font-size: 14px; opacity: 0.7; margin: 16px 0 0; }
+.parent-gate-sub { font-size: 14px; color: #64748b; margin: 16px 0 0; }
 
 /* v83: parent picker on the gate */
 .parent-gate-picker {
@@ -94,8 +95,8 @@
 .parent-hero-greet {
   margin: 0 0 4px;
   font-size: 32px;
-  font-weight: 600;
-  color: var(--gold, #ffd147);
+  font-weight: 700;
+  color: #b45309;
 }
 #parentName { color: var(--magenta, #ec4899); }
 .parent-hero-sub {
@@ -120,8 +121,9 @@
    Cards
    ========================================================================= */
 .parent-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid rgba(91, 33, 182, 0.12);
+  box-shadow: 0 6px 20px rgba(80, 60, 120, 0.08);
   border-radius: 20px;
   padding: 20px 18px;
   margin-bottom: 16px;
@@ -236,8 +238,8 @@
 }
 .parent-week-sessions {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--gold, #ffd147);
+  font-weight: 600;
+  color: #b45309;
   margin-top: 2px;
 }
 .parent-week-col:not(.has-data) .parent-week-sessions { color: rgba(30,41,59,0.3); }
@@ -254,8 +256,8 @@
    ========================================================================= */
 .parent-missions { display: flex; flex-direction: column; gap: 10px; }
 .parent-mission-row {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #f7f5fb;
+  border: 1px solid rgba(91, 33, 182, 0.10);
   border-radius: 14px;
   padding: 12px 14px;
 }
@@ -289,8 +291,8 @@
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ece7f7;
+  border: 1px solid rgba(91, 33, 182, 0.14);
   white-space: nowrap;
 }
 .parent-mission-chip.is-done {
@@ -310,8 +312,8 @@
    ========================================================================= */
 .parent-quests { display: flex; flex-direction: column; gap: 12px; }
 .parent-quest-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #f7f5fb;
+  border: 1px solid rgba(91, 33, 182, 0.10);
   border-radius: 14px;
   padding: 14px;
 }
@@ -338,7 +340,7 @@
   font-weight: 500;
 }
 .parent-quest-answer {
-  background: rgba(255, 255, 255, 0.04);
+  background: #f3eefb;
   border-left: 3px solid var(--gold, #ffd147);
   border-radius: 6px;
   padding: 10px 12px;
@@ -449,8 +451,8 @@
 @keyframes parent-overlay-fade { from { opacity: 0; } }
 body.parent-overlay-open { overflow: hidden; }
 .parent-overlay-card {
-  background: linear-gradient(180deg, #261439 0%, #1a0f2e 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid rgba(91, 33, 182, 0.16);
   border-radius: 20px;
   width: 100%;
   max-width: 480px;
@@ -466,13 +468,13 @@ body.parent-overlay-open { overflow: hidden; }
   justify-content: space-between;
   align-items: center;
   padding: 18px 20px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(30, 41, 59, 0.10);
 }
 .parent-overlay-head h2 {
   margin: 0;
   font-size: 18px;
-  font-weight: 500;
-  color: var(--gold, #ffd147);
+  font-weight: 700;
+  color: #7c3aed;
 }
 .parent-overlay-close {
   background: none;
@@ -486,7 +488,7 @@ body.parent-overlay-open { overflow: hidden; }
   transition: all 0.15s;
 }
 .parent-overlay-close:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(30, 41, 59, 0.06);
   color: #1e293b;
 }
 .parent-overlay-body { padding: 18px 20px 22px; }
@@ -508,8 +510,8 @@ body.parent-overlay-open { overflow: hidden; }
 }
 .parent-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #ffffff;
+  border: 1px solid rgba(30, 41, 59, 0.25);
   color: #1e293b;
   padding: 10px 12px;
   border-radius: 10px;
@@ -732,11 +734,11 @@ body.parent-overlay-open { overflow: hidden; }
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 .parent-week-subjects-title {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
-  color: #c4b5fd;
+  color: #7c3aed;
   margin-bottom: 12px;
 }
 .parent-week-subjects-grid {
@@ -753,14 +755,14 @@ body.parent-overlay-open { overflow: hidden; }
 .parent-week-subjects-label {
   font-size: 14px;
   font-weight: 600;
-  color: #f4eff8;
+  color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .parent-week-subjects-bar-frame {
   height: 9px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(30, 41, 59, 0.10);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -772,7 +774,7 @@ body.parent-overlay-open { overflow: hidden; }
 .parent-week-subjects-val {
   font-size: 13px;
   font-weight: 700;
-  color: #cbd5e1;
+  color: #475569;
   text-align: right;
 }
 
