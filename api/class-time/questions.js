@@ -245,6 +245,13 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     'Example distribution: Q1→2, Q2→0, Q3→3, Q4→1, Q5→2, Q6→0, Q7→3, Q8→1.',
     'This is MANDATORY. Uniform position = rejected.',
     '',
+    '== CRITICAL — CORRECT ANSWER STRING (SOURCE OF TRUTH) ==',
+    'In ADDITION to correct_index, every question MUST include "correct_answer": the',
+    'exact text of the right option, copied character-for-character from the options array.',
+    'The server trusts correct_answer over correct_index. If they disagree, correct_answer wins.',
+    'So: solve the problem, decide the answer, then COPY that option string into correct_answer.',
+    'Copy it. Copy it. Copy it. Verbatim — same characters, same spacing, same punctuation.',
+    '',
     '== OUTPUT — ONE JSON OBJECT, NO MARKDOWN, NO PREAMBLE ==',
     '{',
     '  "questions": [',
@@ -253,6 +260,7 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '      "question": "string",',
     '      "options": ["string", "string", "string", "string"],',
     '      "correct_index": 2,',
+    '      "correct_answer": "string — the VERBATIM text of the correct option, copied EXACTLY from the options array above",',
     '      "explanation": "string ≤ 200 chars",',
     '      "hint": "string ≤ 150 chars",',
     '      "remediation": {',
@@ -344,7 +352,8 @@ function shuffleQuestionOptions(q) {
     [opts[i], opts[j]] = [opts[j], opts[i]];
   }
   const newIdx = opts.indexOf(correctText);
-  return { ...q, options: opts, correct_index: newIdx >= 0 ? newIdx : 0 };
+  const finalIdx = newIdx >= 0 ? newIdx : 0;
+  return { ...q, options: opts, correct_index: finalIdx, correct_answer: opts[finalIdx] };
 }
 
 function normalizeQuestion(q) {
@@ -362,7 +371,18 @@ function normalizeQuestion(q) {
   if (new Set(lower).size !== lower.length) return null;
   const options = optionsRaw;
   if (options.length < 3 || options.length > 4) return null;
-  const correct_index = parseInt(q.correct_index, 10);
+  // v194: trust the model's ANSWER STRING over its INDEX. Models reliably copy
+  // the correct answer text but frequently miscount array positions — a wrong
+  // correct_index passes the old range-only check and silently marks correct
+  // answers wrong. Derive the index from correct_answer when it matches an
+  // option; fall back to the (range-checked) model index otherwise.
+  let correct_index = parseInt(q.correct_index, 10);
+  const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim();
+  const answerStr = norm(q.correct_answer);
+  if (answerStr) {
+    const matchIdx = options.findIndex((o) => norm(o) === answerStr);
+    if (matchIdx >= 0) correct_index = matchIdx;
+  }
   if (!Number.isInteger(correct_index) || correct_index < 0 || correct_index >= options.length) return null;
   const explanation = clipStr(q.explanation, 200) || '';
   const hint = clipStr(q.hint, 150) || 'Try again — you can do this.';
@@ -373,6 +393,7 @@ function normalizeQuestion(q) {
     question,
     options,
     correct_index,
+    correct_answer: options[correct_index],
     explanation,
     hint,
     remediation,

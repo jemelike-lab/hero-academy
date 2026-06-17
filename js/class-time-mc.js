@@ -922,6 +922,21 @@
   // -------- Question rendering --------
   function letterFor(i) { return String.fromCharCode(65 + i); } // 0→A
 
+  // v194: guarantee every question carries an authoritative `correct_answer`
+  // STRING. Server (Haiku) questions already include it; coded math-bank and
+  // V171_BANK questions have a verified-aligned correct_index, so we derive it
+  // from that. onAnswerClick then checks by TEXT, immune to any index drift.
+  function ensureCorrectAnswer(q) {
+    if (!q || !Array.isArray(q.options)) return q;
+    if (q.correct_answer == null
+        && Number.isInteger(q.correct_index)
+        && q.correct_index >= 0
+        && q.correct_index < q.options.length) {
+      q.correct_answer = q.options[q.correct_index];
+    }
+    return q;
+  }
+
   function renderQuestion(q) {
     state.wrongAttempts = 0;
     state.inDemo = false;
@@ -967,7 +982,12 @@
         const cardBtn = document.querySelector(`#answer-buttons .ct-answer-btn[data-index="${i}"]`);
         cardBtn?.classList.add('is-being-read');
         try {
-          await sayWithTimeout(`${letterFor(i)}. ${q.options[i]}.`, 30000);
+          // v194: don't append a period onto an option that already ends in
+          // terminal punctuation — "barks!." / "apples?." fed to flash slurs the
+          // final word and flattens intonation. Append "." only to bare options.
+          const optText = String(q.options[i]).trim();
+          const optSpoken = /[.!?]$/.test(optText) ? optText : optText + '.';
+          await sayWithTimeout(`${letterFor(i)}. ${optSpoken}`, 30000);
         } finally {
           cardBtn?.classList.remove('is-being-read');
         }
@@ -1047,7 +1067,16 @@
   function onAnswerClick(idx) {
     if (state.ttsLocked) return;
     const q = state.questions[state.qIdx];
-    const isCorrect = idx === q.correct_index;
+    // v194: content-keyed correctness — compare the TAPPED OPTION'S TEXT to the
+    // authoritative answer string, not a numeric index. Haiku reliably names the
+    // right answer but frequently miscounts correct_index; trusting the index is
+    // what silently marked correct answers wrong. correct_answer is guaranteed
+    // present by ensureCorrectAnswer() at load time (derived from the verified
+    // index for coded/bank questions, supplied by the server for Haiku ones).
+    const answer = (q.correct_answer != null)
+      ? String(q.correct_answer).trim()
+      : String(q.options[q.correct_index]).trim();
+    const isCorrect = String(q.options[idx]).trim() === answer;
     const buttons = Array.from(document.querySelectorAll('#answer-buttons .ct-answer-btn'));
 
     if (isCorrect) {
@@ -1220,14 +1249,30 @@
           try { localStorage.setItem(clockKey, '1'); } catch (_) {}
           logEvent('clock_activity_gate_exit', { reason: (info && info.reason) || 'done', answered: (info && info.answered) || 0 });
           try { document.getElementById('classroom').style.display = 'flex'; } catch (_) {}
-          showBreakOverlay(courseIdx + 1);
+          proceedAfterCourse(courseIdx);
         },
       });
       return;
     }
 
-    // Show break overlay (15 min) then start next course
-    showBreakOverlay(courseIdx + 1);
+    // v194: break only after every two subjects (see proceedAfterCourse).
+    proceedAfterCourse(courseIdx);
+  }
+
+  // v194: break cadence — a 15-minute break after every TWO subjects rather
+  // than after each one. With 4 courses that means a single mid-day break,
+  // after the 2nd subject. We show the overlay only when an even number of
+  // courses is complete; otherwise we roll straight into the next course.
+  // (The final course never reaches here — finishCourse() ends the day first.)
+  function proceedAfterCourse(courseIdx) {
+    const nextCourseIdx = courseIdx + 1;
+    const breakDue = ((courseIdx + 1) % 2) === 0;
+    if (breakDue) {
+      showBreakOverlay(nextCourseIdx);
+    } else {
+      console.log(`[class-time-mc] no break after course ${courseIdx + 1} — straight to course ${nextCourseIdx + 1}`);
+      startCourse(nextCourseIdx).catch((e) => console.error('[class-time-mc] startCourse (no-break) failed', e));
+    }
   }
 
   function showBreakOverlay(nextCourseIdx) {
@@ -1464,7 +1509,7 @@
     state.courseIdx = courseIdx;
     state.subject = SUBJECTS[courseIdx];
     setBootMessage('Loading questions for ' + (SUBJECT_LABEL[state.subject] || state.subject) + '…', '');
-    state.questions = await fetchQuestionsForCourse(courseIdx);
+    state.questions = (await fetchQuestionsForCourse(courseIdx)).map(ensureCorrectAnswer);
     state.qIdx = 0;
     $('course-badge').textContent = `Course ${courseIdx + 1}/${COURSES_PER_DAY}`;
     $('subject-badge').textContent = SUBJECT_LABEL[state.subject] || state.subject;
