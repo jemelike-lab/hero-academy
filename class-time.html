@@ -91,6 +91,25 @@
     color:#7c3aed; font-weight:600; font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
     margin-bottom:10px;
   }
+  /* v195: real-world photo + teaching description shown WITH the question */
+  .ct-q-visual {
+    margin:10px auto 8px; max-width:360px; display:flex; flex-direction:column; align-items:center;
+  }
+  .ct-q-visual[hidden] { display:none; }
+  .ct-q-visual img {
+    max-width:100%; max-height:240px; width:auto; height:auto;
+    border-radius:14px; background:#fff; object-fit:contain;
+    box-shadow:0 4px 16px rgba(15,23,42,0.14);
+  }
+  .ct-q-visual figcaption { margin-top:6px; font-size:12px; color:#94a3b8; text-align:center; line-height:1.35; }
+  .ct-q-visual.loading::before {
+    content:'Loading picture…'; display:block; font-size:13px; color:#a5b4fc;
+    padding:18px 0; font-weight:600;
+  }
+  .ct-q-desc {
+    margin:6px auto 10px; max-width:580px; font-size:19px; line-height:1.5; color:#334155; text-align:center;
+  }
+  .ct-q-desc[hidden] { display:none; }
   .ct-q-text {
     font-size:30px; line-height:1.35; color:#1e293b; font-weight:600;
     margin:0 0 6px 0;
@@ -360,6 +379,8 @@
         </button>
       </div>
       <div class="ct-q-topic" id="q-topic">Topic</div>
+      <figure class="ct-q-visual" id="q-visual" hidden><img id="q-visual-img" alt=""><figcaption class="ct-q-visual-cap" id="q-visual-cap"></figcaption></figure>
+      <p class="ct-q-desc" id="q-description" hidden></p>
       <h2 class="ct-q-text" id="q-text">Loading your first question…</h2>
       <div class="ct-q-status" id="q-status"><span class="ct-listen-dot"></span> Ms. Humphrey is reading…</div>
     </div>

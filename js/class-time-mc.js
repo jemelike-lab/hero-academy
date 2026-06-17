@@ -47,7 +47,21 @@
   const TTS_SAFETY_MS = 35000; // v179: bumped from 20000
 
   const SUBJECTS = ['math', 'reading', 'spelling', 'science'];
-  const SUBJECT_LABEL = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science' };
+  const SUBJECT_LABEL = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science', grammar: 'Grammar', vocabulary: 'Vocabulary', writing: 'Writing', social: 'Social Studies', 'social studies': 'Social Studies', 'social_studies': 'Social Studies', history: 'History', art: 'Art', music: 'Music' };
+  // v195: resolve a course's subject from the DAY PLAN. The server generates
+  // each course's content from the plan, so the on-screen badge and Ms.
+  // Humphrey's intro MUST follow the plan too — not the hardcoded SUBJECTS
+  // array (now only a last-resort fallback). This is what stops "Science" from
+  // being shown over social-studies content.
+  function subjectForCourse(courseIdx) {
+    const plan = (typeof state !== 'undefined') && state.dayPlan;
+    if (plan && Array.isArray(plan.courses)) {
+      const byOrder = plan.courses.find((c) => c && Number(c.order) === courseIdx + 1);
+      const c = byOrder || plan.courses[courseIdx];
+      if (c && c.subject) return String(c.subject).toLowerCase().trim();
+    }
+    return SUBJECTS[courseIdx] || 'math';
+  }
 
   // -------- State --------
   const state = {
@@ -764,7 +778,7 @@
     let doneCount = 0;
     for (let i = 0; i < COURSES_PER_DAY; i++) {
       const order = i + 1;
-      const subject = SUBJECTS[i];
+      const subject = subjectForCourse(i);
       const label = SUBJECT_LABEL[subject] || subject;
       const isDone = done.has(order);
       const isCurrent = !isDone && i === currentIdx;
@@ -937,12 +951,56 @@
     return q;
   }
 
+  // v195: show a real-world photo + a kid-level teaching description ON the
+  // question card, as a baseline Nigel can reason from (esp. science/social).
+  // Photo comes from /api/class-time/lookup-image (live Wikipedia, cached).
+  // Async + generation-guarded so a slow image can't land on a later question.
+  function renderQuestionVisual(q) {
+    const figure = $('q-visual');
+    const img = $('q-visual-img');
+    const cap = $('q-visual-cap');
+    const desc = $('q-description');
+    if (!figure || !img || !desc) return;
+    // Teaching description (teach-then-ask)
+    if (q && q.description) { desc.textContent = q.description; desc.hidden = false; }
+    else { desc.textContent = ''; desc.hidden = true; }
+    // Reset image slot
+    figure.hidden = true;
+    figure.classList.remove('loading');
+    img.removeAttribute('src');
+    if (cap) cap.textContent = '';
+    const subject = String((q && q.visual) || '').trim();
+    if (!subject) return;
+    const gen = (state.visualGen = (state.visualGen || 0) + 1);
+    figure.classList.add('loading');
+    fetch('/api/class-time/lookup-image', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subject }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || gen !== state.visualGen) return; // superseded by a newer question
+        if (data.image_url) {
+          img.onload = () => { if (gen === state.visualGen) { figure.hidden = false; figure.classList.remove('loading'); } };
+          img.onerror = () => { figure.classList.remove('loading'); };
+          img.alt = data.caption || subject;
+          if (cap && data.caption) cap.textContent = data.caption;
+          img.src = data.image_url;
+        } else {
+          figure.classList.remove('loading');
+        }
+      })
+      .catch(() => { figure.classList.remove('loading'); });
+  }
+
   function renderQuestion(q) {
     state.wrongAttempts = 0;
     state.inDemo = false;
     state.abortDemo = false;
     $('q-topic').textContent = q.topic;
     $('q-text').textContent = q.question;
+    renderQuestionVisual(q);
     $('feedback').textContent = '';
     $('feedback').className = 'ct-feedback';
     $('demo-board').hidden = true;
@@ -974,6 +1032,12 @@
     state.readGen = (state.readGen || 0) + 1;
     const gen = state.readGen;
     try {
+      // v195: teach first — read the description so the question is answerable.
+      if (q.description) {
+        await sayWithTimeout(q.description, 30000);
+        if (gen !== state.readGen) return;
+        await pause(350);
+      }
       await sayWithTimeout(`Question. ${q.question}`, 30000);
       if (gen !== state.readGen) return;
       await pause(450);
@@ -1276,7 +1340,7 @@
   }
 
   function showBreakOverlay(nextCourseIdx) {
-    const nextSubject = SUBJECTS[nextCourseIdx];
+    const nextSubject = subjectForCourse(nextCourseIdx);
     $('break-next-label').textContent = `Next: ${SUBJECT_LABEL[nextSubject]} · Course ${nextCourseIdx + 1} of ${COURSES_PER_DAY}`;
     const overlay = $('break-overlay');
     overlay.style.display = 'flex';
@@ -1454,7 +1518,7 @@
   // failed to load), we fall through to the original Haiku-only flow.
   async function fetchQuestionsForCourse(courseIdx) {
     const courseOrder = courseIdx + 1;
-    const subject = SUBJECTS[courseIdx] || 'math';
+    const subject = subjectForCourse(courseIdx);
     state.subject = subject;
     state.courseIdx = courseIdx;
     let serverQuestions = null;
@@ -1507,7 +1571,7 @@
 
   async function startCourse(courseIdx) {
     state.courseIdx = courseIdx;
-    state.subject = SUBJECTS[courseIdx];
+    state.subject = subjectForCourse(courseIdx);
     setBootMessage('Loading questions for ' + (SUBJECT_LABEL[state.subject] || state.subject) + '…', '');
     state.questions = (await fetchQuestionsForCourse(courseIdx)).map(ensureCorrectAnswer);
     state.qIdx = 0;
