@@ -429,6 +429,12 @@
   </script>
   <script src="js/humphrey.js"></script>
   <script src="js/humphrey-memory.js"></script>
+  <!-- Conversational Ms. Humphrey: chat client + mic listener + Q&A wiring.
+       Load order matters — qna uses NS.Chat and NS.Listener at runtime.
+       (Restored v196: these were deleted in error by the v174e cleanup pass.) -->
+  <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-listener.js"></script>
+  <script src="js/humphrey-qna.js"></script>
   <script>
     if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
       window.HeroAcademy.Humphrey.init({

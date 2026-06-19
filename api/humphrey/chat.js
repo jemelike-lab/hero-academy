@@ -139,7 +139,7 @@ export default async function handler(req, res) {
       lines.push(`SENSITIVE — do not bring up unprompted: ${p.do_not_bring_up_unprompted.join('; ')}.`);
     }
     if (p.humor_easter_egg && p.humor_easter_egg.phrase) {
-      lines.push(`Humor easter egg: if a light moment calls for it you can say "${p.humor_easter_egg.phrase}" — ${p.humor_easter_egg.note || 'inside joke that makes him laugh'}. Use it sparingly, never on serious or sad moments.`);
+      lines.push(`Humor easter egg — IMPORTANT, he loves this: "${p.humor_easter_egg.phrase}" is one of ${kidName}'s favorite jokes. ${p.humor_easter_egg.note || 'It always makes him laugh.'} Actively look for fun, light moments to drop it — a great natural hook is whenever the numbers 6 and 7 (or 67) show up, e.g. count "...five, six... SEVEN!" with a playful beat, or react to a 6 and a 7 in a problem. Use it a few times in a session to keep things fun, but NOT every single message, and never during a serious, frustrated, or sad moment.`);
     }
     return lines;
   }
