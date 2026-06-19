@@ -375,6 +375,8 @@
         try { episodes = await NS3.getProgress(); } catch (e) { episodes = {}; }
         const total = NS3.totalEpisodesEarned(episodes);
         const lvl = NS3.heroLevel(total);
+        var _avatarLvl = document.getElementById('avatarLevel');
+        if (_avatarLvl) _avatarLvl.textContent = lvl.level;
         const tile = document.getElementById('heroLevelTile');
         if (!tile) return;
         document.getElementById('heroLevelTileNum').textContent = lvl.level;
