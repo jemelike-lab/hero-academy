@@ -16,6 +16,7 @@
   :root {
     --bg-space:#fff7ed; --bg-deep:#fed7aa; --bg-purple:#c7d2fe;
     --gold:#ffd147; --gold-bright:#ffe580;
+    --gold-text:#7c2d12;
     --orange:#ff8b3d;
     --magenta:#ec4899;
     --cyan:#14b8d4; --cyan-bright:#38ccea;
@@ -238,11 +239,29 @@
   .modal .ep-row.locked .ep-badge { color:rgba(30,41,59,0.4);
                                     background:rgba(255,255,255,0.05); }
   .modal .ep-text { flex:1; font-size:0.95rem; line-height:1.5;
-                    color:rgba(245,232,200,0.92); text-align:left; }
+                    color:rgba(30,41,59,0.92); text-align:left; }
   .modal .ep-row.locked .ep-text { color:rgba(30,41,59,0.4); font-style:italic; }
   .card.unlocked::before { opacity: .25; }
   .card.unlocked:active { transform: scale(.97); }
-  .card.locked { opacity: .58; filter: grayscale(.7); }
+  .card.locked { opacity: .58; filter: grayscale(.7);
+                 cursor: default; pointer-events: none; }
+  .card.locked::after {
+    content: '🔒 LOCKED';
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(30,41,59,.78); color: #fff;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    padding: 4px 9px; border-radius: 8px; z-index: 2;
+  }
+  .card.unlocked::after {
+    content: '✓ EARNED';
+    position: absolute; top: 10px; right: 10px;
+    background: var(--char-color, var(--gold)); color: #1e293b;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    padding: 4px 9px; border-radius: 8px; z-index: 2;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  /* Squad-ready overrides earned badge with its own star variant */
+  .card.squad-ready.unlocked::after { content: '★ SQUAD READY'; }
 
   .card > * { position: relative; z-index: 1; }
 
