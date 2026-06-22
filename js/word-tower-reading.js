@@ -264,6 +264,19 @@
   }
 
   function finishSession() {
+    // v199: cap-proof completion flag for Today's Mission checkmark.
+    try {
+      var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+      var df = JSON.parse(localStorage.getItem(dk) || '{}');
+      df['word-tower'] = true;
+      localStorage.setItem(dk, JSON.stringify(df));
+    } catch (_) {}
+    try {
+      if (NS.TodayMission && typeof NS.TodayMission.markVisited === 'function') {
+        NS.TodayMission.markVisited('word-tower');
+      }
+    } catch (_) {}
+
     hide($('wt-stage'));
     var endCard = $('wt-end-card');
     if (!endCard) {

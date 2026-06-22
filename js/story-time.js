@@ -300,6 +300,20 @@
 
   function finishPassage() {
     state.passagesRead += 1;
+
+    // v199: cap-proof completion flag for Today's Mission checkmark.
+    try {
+      var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+      var df = JSON.parse(localStorage.getItem(dk) || '{}');
+      df['story-time'] = true;
+      localStorage.setItem(dk, JSON.stringify(df));
+    } catch (_) {}
+    try {
+      if (NS.TodayMission && typeof NS.TodayMission.markVisited === 'function') {
+        NS.TodayMission.markVisited('story-time');
+      }
+    } catch (_) {}
+
     hide($('st-stage'));
     var mcPanel = $('st-mc-panel');
     if (mcPanel) hide(mcPanel);

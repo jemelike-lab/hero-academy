@@ -835,5 +835,20 @@
       kidName: 'Nigel',
     });
   }
+
+  // v199: Hero Hall is a trophy room — visiting it IS the activity.
+  // Mark the daily mission step complete on entry so the bullseye → ✓.
+  try {
+    var dk = 'ha_zone_done_' + new Date().toISOString().slice(0, 10);
+    var df = JSON.parse(localStorage.getItem(dk) || '{}');
+    df['hero-hall'] = true;
+    localStorage.setItem(dk, JSON.stringify(df));
+  } catch (_) {}
+  try {
+    if (window.HeroAcademy && window.HeroAcademy.TodayMission &&
+        typeof window.HeroAcademy.TodayMission.markVisited === 'function') {
+      window.HeroAcademy.TodayMission.markVisited('hero-hall');
+    }
+  } catch (_) {}
 </script>
 </html>
