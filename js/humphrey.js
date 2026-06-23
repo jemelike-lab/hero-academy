@@ -727,7 +727,7 @@
       </div>
       <div class="ha-humphrey__portrait-wrap">
         <button class="ha-humphrey__portrait" type="button"
-                aria-label="Tap Ms. Humphrey to hear her again">
+                aria-label="Tap Ms. Humphrey to talk with her">
           <picture>
             <source type="image/webp"
                     srcset="${cfg.assetBase}humphrey_base_256.webp 1x,
@@ -762,11 +762,17 @@
     state.refs.repeatBtn = root.querySelector('.ha-humphrey__repeat');
 
     // Wire up controls
-    // Portrait stays as passive presence: face, expression, speech bubble.
-    // The big #humphreyBtn is the single "call her" affordance (wired by
-    // js/humphrey-qna.js). We deliberately do NOT bind a click handler here
-    // so the two UIs stop battling each other.
-    // (Was: state.refs.portrait.addEventListener('click', onPortraitClick);)
+    // v201: the portrait is now the "talk to me" affordance. Tapping it starts
+    // a real two-way conversation through QnA (which handles mic + chat + TTS).
+    // On pages without QnA loaded, the tap falls back to a gentle repeat.
+    state.refs.portrait.addEventListener('click', function () {
+      var Q = (window.HeroAcademy && window.HeroAcademy.QnA) || null;
+      if (Q && typeof Q.startConversation === 'function') {
+        Q.startConversation(state.refs.portrait);
+      } else {
+        repeat();
+      }
+    });
     state.refs.muteBtn.addEventListener('click', toggleMute);
     state.refs.repeatBtn.addEventListener('click', repeat);
 

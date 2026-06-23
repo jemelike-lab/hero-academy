@@ -837,7 +837,8 @@
 
   // -- end home-page briefing --------------------------------------------------
 
-  function handleClick(btn) {
+  function handleClick(btn, opts) {
+    opts = opts || {};
     if (inFlight) { debug('click ignored: in flight'); return; }
     var now = Date.now();
     if (now - lastActivation < COOLDOWN_MS) { debug('click ignored: cooldown'); return; }
@@ -846,8 +847,10 @@
     // ---- Home-page briefing intercept ---------------------------------------
     // On the home page, Ms. Humphrey delivers a scripted mission briefing
     // (recap of yesterday + today's lesson plan) instead of opening QnA.
-    // Random conversation lives inside zones, not on the dashboard.
-    if (isHomePage()) {
+    // v201: callers can pass {force:true} to open a real two-way conversation
+    // on the dashboard anyway (the portrait Talk affordance does this). The
+    // turtle/briefing path still runs the scripted briefing.
+    if (isHomePage() && !opts.force) {
       debug('home-page briefing branch');
       inFlight = true;
       setPhase(btn, 'speaking');
@@ -913,8 +916,20 @@
     wireButton();
   }
 
+  // v201: let other UI (e.g. the dashboard portrait) start a real two-way
+  // conversation directly, bypassing the home-page scripted briefing.
+  // `el` is the element to reflect listening/speaking phase classes on;
+  // falls back to the mounted Humphrey portrait, then a throwaway node.
+  function startConversation(el) {
+    var target = el ||
+      document.querySelector('.ha-humphrey__portrait') ||
+      document.createElement('button');
+    handleClick(target, { force: true });
+  }
+
   NS.QnA = {
     wireButton: wireButton,
+    startConversation: startConversation,
     setContextProvider: setContextProvider,
     endConversation: endConversation,
     _state: convo

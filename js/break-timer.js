@@ -76,7 +76,7 @@
     var s = document.createElement('style');
     s.id = 'ha-break-styles';
     s.textContent = [
-      '.ha-break-tab { position: fixed; left: 14px; bottom: 14px; z-index: 9000;',
+      '.ha-break-tab { position: fixed; right: 14px; bottom: 14px; z-index: 9000;',
       '  min-width: 132px; padding: 10px 16px; border-radius: 999px; border: none;',
       '  background: linear-gradient(135deg, #1f7a3a, #2ec27e); color: #fff;',
       '  font: 600 14px/1 "Fredoka", system-ui, sans-serif; letter-spacing: .02em;',
@@ -92,7 +92,7 @@
       '@keyframes ha-bp {',
       '  0%,100%{box-shadow:0 4px 14px rgba(0,0,0,.32),0 0 0 0 rgba(245,158,11,.55)}',
       '  50%{box-shadow:0 4px 14px rgba(0,0,0,.32),0 0 0 14px rgba(245,158,11,0)} }',
-      '.ha-break-picker { position: fixed; left: 14px; bottom: 58px; z-index: 9001;',
+      '.ha-break-picker { position: fixed; right: 14px; bottom: 58px; z-index: 9001;',
       '  background: #1a2633; border-radius: 14px; padding: 8px;',
       '  box-shadow: 0 8px 24px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 6px; }',
       '.ha-break-picker button { background: rgba(255,255,255,.1); color: #fff; border: none;',
@@ -100,8 +100,8 @@
       '  cursor: pointer; transition: background .15s; white-space: nowrap; }',
       '.ha-break-picker button:hover { background: rgba(46,194,126,.4); }',
       '@media (max-width:480px) {',
-      '  .ha-break-tab { left: 10px; bottom: 10px; min-width: 116px; padding: 9px 14px; font-size: 13px; }',
-      '  .ha-break-picker { left: 10px; bottom: 52px; } }',
+      '  .ha-break-tab { right: 10px; bottom: 10px; min-width: 116px; padding: 9px 14px; font-size: 13px; }',
+      '  .ha-break-picker { right: 10px; bottom: 52px; } }',
     ].join('\n');
     document.head.appendChild(s);
   }
