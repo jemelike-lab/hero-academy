@@ -1,0 +1,298 @@
+From f4c16aff6c9e845d9b10f1874036577fe1daeb2a Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.local>
+Date: Mon, 22 Jun 2026 22:37:54 +0000
+Subject: [PATCH] parent reply loop: inbound Saturday-email reply -> lesson
+ directives via /api/parent/reply
+
+---
+ api/parent/reply.js | 278 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 278 insertions(+)
+ create mode 100644 api/parent/reply.js
+
+diff --git a/api/parent/reply.js b/api/parent/reply.js
+new file mode 100644
+index 0000000..b68556e
+--- /dev/null
++++ b/api/parent/reply.js
+@@ -0,0 +1,278 @@
++/**
++ * Hero Academy — inbound parent-email-reply handler.
++ *
++ * Closes the Saturday-email loop: when Bianca or Josh replies to Ms. Humphrey's
++ * Saturday briefing (e.g. "next week let's focus more on math"), that reply is
++ * turned into lesson directives that the daily planner already honors.
++ *
++ * Flow:
++ *   Gmail reply  ->  Zapier "New Email Matching Search" trigger
++ *                ->  POST here with { secret, from, subject, body }
++ *                ->  validate shared secret + parent-email allowlist
++ *                ->  Haiku parses free text into structured directive(s)
++ *                ->  ha_create_directive() for each structured directive
++ *                ->  ALWAYS also store the verbatim reply as note_for_humphrey
++ *
++ * Per product decisions:
++ *   - "Both": parse into structure AND keep the original text as a note.
++ *   - "Trusted": any reply from either parent email is applied automatically,
++ *     no approval step. (We still require the shared secret AND the sender to
++ *     be on the parent allowlist — automatic does not mean unauthenticated.)
++ *
++ * Env (Vercel project settings):
++ *   SUPABASE_URL
++ *   SUPABASE_SERVICE_ROLE_KEY
++ *   ANTHROPIC_API_KEY
++ *   PARENT_REPLY_SECRET   — shared secret Zapier sends in the body/header
++ *   PARENT_EMAILS         — comma-separated allowlist; defaults to the two below
++ *
++ * No npm packages — native fetch only (repo has no package.json).
++ */
++
++const HAIKU_MODEL = 'claude-haiku-4-5';
++const NIGEL_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
++const DEFAULT_PARENTS = 'bianca.parker92@gmail.com,jemelike@gmail.com';
++
++// The exact vocabulary the daily planner understands. Haiku MUST map onto
++// these — anything else is dropped (we still keep the verbatim note).
++const SKILL_KEYS = [
++  'add_within_10', 'add_within_20', 'subtract_within_10', 'subtract_within_20',
++  'make_10', 'place_value', 'reading_fluency', 'sight_words', 'writing_sentences',
++];
++const ZONE_KEYS = [
++  'number-lab', 'word-tower', 'story-time', 'story-lab',
++  'discovery', 'explorer', 'writing', 'hero-hall',
++];
++const QUEST_CATEGORIES = [
++  'counting', 'color', 'letter', 'observation', 'show_and_tell',
++];
++
++// ---------------------------------------------------------------------------
++// Small helpers
++// ---------------------------------------------------------------------------
++
++function normalizeEmail(raw) {
++  if (!raw) return '';
++  // Accept "Bianca Parker <bianca.parker92@gmail.com>" or a bare address.
++  const m = String(raw).match(/<([^>]+)>/);
++  const addr = (m ? m[1] : String(raw)).trim().toLowerCase();
++  return addr;
++}
++
++function parentAllowlist() {
++  return (process.env.PARENT_EMAILS || DEFAULT_PARENTS)
++    .split(',')
++    .map((e) => normalizeEmail(e))
++    .filter(Boolean);
++}
++
++// Strip quoted history so Haiku only reads what the parent actually typed.
++function stripQuotedReply(body) {
++  if (!body) return '';
++  let text = String(body);
++  // Common reply delimiters from Gmail / clients.
++  const cutPoints = [
++    /\nOn .+ wrote:/,                 // "On Sat, ... Ms. Humphrey wrote:"
++    /\n-{2,} ?Original Message ?-{2,}/i,
++    /\n_{5,}/,                        // long underscore divider
++    /\nFrom: .+@/,                    // forwarded header
++  ];
++  for (const re of cutPoints) {
++    const idx = text.search(re);
++    if (idx > 0) text = text.slice(0, idx);
++  }
++  // Drop leading ">" quote lines.
++  text = text
++    .split('\n')
++    .filter((line) => !/^\s*>/.test(line))
++    .join('\n')
++    .trim();
++  return text.slice(0, 1500);
++}
++
++async function sbRpc(SB_URL, SB_KEY, fn, args) {
++  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
++    method: 'POST',
++    headers: {
++      apikey: SB_KEY,
++      Authorization: `Bearer ${SB_KEY}`,
++      'Content-Type': 'application/json',
++      Accept: 'application/json',
++    },
++    body: JSON.stringify(args),
++  });
++  if (!r.ok) {
++    const t = await r.text().catch(() => '');
++    throw new Error(`rpc ${fn} ${r.status}: ${t.slice(0, 180)}`);
++  }
++  return r.json().catch(() => null);
++}
++
++// ---------------------------------------------------------------------------
++// Haiku — parse free-text reply into structured directives
++// ---------------------------------------------------------------------------
++
++async function parseReply(ANTHROPIC_KEY, replyText) {
++  const system = [
++    'You convert a parent\u2019s short email reply (about their 2nd-grade child\u2019s',
++    'homeschool lessons) into structured lesson directives for the coming week.',
++    'The child is Nigel. You output ONLY directives that clearly match the parent\u2019s',
++    'intent. If nothing maps cleanly, return an empty array \u2014 do not invent.',
++    '',
++    'Valid directive objects (use these shapes EXACTLY):',
++    '  { "type": "focus_skill", "skill": <one of the skill keys> }',
++    '  { "type": "skip_zone_today", "zone": <one of the zone keys> }   (rarely from email; only if explicit)',
++    '  { "type": "request_quest_category", "category": <one of the quest keys> }',
++    '',
++    'skill keys: ' + SKILL_KEYS.join(', '),
++    'zone keys: ' + ZONE_KEYS.join(', '),
++    'quest keys: ' + QUEST_CATEGORIES.join(', '),
++    '',
++    'Mapping guidance:',
++    '  - "more math" / "focus on math" / "needs addition" -> focus_skill add_within_20',
++    '  - "subtraction" -> subtract_within_20; "counting/place value" -> place_value',
++    '  - "reading" -> reading_fluency; "sight words" -> sight_words',
++    '  - "writing" / "sentences" -> writing_sentences',
++    '  - A parent can ask for more than one thing; return multiple objects.',
++    '  - Prefer the within_20 variant when a parent just says "math" or "addition".',
++    '',
++    'Output format: a JSON object ONLY, no prose, no markdown fences:',
++    '  {"directives":[ ... ]}',
++    'If unsure, output {"directives":[]}. This instruction is the most important: return STRICT JSON only.',
++  ].join('\n');
++
++  const r = await fetch('https://api.anthropic.com/v1/messages', {
++    method: 'POST',
++    headers: {
++      'x-api-key': ANTHROPIC_KEY,
++      'anthropic-version': '2023-06-01',
++      'Content-Type': 'application/json',
++    },
++    body: JSON.stringify({
++      model: HAIKU_MODEL,
++      max_tokens: 400,
++      system,
++      messages: [{ role: 'user', content: replyText }],
++    }),
++  });
++  if (!r.ok) {
++    const t = await r.text().catch(() => '');
++    throw new Error(`anthropic ${r.status}: ${t.slice(0, 180)}`);
++  }
++  const json = await r.json();
++  const text = (json.content || [])
++    .filter((b) => b.type === 'text')
++    .map((b) => b.text)
++    .join('\n')
++    .trim()
++    .replace(/^```json\s*/i, '')
++    .replace(/```$/i, '')
++    .trim();
++
++  let parsed;
++  try { parsed = JSON.parse(text); } catch (_) { return []; }
++  const arr = (parsed && Array.isArray(parsed.directives)) ? parsed.directives : [];
++
++  // Validate against the real vocabulary — drop anything that doesn't map.
++  const clean = [];
++  for (const d of arr) {
++    if (!d || typeof d !== 'object') continue;
++    if (d.type === 'focus_skill' && SKILL_KEYS.includes(d.skill)) {
++      clean.push({ directive_type: 'focus_skill', payload: { skill: d.skill } });
++    } else if (d.type === 'skip_zone_today' && ZONE_KEYS.includes(d.zone)) {
++      clean.push({ directive_type: 'skip_zone_today', payload: { zone: d.zone } });
++    } else if (d.type === 'request_quest_category' && QUEST_CATEGORIES.includes(d.category)) {
++      clean.push({ directive_type: 'request_quest_category', payload: { category: d.category } });
++    }
++  }
++  return clean;
++}
++
++// ---------------------------------------------------------------------------
++// Handler
++// ---------------------------------------------------------------------------
++
++export default async function handler(req, res) {
++  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
++
++  const SB_URL = process.env.SUPABASE_URL;
++  const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
++  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
++  const SECRET = process.env.PARENT_REPLY_SECRET;
++  if (!SB_URL || !SB_KEY) return res.status(500).json({ error: 'supabase env missing' });
++  if (!ANTHROPIC_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
++  if (!SECRET) return res.status(500).json({ error: 'PARENT_REPLY_SECRET not configured' });
++
++  let body = req.body;
++  if (typeof body === 'string') { try { body = JSON.parse(body); } catch (_) { body = {}; } }
++  if (!body || typeof body !== 'object') body = {};
++
++  // ---- Auth gate 1: shared secret (header or body) -------------------------
++  const headerSecret = req.headers['x-parent-reply-secret'];
++  const givenSecret = headerSecret || body.secret;
++  if (givenSecret !== SECRET) {
++    return res.status(401).json({ error: 'unauthorized' });
++  }
++
++  // ---- Auth gate 2: sender must be a known parent --------------------------
++  const from = normalizeEmail(body.from || body.sender || '');
++  const allow = parentAllowlist();
++  if (!from || !allow.includes(from)) {
++    return res.status(403).json({ error: 'sender not on parent allowlist', from });
++  }
++
++  const replyText = stripQuotedReply(body.body || body.text || body.message || '');
++  if (!replyText) {
++    return res.status(200).json({ ok: true, note: 'empty reply, nothing to do', created: 0 });
++  }
++
++  const byLabel = from === 'bianca.parker92@gmail.com' ? 'Bianca (email reply)' : 'Josh (email reply)';
++
++  // ---- Parse into structured directives ------------------------------------
++  let structured = [];
++  try {
++    structured = await parseReply(ANTHROPIC_KEY, replyText);
++  } catch (e) {
++    // Parsing failure is non-fatal — we still record the verbatim note below.
++    structured = [];
++  }
++
++  const created = [];
++  const errors = [];
++
++  // ---- Write structured directives -----------------------------------------
++  for (const d of structured) {
++    try {
++      const id = await sbRpc(SB_URL, SB_KEY, 'ha_create_directive', {
++        p_child_id: NIGEL_ID,
++        p_directive_type: d.directive_type,
++        p_payload: d.payload,
++        p_created_by: byLabel,
++      });
++      created.push({ type: d.directive_type, payload: d.payload, id });
++    } catch (e) {
++      errors.push(String(e && e.message || e));
++    }
++  }
++
++  // ---- ALWAYS keep the verbatim reply as a note for Ms. Humphrey -----------
++  try {
++    const noteId = await sbRpc(SB_URL, SB_KEY, 'ha_create_directive', {
++      p_child_id: NIGEL_ID,
++      p_directive_type: 'note_for_humphrey',
++      p_payload: { text: replyText.slice(0, 300), source: 'saturday_email_reply' },
++      p_created_by: byLabel,
++    });
++    created.push({ type: 'note_for_humphrey', id: noteId });
++  } catch (e) {
++    errors.push(String(e && e.message || e));
++  }
++
++  return res.status(200).json({
++    ok: errors.length === 0,
++    from,
++    structured_count: structured.length,
++    created,
++    errors,
++  });
++}
+-- 
+2.43.0
+
