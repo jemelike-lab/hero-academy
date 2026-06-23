@@ -1,0 +1,12 @@
+# Deploy scratch (Claude apply scripts, transferred patches)
+apply-*.py
+*.patch
+
+# Editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Node (defensive)
+node_modules/
