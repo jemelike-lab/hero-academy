@@ -83,6 +83,12 @@ export default async function handler(req, res) {
   const date = String(req.query.date || '').trim();
   const childId = String(req.query.child_id || '').trim();
   const force = String(req.query.force || '').trim() === '1';
+  // v162: optional explicit subject lineup (one per course, in order). When
+  // present, it overrides Haiku's own subject selection so a caller (the
+  // weekly-curriculum cron) can guarantee balanced coverage across the week.
+  const forcedSubjects = String(req.query.subjects || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    .filter((s) => SUBJECT_BY_KEY[s]);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: 'bad_request', detail: 'date must be YYYY-MM-DD' });
@@ -140,10 +146,10 @@ export default async function handler(req, res) {
 
   let plan;
   try {
-    plan = await generatePlanWithHaiku(ANTHROPIC_KEY, date, recentSubjects);
+    plan = await generatePlanWithHaiku(ANTHROPIC_KEY, date, recentSubjects, forcedSubjects);
   } catch (e) {
     console.log('[lesson-plan-day] Haiku failed, returning deterministic fallback:', String(e).slice(0, 200));
-    plan = fallbackPlan(date, recentSubjects);
+    plan = fallbackPlan(date, recentSubjects, forcedSubjects);
     plan.source = 'fallback';
   }
 
@@ -165,9 +171,32 @@ export default async function handler(req, res) {
 // =====================================================================
 // Haiku call
 // =====================================================================
-async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
+async function generatePlanWithHaiku(apiKey, date, recentSubjects, forcedSubjects) {
   const recentJson = JSON.stringify(recentSubjects);
   const dow = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+
+  // v162: when the caller supplies an explicit 4-subject lineup, instruct
+  // Haiku to use exactly those (normalizePlan also pins them). Otherwise fall
+  // back to the original "pick 4 + avoid yesterday" guidance.
+  const forced = Array.isArray(forcedSubjects) && forcedSubjects.length === 4 ? forcedSubjects : null;
+  const subjectGuidance = forced
+    ? [
+        '== ASSIGNED SUBJECTS (MANDATORY) ==',
+        'Use EXACTLY these 4 subjects, one per course, in this order. Do NOT substitute, drop, or reorder them:',
+        forced.map((s, i) => `  Course ${i + 1} = "${s}"`).join('\n'),
+        'Write 4 topics for each assigned subject following the per-course content rules below.',
+      ].join('\n')
+    : [
+        '== STRUCTURE RULES ==',
+        'Pick exactly 4 subjects. Course order is FIXED by groups:',
+        '  Course 1 = always "math"',
+        '  Courses 2 and 3 = two DIFFERENT subjects from the literacy group (reading, spelling, writing, grammar, vocabulary)',
+        '  Course 4 = either "science" or "social" (visual group)',
+        '',
+        '== ANTI-REPETITION ==',
+        'Below is the child\'s recent subject history (last 7 days). Avoid repeating a literacy or visual subject he had yesterday. Math is always slot 1 regardless.',
+        'Recent: ' + recentJson,
+      ].join('\n');
 
   // Haiku weights recency — put the strict schema example LAST.
   const systemPrompt = [
@@ -186,15 +215,7 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
     '  science    (board_mode: image)   — life/earth/physical science, weather, animals, plants, simple machines',
     '  social     (board_mode: image)   — Maryland geography & history, US symbols, communities, maps, holidays',
     '',
-    '== STRUCTURE RULES ==',
-    'Pick exactly 4 subjects. Course order is FIXED by groups:',
-    '  Course 1 = always "math"',
-    '  Courses 2 and 3 = two DIFFERENT subjects from the literacy group (reading, spelling, writing, grammar, vocabulary)',
-    '  Course 4 = either "science" or "social" (visual group)',
-    '',
-    '== ANTI-REPETITION ==',
-    'Below is the child\'s recent subject history (last 7 days). Avoid repeating a literacy or visual subject he had yesterday. Math is always slot 1 regardless.',
-    'Recent: ' + recentJson,
+    subjectGuidance,
     '',
     '== PER-COURSE CONTENT ==',
     'Each course has EXACTLY 4 topics. Each topic is something Ms. Humphrey can teach in roughly 90-150 seconds on a digital board, so four topics fill a 7-10 minute course. No fewer than 4. No more than 4.',
@@ -266,14 +287,14 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects) {
     const m = text.match(/\{[\s\S]*\}/);
     if (m) parsed = JSON.parse(m[0]); else throw new Error('unparseable_haiku_json');
   }
-  return normalizePlan(parsed, date);
+  return normalizePlan(parsed, date, forced);
 }
 
 // =====================================================================
 // Normalize: clamp values, enforce subject pool + order rules,
 // fill missing board_mode / image_keywords from canonical pool.
 // =====================================================================
-function normalizePlan(raw, date) {
+function normalizePlan(raw, date, forcedSubjects) {
   const out = {
     date,
     theme: String(raw.theme || 'Daily lessons').slice(0, 60),
@@ -283,7 +304,10 @@ function normalizePlan(raw, date) {
   const list = Array.isArray(raw.courses) ? raw.courses.slice(0, 4) : [];
   for (let i = 0; i < list.length; i++) {
     const c = list[i] || {};
-    const subjectKey = String(c.subject || '').toLowerCase().trim();
+    // v162: if the caller forced a subject for this slot, pin it regardless of
+    // what Haiku returned, so the lineup is guaranteed.
+    const forcedKey = Array.isArray(forcedSubjects) && forcedSubjects[i] ? forcedSubjects[i] : null;
+    const subjectKey = forcedKey || String(c.subject || '').toLowerCase().trim();
     const meta = SUBJECT_BY_KEY[subjectKey] || SUBJECT_BY_KEY.math;
     const topicsRaw = Array.isArray(c.topics) ? c.topics.slice(0, 4) : [];
     const topics = topicsRaw.map((t, j) => ({
@@ -313,7 +337,7 @@ function normalizePlan(raw, date) {
   }
   while (out.courses.length < 4) {
     // Pad with deterministic fallback so client always has 4 courses
-    const fallback = fallbackPlan(date, []);
+    const fallback = fallbackPlan(date, [], forcedSubjects);
     out.courses.push(fallback.courses[out.courses.length]);
   }
   return out;
@@ -324,7 +348,7 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 // =====================================================================
 // Deterministic fallback if Haiku is unavailable
 // =====================================================================
-function fallbackPlan(date, recent) {
+function fallbackPlan(date, recent, forcedSubjects) {
   const doy = (() => {
     const d = new Date(date + 'T12:00:00');
     const start = new Date(d.getFullYear(), 0, 0);
@@ -338,7 +362,9 @@ function fallbackPlan(date, recent) {
     ? literacy[(doy + 3) % literacy.length]
     : literacy[(doy + 2) % literacy.length];
   const vis = visual[doy % visual.length];
-  const subjects = ['math', lit1, lit2, vis];
+  const subjects = (Array.isArray(forcedSubjects) && forcedSubjects.length === 4)
+    ? forcedSubjects
+    : ['math', lit1, lit2, vis];
 
   const seedTopics = {
     math: [

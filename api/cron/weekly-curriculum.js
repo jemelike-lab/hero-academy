@@ -48,6 +48,20 @@ const LITERACY_VISUAL = new Set([
   'reading', 'spelling', 'writing', 'grammar', 'vocabulary', 'science', 'social',
 ]);
 
+// Deterministic weekly coverage. Course order is fixed (1=math, 2&3=literacy,
+// 4=visual). We assign the lineup ourselves instead of letting Haiku pick,
+// because left to itself Haiku over-selects writing/science and skips reading
+// and spelling entirely. This guarantees a reading-heavy, balanced 2nd-grade
+// week the parents can rely on. Weekly tallies: reading x4, spelling x2,
+// writing x2, grammar x1, vocabulary x1; science x3, social x2 (math daily).
+const WEEK_TEMPLATE = [
+  ['math', 'reading', 'spelling', 'science'],    // Mon
+  ['math', 'reading', 'writing', 'social'],      // Tue
+  ['math', 'reading', 'grammar', 'science'],     // Wed
+  ['math', 'reading', 'vocabulary', 'social'],   // Thu
+  ['math', 'spelling', 'writing', 'science'],    // Fri
+];
+
 const SUBJECT_EMOJI = {
   math: '\u{1F522}',        // 🔢
   reading: '\u{1F4D6}',     // 📖
@@ -96,10 +110,11 @@ export default async function handler(req, res) {
   // ---------- 3. Phase 1: day plans (sequential, with rotation feed-forward) ----------
   const week = [];
   const errors = [];
-  let prevDayLV = [];
-  for (const date of dates) {
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i];
+    const subjects = WEEK_TEMPLATE[i] || WEEK_TEMPLATE[WEEK_TEMPLATE.length - 1];
     try {
-      const plan = await callDayPlan(base, date, NIGEL_ID, useCache ? [] : prevDayLV, useCache);
+      const plan = await callDayPlan(base, date, NIGEL_ID, subjects, useCache);
       week.push({
         date,
         dow: dowLong(date),
@@ -115,13 +130,9 @@ export default async function handler(req, res) {
           questions: [], // filled in phase 2
         })),
       });
-      prevDayLV = (plan.courses || [])
-        .filter((c) => LITERACY_VISUAL.has(c.subject))
-        .map((c) => c.subject);
     } catch (e) {
       errors.push(`plan ${date}: ${String(e && e.message || e).slice(0, 160)}`);
       week.push({ date, dow: dowLong(date), theme: '', source: 'error', courses: [] });
-      prevDayLV = [];
     }
   }
 
@@ -213,12 +224,12 @@ export default async function handler(req, res) {
 // Sub-call helpers (internal fetch to our own public GET endpoints)
 // ---------------------------------------------------------------------------
 
-async function callDayPlan(base, date, childId, extraRecent, useCache) {
+async function callDayPlan(base, date, childId, subjects, useCache) {
   const u = new URL(`${base}/api/class-time/lesson-plan-day`);
   u.searchParams.set('date', date);
   u.searchParams.set('child_id', childId);
   if (!useCache) u.searchParams.set('force', '1');
-  if (extraRecent && extraRecent.length) u.searchParams.set('extra_recent', extraRecent.join(','));
+  if (subjects && subjects.length) u.searchParams.set('subjects', subjects.join(','));
   const r = await fetch(u.toString());
   if (!r.ok) throw new Error(`lesson-plan-day ${r.status}`);
   const j = await r.json();
