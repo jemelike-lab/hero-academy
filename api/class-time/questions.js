@@ -119,12 +119,27 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'no_api_key' });
   }
 
-  let questions;
+  // Generate via Haiku WITH RETRIES. A single transient failure (rate limit,
+  // a JSON hiccup, or a batch where too many math questions fail the strict
+  // per-question validation) used to drop the whole course straight to a
+  // 3-question stub. We now retry up to 3x and keep the best Haiku result,
+  // only falling back if every attempt yields fewer than 3 valid questions.
+  let questions = null;
   let source = 'haiku';
-  try {
-    questions = await generateWithHaiku(ANTHROPIC_KEY, subject, coursePlan, date);
-  } catch (e) {
-    console.log('[ct-questions] Haiku failed, returning fallback:', String(e).slice(0, 300));
+  let best = [];
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const got = await generateWithHaiku(ANTHROPIC_KEY, subject, coursePlan, date);
+      if (Array.isArray(got) && got.length > best.length) best = got;
+      if (best.length >= 6) break; // healthy set — stop early
+    } catch (e) {
+      console.log(`[ct-questions] haiku attempt ${attempt} failed:`, String(e).slice(0, 200));
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * attempt));
+  }
+  if (best.length >= 3) {
+    questions = best; // real Haiku content (full or partial) beats the stub bank
+  } else {
     questions = fallbackBank(subject);
     source = 'fallback';
   }
