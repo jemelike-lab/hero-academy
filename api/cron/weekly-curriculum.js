@@ -43,6 +43,7 @@ const NIGEL_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
 const DEFAULT_RECIPIENTS = 'bianca.parker92@gmail.com,jemelike@gmail.com';
 const HAIKU_MODEL = 'claude-haiku-4-5';
 const SCHOOL_DAYS = 5; // Mon..Fri
+const QUESTIONS_TARGET = 8; // full set per course (matches QUESTIONS_PER_COURSE in questions.js)
 
 const LITERACY_VISUAL = new Set([
   'reading', 'spelling', 'writing', 'grammar', 'vocabulary', 'science', 'social',
@@ -136,21 +137,51 @@ export default async function handler(req, res) {
     }
   }
 
-  // ---------- 4. Phase 2: questions (bounded concurrency) ----------
+  // ---------- 4. Phase 2: questions (bounded concurrency, gentler burst) ----------
   const tasks = [];
   week.forEach((day, di) => {
     day.courses.forEach((c) => tasks.push({ di, date: day.date, course_order: c.order }));
   });
-  await mapLimit(tasks, 5, async (t) => {
+  const applyQuestions = (t, q) => {
+    const course = week[t.di].courses.find((c) => c.order === t.course_order);
+    if (course) {
+      course.questions = Array.isArray(q.questions) ? q.questions : [];
+      course.q_source = q.source || 'unknown';
+    }
+    return course;
+  };
+  // Concurrency 3 (was 5) so the Monday burst is gentler on the API and less
+  // likely to provoke rate-limit fallbacks in the first place.
+  await mapLimit(tasks, 3, async (t) => {
     try {
       const q = await callQuestions(base, t.date, NIGEL_ID, t.course_order, useCache);
-      const day = week[t.di];
-      const course = day.courses.find((c) => c.order === t.course_order);
-      if (course) course.questions = Array.isArray(q.questions) ? q.questions : [];
+      applyQuestions(t, q);
     } catch (e) {
       errors.push(`q ${t.date} c${t.course_order}: ${String(e && e.message || e).slice(0, 120)}`);
     }
   });
+
+  // No-fallback guard: the locked weekly email should be 100% freshly generated.
+  // Any course that still came back as a stub fallback gets re-generated (force),
+  // up to 2 more attempts. The questions endpoint itself now over-generates and
+  // retries internally, so a single re-call almost always lands real content.
+  if (!useCache) {
+    for (let pass = 0; pass < 2; pass++) {
+      const stragglers = tasks.filter((t) => {
+        const c = week[t.di].courses.find((c) => c.order === t.course_order);
+        return c && c.q_source === 'fallback';
+      });
+      if (!stragglers.length) break;
+      await mapLimit(stragglers, 2, async (t) => {
+        try {
+          const q = await callQuestions(base, t.date, NIGEL_ID, t.course_order, false);
+          applyQuestions(t, q);
+        } catch (e) {
+          errors.push(`q-retry ${t.date} c${t.course_order}: ${String(e && e.message || e).slice(0, 120)}`);
+        }
+      });
+    }
+  }
 
   // ---------- 5. Ms. Humphrey week intro (failsafe) ----------
   let intro;
@@ -202,6 +233,10 @@ export default async function handler(req, res) {
 
   const totalQuestions = week.reduce(
     (n, d) => n + d.courses.reduce((m, c) => m + (c.questions ? c.questions.length : 0), 0), 0);
+  const fallbackCourses = week.reduce(
+    (n, d) => n + d.courses.filter((c) => c.q_source === 'fallback').length, 0);
+  const shortCourses = week.reduce(
+    (n, d) => n + d.courses.filter((c) => (c.questions ? c.questions.length : 0) < QUESTIONS_TARGET).length, 0);
 
   return res.status(200).json({
     ok: true,
@@ -214,6 +249,8 @@ export default async function handler(req, res) {
       days: week.length,
       courses: week.reduce((n, d) => n + d.courses.length, 0),
       questions: totalQuestions,
+      fallback_courses: fallbackCourses,
+      short_courses: shortCourses,
     },
     errors: errors.length ? errors : undefined,
     html_preview: dryRun ? html : undefined,

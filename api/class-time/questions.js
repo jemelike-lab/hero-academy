@@ -38,6 +38,10 @@
 const HAIKU_MODEL = 'claude-haiku-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
 const QUESTIONS_PER_COURSE = 8;
+// Over-generation buffer: ask Haiku for more than we keep, so that questions
+// dropped by strict validation (esp. math referencing ten-frames/number-lines)
+// trim the surplus instead of starving the set below 8 and triggering fallback.
+const GEN_TARGET = 12;
 
 const ALLOWED_BOARD_TOOLS = new Set(['writeWord', 'writeLetter', 'drawEquation', 'showVisual', 'clearBoard']);
 const ALLOWED_SUBJECTS = new Set([
@@ -191,11 +195,12 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     `Today is ${dow}, ${date}.`,
     '',
     `SUBJECT: ${subject}`,
-    `COURSE TOPICS (use all 4, ~2 questions per topic):`,
+    `COURSE TOPICS (use all 4, ~3 questions per topic):`,
     topicLines,
     '',
     '== ABSOLUTE RULES ==',
-    `- Generate EXACTLY ${QUESTIONS_PER_COURSE} questions.`,
+    `- Generate ${GEN_TARGET} questions. We keep only the best ${QUESTIONS_PER_COURSE}, so producing a few extra strong ones is good — never produce fewer than ${GEN_TARGET}.`,
+    '- The question TEXT must be fully self-contained. NEVER reference a ten-frame, number line, dots/objects "to count", or anything "shown above/below/here" — the card shows only text and answer buttons, so any such question is unanswerable and will be discarded.',
     '- Each question has 3 OR 4 options (prefer 4 for math/spelling, 3 is fine for reading/science).',
     '- Each option string ≤ 56 characters. MUST be a complete sentence with closing punctuation. NEVER truncate mid-word.',
     '- correct_index is the 0-based index of the right answer.',
@@ -289,7 +294,7 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '        "outro": "string ≤ 200 chars"',
     '      }',
     '    }',
-    `    // exactly ${QUESTIONS_PER_COURSE} of these`,
+    `    // ${GEN_TARGET} of these; the best ${QUESTIONS_PER_COURSE} valid ones are kept`,
     '  ]',
     '}',
   ].join('\n');
@@ -303,10 +308,10 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     },
     body: JSON.stringify({
       model: HAIKU_MODEL,
-      max_tokens: 4096,
+      max_tokens: 8000,
       system: systemPrompt,
       messages: [
-        { role: 'user', content: `Generate ${QUESTIONS_PER_COURSE} fresh ${subject} questions for today's course. Return only the JSON object.` },
+        { role: 'user', content: `Generate ${GEN_TARGET} fresh ${subject} questions for today's course (we keep the best ${QUESTIONS_PER_COURSE}). Return only the JSON object.` },
       ],
     }),
   });
