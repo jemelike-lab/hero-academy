@@ -6,6 +6,10 @@
       "schedule": "0 12 * * 6"
     },
     {
+      "path": "/api/cron/weekly-curriculum",
+      "schedule": "0 11 * * 1"
+    },
+    {
       "path": "/api/cron/healthcheck",
       "schedule": "0 */6 * * *"
     },

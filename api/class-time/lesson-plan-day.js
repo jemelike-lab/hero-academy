@@ -122,6 +122,16 @@ export default async function handler(req, res) {
     console.log('[lesson-plan-day] recent subjects lookup failed (continuing):', String(e).slice(0, 200));
   }
 
+  // Cross-day rotation hint (v162). The weekly-curriculum cron passes the
+  // literacy/visual subjects it assigned to YESTERDAY's pre-generated day so
+  // Haiku rotates fairly across a whole pre-planned week, not just against
+  // last week's completed history. Backward-compatible: absent → no-op.
+  const extraRecent = String(req.query.extra_recent || '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (extraRecent.length) {
+    recentSubjects = recentSubjects.concat(extraRecent);
+  }
+
   // ---- 3. Generate via Haiku ----
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_KEY) {
