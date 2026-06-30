@@ -940,6 +940,33 @@
   // STRING. Server (Haiku) questions already include it; coded math-bank and
   // V171_BANK questions have a verified-aligned correct_index, so we derive it
   // from that. onAnswerClick then checks by TEXT, immune to any index drift.
+  // v181: client-side deterministic math verifier — a safety net for questions
+  // that bypass the server generator (cached rows, coded math-bank interleave).
+  // Recomputes the answer from the question text; if an option matches the true
+  // answer, that option becomes correct_answer. Non-math returns null (untouched).
+  function ctComputeMathAnswer(question) {
+    const q = String(question || '').trim();
+    let m = q.match(/(\d+)\s*([+\-])\s*(\d+)/);
+    if (m) { const a = parseInt(m[1],10), op = m[2], b = parseInt(m[3],10); return op === '+' ? a + b : a - b; }
+    const nums = (q.match(/\d+/g) || []).map(Number);
+    if (nums.length === 2) {
+      const l = q.toLowerCase();
+      if (/\b(more|gets|got|gains?|adds?|altogether|in all|total|combined|sum)\b/.test(l)) return nums[0] + nums[1];
+      if (/\b(less|fewer|gives? away|loses?|lost|left|remain|takes? away|eats?|spent)\b/.test(l)) return nums[0] - nums[1];
+    }
+    let sc = q.match(/skip[\- ]count.*?by\s*(\d+).*?after\s*(\d+)/i);
+    if (sc) return parseInt(sc[2],10) + parseInt(sc[1],10);
+    let seq = q.match(/(\d+(?:\s*,\s*\d+){2,})/);
+    if (seq && /next/i.test(q)) {
+      const arr = seq[1].split(/\s*,\s*/).map(Number);
+      const step = arr[1] - arr[0];
+      if (arr.every((v,i) => i === 0 || v - arr[i-1] === step)) return arr[arr.length-1] + step;
+    }
+    let pv = q.match(/(\d+)\s+has how many tens/i);
+    if (pv) return Math.floor(parseInt(pv[1],10) / 10);
+    return null;
+  }
+
   function ensureCorrectAnswer(q) {
     if (!q || !Array.isArray(q.options)) return q;
     if (q.correct_answer == null
@@ -947,6 +974,24 @@
         && q.correct_index >= 0
         && q.correct_index < q.options.length) {
       q.correct_answer = q.options[q.correct_index];
+    }
+    // v181: verify math answers deterministically (safety net for cached / coded
+    // questions that never passed through the server verifier). If an option
+    // matches the recomputed true answer, that becomes the correct answer.
+    if (Array.isArray(q.options) && q.question) {
+      const truth = ctComputeMathAnswer(q.question);
+      if (truth !== null) {
+        const idx = q.options.findIndex((o) => {
+          const on = String(o == null ? '' : o).toLowerCase().replace(/\s+/g, ' ').trim();
+          if (on === String(truth).toLowerCase()) return true;
+          const mm = on.match(/^-?\d+/);
+          return mm && parseInt(mm[0], 10) === truth;
+        });
+        if (idx >= 0) {
+          q.correct_answer = q.options[idx];
+          q.correct_index = idx;
+        }
+      }
     }
     // v180: shuffle options on the client so a curated/bank question (authored
     // correct-answer-first) doesn't always show the answer in slot A. Correctness

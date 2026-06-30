@@ -377,6 +377,56 @@ function shuffleQuestionOptions(q) {
   return { ...q, options: opts, correct_index: finalIdx, correct_answer: opts[finalIdx] };
 }
 
+// v181: DETERMINISTIC MATH VERIFIER. Models reliably reason correctly but
+// frequently emit a wrong final number (e.g. "14 + 8" -> answer "21"). The
+// content-keyed fix only makes index/string AGREE — it does not check the math.
+// This recomputes the answer from the question text and either repairs the key
+// (if the true answer is among the options) or rejects the question (if not).
+// Returns: { ok:true, q } | { ok:false } | { skip:true } (non-math, untouched).
+function computeMathAnswer(question) {
+  const q = String(question || '').trim();
+  // Bare arithmetic: "What is 14 + 8?", "27 + 15 = ?"
+  let m = q.match(/(\d+)\s*([+\-])\s*(\d+)/);
+  if (m) { const a = parseInt(m[1],10), op = m[2], b = parseInt(m[3],10); return op === '+' ? a + b : a - b; }
+  // Two-number word problem keyed by language
+  const nums = (q.match(/\d+/g) || []).map(Number);
+  if (nums.length === 2) {
+    const l = q.toLowerCase();
+    if (/\b(more|gets|got|gains?|adds?|altogether|in all|total|combined|sum)\b/.test(l)) return nums[0] + nums[1];
+    if (/\b(less|fewer|gives? away|loses?|lost|left|remain|takes? away|eats?|spent)\b/.test(l)) return nums[0] - nums[1];
+  }
+  // Skip-count by N after M
+  let sc = q.match(/skip[\- ]count.*?by\s*(\d+).*?after\s*(\d+)/i);
+  if (sc) return parseInt(sc[2],10) + parseInt(sc[1],10);
+  // Skip-count sequence "5, 10, 15, 20, 25. What comes next?"
+  let seq = q.match(/(\d+(?:\s*,\s*\d+){2,})/);
+  if (seq && /next/i.test(q)) {
+    const arr = seq[1].split(/\s*,\s*/).map(Number);
+    const step = arr[1] - arr[0];
+    if (arr.every((v,i) => i === 0 || v - arr[i-1] === step)) return arr[arr.length-1] + step;
+  }
+  // Place value "35 has how many tens"
+  let pv = q.match(/(\d+)\s+has how many tens/i);
+  if (pv) return Math.floor(parseInt(pv[1],10) / 10);
+  return null; // not deterministically verifiable
+}
+
+function verifyMathAnswer(question, options, correctAnswer) {
+  const truth = computeMathAnswer(question);
+  if (truth === null) return { skip: true };
+  const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim();
+  // Find the option that equals the true answer (numeric-aware: "3 tens" -> 3 only
+  // when the whole option is that number; we match on the leading integer).
+  const idx = options.findIndex((o) => {
+    const on = norm(o);
+    if (on === norm(String(truth))) return true;
+    const mm = on.match(/^-?\d+/);
+    return mm && parseInt(mm[0], 10) === truth;
+  });
+  if (idx < 0) return { ok: false };                 // truth not present -> reject
+  return { ok: true, index: idx, answer: options[idx] };
+}
+
 function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return null;
   const topic = clipStr(q.topic, 80);
@@ -414,6 +464,17 @@ function normalizeQuestion(q) {
     .replace(/[^\w\s'.&-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 64);
   const remediation = normalizeRemediation(q.remediation);
   if (!remediation) return null;
+
+  // v181: verify math answers deterministically. Repair the key if the true
+  // answer is among the options; reject the question if it is not.
+  let verifiedAnswer = options[correct_index];
+  const mv = verifyMathAnswer(question, options, q.correct_answer);
+  if (mv && mv.ok === false) return null;            // unfixable bad math -> drop
+  if (mv && mv.ok === true) {
+    correct_index = mv.index;
+    verifiedAnswer = mv.answer;
+  }
+
   return shuffleQuestionOptions({
     topic: topic || 'practice',
     question,
@@ -421,7 +482,7 @@ function normalizeQuestion(q) {
     visual,
     options,
     correct_index,
-    correct_answer: options[correct_index],
+    correct_answer: verifiedAnswer,
     explanation,
     hint,
     remediation,
