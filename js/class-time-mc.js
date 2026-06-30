@@ -948,6 +948,20 @@
         && q.correct_index < q.options.length) {
       q.correct_answer = q.options[q.correct_index];
     }
+    // v180: shuffle options on the client so a curated/bank question (authored
+    // correct-answer-first) doesn't always show the answer in slot A. Correctness
+    // is checked by STRING value in onAnswerClick, so reordering needs no index
+    // bookkeeping — we keep correct_answer and recompute correct_index.
+    if (q.correct_answer != null && Array.isArray(q.options) && q.options.length > 1) {
+      const opts = q.options.slice();
+      for (let i = opts.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = opts[i]; opts[i] = opts[j]; opts[j] = tmp;
+      }
+      q.options = opts;
+      const ci = opts.indexOf(q.correct_answer);
+      if (ci >= 0) q.correct_index = ci;
+    }
     return q;
   }
 
@@ -1521,6 +1535,23 @@
     const subject = subjectForCourse(courseIdx);
     state.subject = subject;
     state.courseIdx = courseIdx;
+
+    // v180: PRIMARY curated source for character-level subjects. Capitalization,
+    // punctuation, phonics, spelling, sentence-structure are tasks where Haiku
+    // produces wrong/ambiguous answer keys. The curated WritingBank has 60
+    // questions, each correct BY CONSTRUCTION, rotated by date (no daily/weekly
+    // repeat). Haiku is bypassed for these subjects. Reading + Writing/Spelling
+    // route here.
+    const BANK_SUBJECTS = ['writing', 'spelling', 'reading', 'grammar'];
+    if (BANK_SUBJECTS.indexOf(subject) >= 0 &&
+        NS.WritingBank && typeof NS.WritingBank.pickForDate === 'function') {
+      const picked = NS.WritingBank.pickForDate(state.today, QUESTIONS_PER_COURSE);
+      if (picked && picked.length >= 3) {
+        console.log('[class-time-mc] ' + subject + ': ' + picked.length + ' from curated WritingBank (primary, Haiku bypassed)');
+        return picked.slice(0, QUESTIONS_PER_COURSE);
+      }
+    }
+
     let serverQuestions = null;
     let serverSource = 'unknown';
     try {
