@@ -44,26 +44,39 @@
     'writing':     'story-lab.html',
     'hero-hall':   'hero-hall.html',
     'letter-lab':  'letter-lab.html',     // v99: letter practice with Humphrey vision
+    'sound-stage': 'sound-stage.html',    // v204: music slot for the enrich rotation
+    'creation':    'creation-studio.html',// v204: art slot for the enrich rotation
+    'gym':         'training-gym.html',   // v204: PE slot for the enrich rotation
   };
 
   var ZONE_EMOJI = {
     'word-tower': '\ud83d\udcd6',
     'story-time': '\ud83d\udcda',
-    'number-lab': '\ud83d\udd22',
+    'number-lab': '\ud83e\uddea',   // v204: cauldron café flask, matches home page
     'discovery':  '\ud83d\udd2c',
     'explorer':   '\ud83c\udf0d',
     'writing':    '\u270d\ufe0f',
     'hero-hall':  '\ud83c\udfc6',
-    'letter-lab': '\u270d\ufe0f',       // v99: same pencil glyph as writing
+    'letter-lab': '\u270f\ufe0f',
+    'sound-stage':'\ud83c\udfb5',   // v204
+    'creation':   '\ud83c\udfa8',   // v204
+    'gym':        '\ud83d\udcaa',   // v204
   };
 
   // Subject → presentation. Used for the colored subject badge per step.
   var SUBJECT_META = {
     'reading': { label: 'Reading', color: '#14b8d4', emoji: '\ud83d\udcd6' },
-    'math':    { label: 'Math',    color: '#ff8b3d', emoji: '\ud83d\udd22' },
+    'math':    { label: 'Math',    color: '#ff8b3d', emoji: '\ud83e\uddea' },
     'writing': { label: 'Writing', color: '#a855f7', emoji: '\u270d\ufe0f' },
     'science': { label: 'Science', color: '#2ec27e', emoji: '\ud83d\udd2c' },
     'social':  { label: 'World',   color: '#ec4899', emoji: '\ud83c\udf0d' },
+    // v204 — enrich-slot subjects (music, art, pe) added so the new rotation
+    // gets its own colored chip on the mission card instead of falling through
+    // to the default golden chip.
+    'music':   { label: 'Music',   color: '#14b8d4', emoji: '\ud83c\udfb5' },
+    'art':     { label: 'Art',     color: '#ec4899', emoji: '\ud83c\udfa8' },
+    'pe':      { label: 'Move',    color: '#ef4444', emoji: '\ud83d\udcaa' },
+    'enrich':  { label: 'Extra',   color: '#14b8d4', emoji: '\u2728' },
     'trophy':  { label: 'Win',     color: '#ffd147', emoji: '\ud83c\udfc6' },
   };
   function subjectMeta(subject) {
@@ -208,6 +221,9 @@
       'explorer':   'social',
       'writing':    'writing',
       'letter-lab': 'writing',
+      'sound-stage':'music',          // v204
+      'creation':   'art',            // v204
+      'gym':        'pe',             // v204
       'hero-hall':  'trophy',
     };
     return map[zoneId] || 'reading';
