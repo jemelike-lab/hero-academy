@@ -220,6 +220,8 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '    "Chesapeake Bay", "blue crab", "Maryland state flag", "monarch butterfly", "George Washington".',
     '    Pick a concrete, depictable thing tied to the question. For pure arithmetic/math where a photo',
     '    does not help, set "visual" to "" (empty string).',
+    '    Do the SAME for reading-FLUENCY questions (reading smoothly / saying words in',
+    '    order) — the answer is in the sentence, so a photo is just noise; set visual to "".',
     'The QUESTION then checks understanding of the description. The answer is ALWAYS findable in the',
     'description — never a fact Nigel must already know.',
     'GOOD (social): description "The Chesapeake Bay is a huge body of water in Maryland, full of fish',
@@ -327,7 +329,7 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
   if (!parsed || !Array.isArray(parsed.questions)) {
     throw new Error('model_no_questions');
   }
-  const valid = parsed.questions.map(normalizeQuestion).filter(Boolean);
+  const valid = parsed.questions.map((q) => normalizeQuestion(q, subject)).filter(Boolean);
   if (valid.length < 3) {
     throw new Error(`too_few_valid_questions: got ${valid.length}`);
   }
@@ -377,57 +379,44 @@ function shuffleQuestionOptions(q) {
   return { ...q, options: opts, correct_index: finalIdx, correct_answer: opts[finalIdx] };
 }
 
-// v181: DETERMINISTIC MATH VERIFIER. Models reliably reason correctly but
-// frequently emit a wrong final number (e.g. "14 + 8" -> answer "21"). The
-// content-keyed fix only makes index/string AGREE — it does not check the math.
-// This recomputes the answer from the question text and either repairs the key
-// (if the true answer is among the options) or rejects the question (if not).
-// Returns: { ok:true, q } | { ok:false } | { skip:true } (non-math, untouched).
-function computeMathAnswer(question) {
-  const q = String(question || '').trim();
-  // Bare arithmetic: "What is 14 + 8?", "27 + 15 = ?"
-  let m = q.match(/(\d+)\s*([+\-])\s*(\d+)/);
-  if (m) { const a = parseInt(m[1],10), op = m[2], b = parseInt(m[3],10); return op === '+' ? a + b : a - b; }
-  // Two-number word problem keyed by language
-  const nums = (q.match(/\d+/g) || []).map(Number);
-  if (nums.length === 2) {
-    const l = q.toLowerCase();
-    if (/\b(more|gets|got|gains?|adds?|altogether|in all|total|combined|sum)\b/.test(l)) return nums[0] + nums[1];
-    if (/\b(less|fewer|gives? away|loses?|lost|left|remain|takes? away|eats?|spent)\b/.test(l)) return nums[0] - nums[1];
-  }
-  // Skip-count by N after M
-  let sc = q.match(/skip[\- ]count.*?by\s*(\d+).*?after\s*(\d+)/i);
-  if (sc) return parseInt(sc[2],10) + parseInt(sc[1],10);
-  // Skip-count sequence "5, 10, 15, 20, 25. What comes next?"
-  let seq = q.match(/(\d+(?:\s*,\s*\d+){2,})/);
-  if (seq && /next/i.test(q)) {
-    const arr = seq[1].split(/\s*,\s*/).map(Number);
-    const step = arr[1] - arr[0];
-    if (arr.every((v,i) => i === 0 || v - arr[i-1] === step)) return arr[arr.length-1] + step;
-  }
-  // Place value "35 has how many tens"
-  let pv = q.match(/(\d+)\s+has how many tens/i);
-  if (pv) return Math.floor(parseInt(pv[1],10) / 10);
-  return null; // not deterministically verifiable
+// v196: inline-arithmetic ground truth. Returns the computed integer for a
+// question containing exactly ONE unambiguous "a + b" / "a - b" expression,
+// else null (word problems, chained sums, ranges, dates -> left to the model).
+function arithmeticAnswer(text) {
+  if (!text) return null;
+  const s = String(text);
+  // Chained expressions (a + b + c) are ambiguous to auto-grade -> skip.
+  if (/\d\s*[+\u2212\u2013\u2014\-]\s*\d+\s*[+\u2212\u2013\u2014\-]\s*\d/.test(s)) return null;
+  const all = s.match(/(\d+)\s*([+\u2212\u2013\u2014\-])\s*(\d+)/g) || [];
+  if (all.length !== 1) return null; // 0, or 2+ (e.g. a date "2026-06-29") -> skip
+  const p = /(\d+)\s*([+\u2212\u2013\u2014\-])\s*(\d+)/.exec(all[0]);
+  const a = parseInt(p[1], 10), b = parseInt(p[3], 10);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return p[2] === '+' ? a + b : a - b;
 }
 
-function verifyMathAnswer(question, options, correctAnswer) {
-  const truth = computeMathAnswer(question);
-  if (truth === null) return { skip: true };
-  const norm = (s) => String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim();
-  // Find the option that equals the true answer (numeric-aware: "3 tens" -> 3 only
-  // when the whole option is that number; we match on the leading integer).
-  const idx = options.findIndex((o) => {
-    const on = norm(o);
-    if (on === norm(String(truth))) return true;
-    const mm = on.match(/^-?\d+/);
-    return mm && parseInt(mm[0], 10) === truth;
-  });
-  if (idx < 0) return { ok: false };                 // truth not present -> reject
-  return { ok: true, index: idx, answer: options[idx] };
+// Extract the leading integer from an option string ("22", "22 marbles").
+function optionNumber(opt) {
+  const m = String(opt == null ? '' : opt).match(/-?\d+/);
+  if (!m) return null;
+  const n = parseInt(m[0], 10);
+  return Number.isFinite(n) ? n : null;
 }
 
-function normalizeQuestion(q) {
+// v196: strip the model's leaked chain-of-thought / self-correction out of the
+// description + explanation fields. We saw "Wait—let me recount: 14+1=15…"
+// rendered to Nigel. Drop any sentence/segment with a thinking-out-loud marker;
+// keep the clean teaching sentences.
+const LEAK_MARKERS = /\b(wait|let me (?:re)?(?:count|check|think)|recount|actually,?\s*no|on second thought|hmm+|oops|scratch that|i think i (?:made|mis)|my mistake)\b/i;
+function stripLeakedReasoning(text) {
+  if (!text) return '';
+  const parts = String(text).split(/(?<=[.!?…])\s+|—|--/);
+  const kept = parts.filter((seg) => seg && !LEAK_MARKERS.test(seg));
+  const out = kept.join(' ').replace(/\s+/g, ' ').trim();
+  return out || (LEAK_MARKERS.test(String(text)) ? '' : String(text).trim());
+}
+
+function normalizeQuestion(q, subject) {
   if (!q || typeof q !== 'object') return null;
   const topic = clipStr(q.topic, 80);
   const question = clipStr(q.question, 280);
@@ -455,26 +444,40 @@ function normalizeQuestion(q) {
     if (matchIdx >= 0) correct_index = matchIdx;
   }
   if (!Number.isInteger(correct_index) || correct_index < 0 || correct_index >= options.length) return null;
-  const explanation = clipStr(q.explanation, 200) || '';
+  // v196: NEVER trust the model's stated answer for inline arithmetic. The
+  // checks above only confirm the answer STRING matches an option — they do not
+  // verify the math. We shipped "What is 14 + 8?" keyed to 21 (true = 22)
+  // because Haiku's leaked self-correction picked a wrong intermediate value.
+  // For any math question containing a single clear "a + b" / "a - b", compute
+  // the real answer in code and force the key to it. If the real answer isn't
+  // one of the options, the card is unanswerable -> discard it. Same hard-won
+  // lesson as Cauldron Café v169: recompute, never trust LLM math.
+  if (subject === 'math') {
+    const truth = arithmeticAnswer(question);
+    if (truth !== null) {
+      const truthIdx = options.findIndex((o) => optionNumber(o) === truth);
+      if (truthIdx < 0) return null;     // correct answer not offered -> drop
+      correct_index = truthIdx;          // shuffle re-derives correct_answer from this
+    }
+  }
+  let explanation = clipStr(stripLeakedReasoning(q.explanation), 200) || '';
   const hint = clipStr(q.hint, 150) || 'Try again — you can do this.';
   // v195: teach-then-ask fields. description is shown + read before the question;
   // visual is a clean noun used to fetch a real photo for the dashboard.
-  const description = clipStr(q.description, 240) || '';
-  const visual = String(q.visual == null ? '' : q.visual)
+  const description = clipStr(stripLeakedReasoning(q.description), 240) || '';
+  // v197: fluency-practice questions are about reading MECHANICS (saying the
+  // words in order, smoothly) — the answer lives in the sentence, never in a
+  // picture. Haiku was picking a literal noun from the sentence ("big" -> a
+  // portrait of the tallest woman on record), pure noise on the card. Drop the
+  // visual for any fluency topic (and reading questions framed around reading
+  // "smoothly") so no image is fetched or shown — and it's gone from the weekly
+  // email too, which renders this same field.
+  const isFluencyTopic = /fluen/i.test(topic) ||
+    (subject === 'reading' && /\bsmooth(ly)?\b/i.test(question));
+  const visual = isFluencyTopic ? '' : String(q.visual == null ? '' : q.visual)
     .replace(/[^\w\s'.&-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 64);
   const remediation = normalizeRemediation(q.remediation);
   if (!remediation) return null;
-
-  // v181: verify math answers deterministically. Repair the key if the true
-  // answer is among the options; reject the question if it is not.
-  let verifiedAnswer = options[correct_index];
-  const mv = verifyMathAnswer(question, options, q.correct_answer);
-  if (mv && mv.ok === false) return null;            // unfixable bad math -> drop
-  if (mv && mv.ok === true) {
-    correct_index = mv.index;
-    verifiedAnswer = mv.answer;
-  }
-
   return shuffleQuestionOptions({
     topic: topic || 'practice',
     question,
@@ -482,7 +485,7 @@ function normalizeQuestion(q) {
     visual,
     options,
     correct_index,
-    correct_answer: verifiedAnswer,
+    correct_answer: options[correct_index],
     explanation,
     hint,
     remediation,

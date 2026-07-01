@@ -1,17 +1,16 @@
 // =========================================================================
-// js/clock-activity.js — v186
+// js/clock-activity.js — v189
 //
 // TEACHING-MODE analog clock activity. Runs after the math course in Class
 // Time, before the between-course break overlay.
 //
-// v186 rewrite: the prior version was a 5-question quiz that *tested* whether
-// Nigel could already read a clock. He can't yet. This version TEACHES it
-// from scratch across 5 guided stages, one hand at a time, with animated
-// hands and the hand-being-discussed highlighted. The old quiz still exists
-// as the "graduation" experience once the 2-week teaching window closes.
+// v189: o'clock ONLY. Half past was confusing him alongside the hour-hand
+// concept, so it's pulled out of both the lesson AND the practice quiz until
+// "the hour hand alone" is solid. Re-add a half-past stage + half-past pool
+// entries when ready.
 //
 // Teaching window: first 14 days from FIRST_DAY (Mon 2026-06-15). During the
-// window, start() runs the guided lesson (all 5 stages, every day —
+// window, start() runs the guided lesson (all 4 stages, every day —
 // repetition is the teacher at this age). After the window, start() runs the
 // legacy practice quiz (runQuiz, preserved below).
 //
@@ -20,10 +19,9 @@
 //   Stage 2  Hour hand alone    — minute hand HIDDEN, read short hand
 //   Stage 3  Minute hand alone  — hour hand HIDDEN, sweep + count by 5s
 //   Stage 4  o'clock (both)     — minute on 12 -> just read the hour
-//   Stage 5  half past (both)   — minute on 6 -> "half past N"
 //
-// MD MCCRS 2.MD.C.7. Quarter past / quarter to are deferred to week 2+ in a
-// later pass once o'clock + half-past are solid.
+// MD MCCRS 2.MD.C.7. Half past, quarter past, and quarter to are ALL out of
+// scope here. Add them back stage-by-stage once o'clock is automatic.
 //
 // API:
 //   HeroAcademy.ClockActivity.start({ date, onComplete })
@@ -526,7 +524,8 @@
     await pause(650);
     await say(overlay, 'The long hand is on 12. What time is it?');
     const correct = `${h} o'clock`;
-    const s = shuffleWithCorrect([correct, `${(h % 12) + 1} o'clock`, `half past ${h}`], correct);
+    // v189: distractors are only other o'clock readings — no half-past concept yet.
+    const s = shuffleWithCorrect([correct, `${(h % 12) + 1} o'clock`, `${((h + 1) % 12) + 1} o'clock`], correct);
     await askMC(overlay, {
       choices: s.list, correctIndex: s.idx,
       rightWord: 'Great!', rightSay: `Yes! ${h} o'clock.`,
@@ -535,46 +534,8 @@
     });
   }
 
-  // Stage 5 — half past (minute on 6).
-  async function stageHalfPast(overlay) {
-    setBadge(overlay, 'Stage 5 · Half Past');
-    showHand('hour', true); showHand('min', true);
-    dimHand('hour', false); dimHand('min', false);
-    setHand('min', minAngle(0), false);
-    setHand('hour', hourAngle(4, 0), false);
-    await pause(200);
-    await say(overlay, "When the long hand goes halfway around to the 6, that's HALF PAST.");
-    await pause(300);
-    setHand('min', minAngle(30), true);
-    await pause(650);
-    highlightNum(6, true);
-    await say(overlay, "The long hand swept all the way to the 6. That's 30 minutes — half past.");
-    highlightNum(6, false);
-    setHand('hour', hourAngle(4, 30), true);
-    await pause(650);
-    await say(overlay, 'The short hand is just past the 4, so this is half past 4.');
-    await pause(200);
-
-    await halfPastCheck(overlay, 2);
-    await halfPastCheck(overlay, 7);
-
-    logEvent('clock_lesson_stage', { stage: 5, name: 'half_past' });
-  }
-
-  async function halfPastCheck(overlay, h) {
-    setHand('min', minAngle(30), true);
-    setHand('hour', hourAngle(h, 30), true);
-    await pause(650);
-    await say(overlay, 'The long hand is on the 6. What time is it?');
-    const correct = `half past ${h}`;
-    const s = shuffleWithCorrect([correct, `${h} o'clock`, `half past ${(h % 12) + 1}`], correct);
-    await askMC(overlay, {
-      choices: s.list, correctIndex: s.idx,
-      rightWord: 'Perfect!', rightSay: `Yes! Half past ${h}.`,
-      wrongWord: 'Long hand on 6 = half past', wrongSay: "When the long hand is on the 6, it's half past. Try again.",
-      onRight: async () => { highlightNum(6, true); setTimeout(() => highlightNum(6, false), 1200); },
-    });
-  }
+  // v189: Stage 5 (half past) removed. Re-introduce as a separate later lesson
+  // once o'clock is automatic — kept comments here so the gap is intentional.
 
   // =======================================================================
   // TEACHING RUNNER
@@ -603,7 +564,7 @@
       close('skipped');
     };
 
-    const stages = [stageMeetHands, stageHourHand, stageMinuteHand, stageOClock, stageHalfPast];
+    const stages = [stageMeetHands, stageHourHand, stageMinuteHand, stageOClock];
     logEvent('clock_lesson_start', { date: dateStr, stages: stages.length });
 
     try {
@@ -634,17 +595,20 @@
   // LEGACY PRACTICE QUIZ (post-graduation) — preserved from v180
   // =======================================================================
   const QUIZ_QUESTIONS = 5;
+  // v189: Clock subject scope is LOCKED to what the teaching lesson covers —
+  // o'clock ONLY. Half past, quarter past, and quarter to are all out of scope
+  // until a dedicated half-past lesson lands. The pool, the describer, and the
+  // distractor generator below must all stay within o'clock so that vocabulary
+  // can never surface on this card.
   const TIME_POOL = [
-    { h: 3, m: 0 }, { h: 7, m: 30 }, { h: 9, m: 15 }, { h: 4, m: 45 },
-    { h: 12, m: 0 }, { h: 1, m: 30 }, { h: 6, m: 15 }, { h: 10, m: 45 },
-    { h: 2, m: 5 }, { h: 8, m: 35 }, { h: 5, m: 20 }, { h: 11, m: 50 },
+    { h: 1, m: 0 }, { h: 2, m: 0 }, { h: 3, m: 0 },  { h: 4, m: 0 },
+    { h: 5, m: 0 }, { h: 6, m: 0 }, { h: 7, m: 0 },  { h: 8, m: 0 },
+    { h: 9, m: 0 }, { h: 10, m: 0 }, { h: 11, m: 0 }, { h: 12, m: 0 },
   ];
-  function describeTime(h, m) {
-    if (m === 0) return `${h} o'clock`;
-    if (m === 15) return `Quarter past ${h}`;
-    if (m === 30) return `Half past ${h}`;
-    if (m === 45) return `Quarter to ${h % 12 + 1}`;
-    return `${h} ${String(m).padStart(2, '0')}`;
+  function describeTime(h /* , m */) {
+    // v189: o'clock is the only in-scope reading. Any non-:00 hand position is
+    // out of scope for this quiz and shouldn't reach this code path.
+    return `${h} o'clock`;
   }
   function quizSeed(dateStr) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || '');
@@ -665,11 +629,13 @@
   }
   function quizBuild(h, m, salt) {
     const correct = describeTime(h, m);
+    // v189: distractors stay within the taught vocabulary (o'clock) — pull
+    // neighbouring hours and a couple steps further out, all read as o'clock.
     const cand = [
-      describeTime(h, (m + 15) % 60),
-      describeTime(((h % 12) + 1), m),
-      describeTime(((h + 10) % 12) + 1, m),
-      describeTime(h, m === 0 ? 30 : 0),
+      describeTime(((h % 12) + 1), 0),
+      describeTime(((h + 10) % 12) + 1, 0),
+      describeTime(((h + 1) % 12) + 1, 0),
+      describeTime(((h + 9) % 12) + 1, 0),
     ].filter((s) => s !== correct);
     const seen = new Set([correct]); const distractors = [];
     for (const c of cand) { if (!seen.has(c)) { seen.add(c); distractors.push(c); } if (distractors.length >= 3) break; }
@@ -751,5 +717,5 @@
   }
 
   NS.ClockActivity = { start, runLesson, runQuiz, inTeachingWindow };
-  try { console.log('[clock-activity] v186 loaded (teaching mode through ' + FIRST_DAY + ' +14d)'); } catch (_) {}
+  try { console.log('[clock-activity] v189 loaded (o-clock only; teaching through ' + FIRST_DAY + ' +14d)'); } catch (_) {}
 })();

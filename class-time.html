@@ -55,11 +55,18 @@
   /* Stage — the question card */
   .ct-stage {
     flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-    padding:24px 20px 20px; gap:20px; overflow:hidden;
+    padding:24px 20px 20px; gap:20px;
+    /* v196: a tall card (photo + teaching description + long question) plus the
+       answers used to exceed the landscape height; with overflow:hidden and no
+       flex-shrink guard, flexbox shrank the boxes and the card text bled DOWN
+       into the answer buttons (the reading-fluency overlap). Scroll the stage
+       instead of clipping, and pin every child to its natural height below. */
+    overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; min-height:0;
   }
   .ct-question-card {
     width:100%; max-width:1100px;
     min-width:0; /* v176: shrink with viewport instead of overflowing */
+    flex:0 0 auto; /* v196: keep natural height; never shrink text into the answers */
     background:rgba(255,255,255,0.86); border:1px solid rgba(91,33,182,0.22);
     border-radius:24px; padding:32px 32px 28px;
     box-shadow:0 8px 28px rgba(91,33,182,0.20);
@@ -75,6 +82,7 @@
   .ct-answers {
     display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
     gap:14px; width:100%; max-width:1100px;
+    flex:0 0 auto; /* v196: always sit below the card, never get overlapped */
     /* v173: subtle stagger-feel slide-in alongside question */
     animation: ct-card-in 380ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
   }
@@ -180,7 +188,7 @@
 
   /* Feedback line + move-on */
   .ct-feedback {
-    width:100%; max-width:1100px; min-height:32px;
+    width:100%; max-width:1100px; min-height:32px; flex:0 0 auto; /* v196 */
     font-size:18px; line-height:1.4; padding:12px 16px; border-radius:14px;
     background:transparent;
     transition:background .2s ease, color .2s ease;
@@ -467,7 +475,6 @@
 <script src="js/class-time-visuals.js"></script>
 <script src="js/class-time-board.js"></script>
 <script src="js/math-bank.js"></script>
-<script src="js/class-time-writing-bank.js"></script>
 <script src="js/clock-activity.js"></script>
 <script src="js/class-time-mc.js"></script>
 <script src="js/break-timer.js" defer></script>
