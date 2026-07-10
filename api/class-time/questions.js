@@ -265,16 +265,6 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '- Warm tutor voice. Use Nigel\'s name occasionally (not every question).',
     '- Difficulty: GENTLE 2nd-grade level. Short, simple words. The correct answer MUST be findable in',
     '  the "description" you wrote — NEVER require facts Nigel was not just taught on screen. When in doubt, EASIER.',
-    '- v180 MATH DIFFICULTY: When subject is "math", ALL 8 questions MUST use TWO-DIGIT ADDITION. Operands 10-79, sums to 99. NO single-digit problems. NO subtraction. NO place-value. NO comparing. ONLY addition. Mix regrouping (27+15, 38+26) with non-regrouping (23+14, 45+32). At least FOUR of eight MUST require regrouping. Word problems use two-digit numbers ("Nigel had 24 stickers and got 17 more"). This is non-negotiable.',
-    '- ADAPTIVE DIFFICULTY for this course: ' + difficulty.toUpperCase() + '.',
-    difficulty === 'support'
-      ? '  SUPPORT: he has been struggling in this subject. Extra gentle — the simplest valid examples, descriptions that do ALL the teaching, friendlier distractors. For math (WITHIN the two-digit addition rule above): operands 10-39, and at MOST three of the eight require regrouping.'
-      : difficulty === 'stretch'
-        ? '  STRETCH: he has been acing this subject. Nudge one step harder while staying 2nd grade — trickier (but fair) distractors, slightly richer vocabulary. For math (WITHIN the two-digit addition rule above): operands 20-79, and at LEAST six of the eight require regrouping.'
-        : '  STANDARD: keep the normal gentle 2nd-grade level described above.',
-    reviewTopics.length
-      ? '- REVIEW WEAVE: Nigel recently struggled with: ' + reviewTopics.map((t) => '"' + t + '"').join(', ') + '. Make 1-2 of the 8 kept questions a gentle review of those exact skills with fresh examples (never reuse old wording).'
-      : '- No review topics flagged for this course.',
     '- Variety across the 8 questions — no two should look the same.',
     '',
     '== CRITICAL — CORRECT ANSWER POSITION ==',
@@ -289,6 +279,19 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     'The server trusts correct_answer over correct_index. If they disagree, correct_answer wins.',
     'So: solve the problem, decide the answer, then COPY that option string into correct_answer.',
     'Copy it. Copy it. Copy it. Verbatim — same characters, same spacing, same punctuation.',
+    '',
+    '== CRITICAL — DIFFICULTY & CONTENT RULES (HIGHEST PRIORITY — OVERRIDES COURSE TOPICS) ==',
+    '- v180 MATH DIFFICULTY: When subject is "math", ALL 8 questions MUST use TWO-DIGIT ADDITION. Operands 10-79, sums to 99. NO single-digit problems. NO subtraction. NO place-value. NO comparing. ONLY addition. Mix regrouping (27+15, 38+26) with non-regrouping (23+14, 45+32). At least FOUR of eight MUST require regrouping. Word problems use two-digit numbers ("Nigel had 24 stickers and got 17 more"). This is non-negotiable.',
+    '- The math rule OVERRIDES the course topics. If a topic conflicts with it (single-digit sums, skip counting, place value, comparing), do NOT write that question type — TRANSFORM the topic into a two-digit addition question in that topic\'s spirit and keep its topic id.',
+    '- ADAPTIVE DIFFICULTY for this course: ' + difficulty.toUpperCase() + '.',
+    difficulty === 'support'
+      ? '  SUPPORT: he has been struggling in this subject. Extra gentle — the simplest valid examples, descriptions that do ALL the teaching, friendlier distractors. For math (WITHIN the two-digit addition rule above): operands 10-39, and at MOST three of the eight require regrouping.'
+      : difficulty === 'stretch'
+        ? '  STRETCH: he has been acing this subject. Nudge one step harder while staying 2nd grade — trickier (but fair) distractors, slightly richer vocabulary. For math (WITHIN the two-digit addition rule above): operands 20-79, and at LEAST six of the eight require regrouping.'
+        : '  STANDARD: apply every rule above exactly as written — no easier, no harder.',
+    reviewTopics.length
+      ? '- REVIEW WEAVE: Nigel recently struggled with: ' + reviewTopics.map((t) => '"' + t + '"').join(', ') + '. Make 1-2 of the 8 kept questions a gentle review of those exact skills with fresh examples (never reuse old wording). For math, review questions STILL follow the two-digit addition rule.'
+      : '- No review topics flagged for this course.',
     '',
     '== OUTPUT — ONE JSON OBJECT, NO MARKDOWN, NO PREAMBLE ==',
     '{',

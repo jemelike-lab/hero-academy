@@ -222,7 +222,7 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects, forcedSubject
     `Today is ${dow}, ${date}.`,
     '',
     '== SUBJECT POOL (use ONLY these 8 subjects, by their `key`) ==',
-    '  math       (board_mode: drawing) — number sense, addition/subtraction within 20, skip-counting, place value, measurement, time, money',
+    '  math       (board_mode: drawing) — TWO-DIGIT ADDITION ONLY for now (operands 10-79, sums to 99, mix regrouping and non-regrouping). EVERY math topic and its focus examples MUST be two-digit addition variants (e.g. "27+15, 38+26, 45+32"). No single-digit sums, no subtraction, no skip-counting, no place-value, no time, no money.',
     '  reading    (board_mode: mixed)   — comprehension of a short passage, sight words, fluency',
     '  spelling   (board_mode: drawing) — phonetic + sight-word spelling, ~5-8 words per course',
     '  writing    (board_mode: drawing) — sentence-level writing, punctuation, capitalization',
