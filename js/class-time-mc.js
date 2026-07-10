@@ -679,7 +679,11 @@
   async function fetchDayPlan() {
     try {
       const r = await jsonFetch(`/api/class-time/lesson-plan-day?date=${state.today}&child_id=${CHILD_ID}`);
-      return r;
+      // Adaptive v1 (SW v204) FIX: the API wraps the plan as { plan: {...} }.
+      // We previously stored the envelope, so state.dayPlan.courses was always
+      // undefined and subjectForCourse silently fell back to the hardcoded
+      // SUBJECTS array — the plan's real lineup never reached the client.
+      return (r && r.plan && Array.isArray(r.plan.courses)) ? r.plan : r;
     } catch (e) {
       console.warn('[class-time-mc] day plan fetch failed, using subjects-only fallback', e);
       return {
@@ -1667,9 +1671,21 @@
     // rendered yet) so it can't collide with the question read.
     const label = SUBJECT_LABEL[state.subject] || state.subject;
     const ordinal = ['first', 'second', 'third', 'fourth'][courseIdx] || `course ${courseIdx + 1}`;
+    // Adaptive v1 (SW v204): the day plan's why_chosen now references Nigel's
+    // real progress ("You almost had vowel sounds last time...") — Humphrey
+    // says it as part of the course opener. Missing/empty → old opener.
+    let why = '';
+    try {
+      const plan = state.dayPlan;
+      const c = plan && Array.isArray(plan.courses)
+        ? (plan.courses.find((x) => x && Number(x.order) === courseIdx + 1) || plan.courses[courseIdx])
+        : null;
+      why = (c && c.why_chosen) ? String(c.why_chosen).trim().slice(0, 200) : '';
+      if (why && !/[.!?]$/.test(why)) why += '.';
+    } catch (_) { why = ''; }
     const opener = courseIdx === 0
-      ? `Welcome to class, Nigel! Let's start with ${label}. Here is your first question.`
-      : `Great, it's time for ${label} — our ${ordinal} class. Here is your first question.`;
+      ? `Welcome to class, Nigel! Let's start with ${label}. ${why ? why + ' ' : ''}Here is your first question.`
+      : `Great, it's time for ${label} — our ${ordinal} class. ${why ? why + ' ' : ''}Here is your first question.`;
     try { await sayWithTimeout(opener, 30000); } catch (_) {}
     renderQuestion(state.questions[0]);
   }

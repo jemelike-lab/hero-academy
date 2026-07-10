@@ -177,6 +177,14 @@ export default async function handler(req, res) {
 // Haiku call
 // =====================================================================
 async function generateWithHaiku(apiKey, subject, coursePlan, date) {
+  // Adaptive v1 (SW v204): per-course difficulty + review topics attached by
+  // /lesson-plan-day. Plans cached before that deploy won't carry these —
+  // defaults keep behavior identical to pre-adaptive ('standard', no weave).
+  const difficulty = ['support', 'standard', 'stretch'].includes(coursePlan.difficulty)
+    ? coursePlan.difficulty : 'standard';
+  const reviewTopics = Array.isArray(coursePlan.review_topics)
+    ? coursePlan.review_topics.slice(0, 3).map((s) => String(s).slice(0, 80)).filter(Boolean)
+    : [];
   const topicLines = (coursePlan.topics || []).slice(0, 4).map((t, i) => {
     const id = t.id || `topic-${i + 1}`;
     const title = t.title || '';
@@ -258,6 +266,15 @@ async function generateWithHaiku(apiKey, subject, coursePlan, date) {
     '- Difficulty: GENTLE 2nd-grade level. Short, simple words. The correct answer MUST be findable in',
     '  the "description" you wrote — NEVER require facts Nigel was not just taught on screen. When in doubt, EASIER.',
     '- v180 MATH DIFFICULTY: When subject is "math", ALL 8 questions MUST use TWO-DIGIT ADDITION. Operands 10-79, sums to 99. NO single-digit problems. NO subtraction. NO place-value. NO comparing. ONLY addition. Mix regrouping (27+15, 38+26) with non-regrouping (23+14, 45+32). At least FOUR of eight MUST require regrouping. Word problems use two-digit numbers ("Nigel had 24 stickers and got 17 more"). This is non-negotiable.',
+    '- ADAPTIVE DIFFICULTY for this course: ' + difficulty.toUpperCase() + '.',
+    difficulty === 'support'
+      ? '  SUPPORT: he has been struggling in this subject. Extra gentle — the simplest valid examples, descriptions that do ALL the teaching, friendlier distractors. For math (WITHIN the two-digit addition rule above): operands 10-39, and at MOST three of the eight require regrouping.'
+      : difficulty === 'stretch'
+        ? '  STRETCH: he has been acing this subject. Nudge one step harder while staying 2nd grade — trickier (but fair) distractors, slightly richer vocabulary. For math (WITHIN the two-digit addition rule above): operands 20-79, and at LEAST six of the eight require regrouping.'
+        : '  STANDARD: keep the normal gentle 2nd-grade level described above.',
+    reviewTopics.length
+      ? '- REVIEW WEAVE: Nigel recently struggled with: ' + reviewTopics.map((t) => '"' + t + '"').join(', ') + '. Make 1-2 of the 8 kept questions a gentle review of those exact skills with fresh examples (never reuse old wording).'
+      : '- No review topics flagged for this course.',
     '- Variety across the 8 questions — no two should look the same.',
     '',
     '== CRITICAL — CORRECT ANSWER POSITION ==',

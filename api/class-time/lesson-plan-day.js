@@ -138,6 +138,22 @@ export default async function handler(req, res) {
     recentSubjects = recentSubjects.concat(extraRecent);
   }
 
+  // ---- 2b. Pull recent topic performance (adaptive v1, SW v204) ----
+  // ha_topic_mastery × ha_topics via ha_get_topic_performance. Drives:
+  //   • weak-topic review injection into the Haiku prompt
+  //   • per-course difficulty: 'support' | 'standard' | 'stretch'
+  //   • review_topics carried on each course for /questions to weave in
+  let perf = [];
+  try {
+    const p = await supabaseRpc(SUPA_URL, SUPA_KEY, 'ha_get_topic_performance', {
+      p_child_id: childId, p_days: 14,
+    });
+    if (Array.isArray(p)) perf = p;
+  } catch (e) {
+    console.log('[lesson-plan-day] topic performance lookup failed (continuing):', String(e).slice(0, 200));
+  }
+  const adaptive = buildAdaptiveContext(perf);
+
   // ---- 3. Generate via Haiku ----
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_KEY) {
@@ -146,10 +162,10 @@ export default async function handler(req, res) {
 
   let plan;
   try {
-    plan = await generatePlanWithHaiku(ANTHROPIC_KEY, date, recentSubjects, forcedSubjects);
+    plan = await generatePlanWithHaiku(ANTHROPIC_KEY, date, recentSubjects, forcedSubjects, adaptive);
   } catch (e) {
     console.log('[lesson-plan-day] Haiku failed, returning deterministic fallback:', String(e).slice(0, 200));
-    plan = fallbackPlan(date, recentSubjects, forcedSubjects);
+    plan = fallbackPlan(date, recentSubjects, forcedSubjects, adaptive);
     plan.source = 'fallback';
   }
 
@@ -171,7 +187,7 @@ export default async function handler(req, res) {
 // =====================================================================
 // Haiku call
 // =====================================================================
-async function generatePlanWithHaiku(apiKey, date, recentSubjects, forcedSubjects) {
+async function generatePlanWithHaiku(apiKey, date, recentSubjects, forcedSubjects, adaptive) {
   const recentJson = JSON.stringify(recentSubjects);
   const dow = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
 
@@ -216,6 +232,8 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects, forcedSubject
     '  social     (board_mode: image)   — Maryland geography & history, US symbols, communities, maps, holidays',
     '',
     subjectGuidance,
+    '',
+    performanceGuidance(adaptive),
     '',
     '== PER-COURSE CONTENT ==',
     'Each course has EXACTLY 4 topics. Each topic is something Ms. Humphrey can teach in roughly 90-150 seconds on a digital board, so four topics fill a 7-10 minute course. No fewer than 4. No more than 4.',
@@ -287,14 +305,70 @@ async function generatePlanWithHaiku(apiKey, date, recentSubjects, forcedSubject
     const m = text.match(/\{[\s\S]*\}/);
     if (m) parsed = JSON.parse(m[0]); else throw new Error('unparseable_haiku_json');
   }
-  return normalizePlan(parsed, date, forced);
+  return normalizePlan(parsed, date, forced, adaptive);
+}
+
+// =====================================================================
+// Adaptive v1 helpers — compute weak/strong topics + per-subject
+// difficulty from ha_get_topic_performance rows, and render the prompt
+// section. Empty/missing data degrades to a standard balanced day.
+// =====================================================================
+function buildAdaptiveContext(perf) {
+  const weak = [];
+  const strong = [];
+  const bySubject = {};
+  for (const row of (Array.isArray(perf) ? perf : [])) {
+    if (!row || !row.subject) continue;
+    const s = String(row.subject).toLowerCase().trim();
+    const attempted = Number(row.attempted) || 0;
+    const passed = Number(row.passed) || 0;
+    const rate = attempted > 0 ? passed / attempted : null;
+    bySubject[s] = bySubject[s] || { attempted: 0, passed: 0 };
+    bySubject[s].attempted += attempted;
+    bySubject[s].passed += passed;
+    const title = String(row.title || row.topic_id || '').slice(0, 80);
+    if (!title) continue;
+    if (!row.mastered && rate !== null && rate < 0.6) {
+      weak.push({ subject: s, title, rate });
+    } else if (row.mastered || (attempted >= 3 && rate !== null && rate >= 0.8)) {
+      strong.push({ subject: s, title });
+    }
+  }
+  const difficultyBySubject = {};
+  for (const s of Object.keys(bySubject)) {
+    const agg = bySubject[s];
+    if (agg.attempted < 4) { difficultyBySubject[s] = 'standard'; continue; }
+    const r = agg.passed / agg.attempted;
+    difficultyBySubject[s] = r < 0.55 ? 'support' : (r > 0.8 ? 'stretch' : 'standard');
+  }
+  return { weak: weak.slice(0, 6), strong: strong.slice(0, 8), difficultyBySubject };
+}
+
+function performanceGuidance(adaptive) {
+  if (!adaptive || (!adaptive.weak.length && !adaptive.strong.length)) {
+    return '== NIGEL\'S RECENT PERFORMANCE ==\nNo recent performance data — plan a balanced standard day.';
+  }
+  const weakLines = adaptive.weak.map((w) =>
+    `  - ${w.subject}: "${w.title}" (pass rate ${Math.round((w.rate == null ? 0 : w.rate) * 100)}%)`);
+  const strongLines = adaptive.strong.map((s) => `  - ${s.subject}: "${s.title}"`);
+  return [
+    '== NIGEL\'S RECENT PERFORMANCE (last 14 days — USE THIS) ==',
+    'Topics he is STRUGGLING with (below 60% pass rate):',
+    weakLines.length ? weakLines.join('\n') : '  (none)',
+    'Topics he is STRONG at (mastered or 80%+):',
+    strongLines.length ? strongLines.join('\n') : '  (none)',
+    'RULES:',
+    '- For each course whose subject appears in the struggling list, make 1-2 of its 4 topics a REVIEW of those exact struggling topics (same skill, fresh examples).',
+    '- Do NOT re-teach a strong topic at the same level. Either skip it or stretch it one small step harder.',
+    '- When a course includes a review topic, its "why_chosen" MUST reference his real progress, e.g. "We\'ll give vowel sounds another go — you almost had them last time."',
+  ].join('\n');
 }
 
 // =====================================================================
 // Normalize: clamp values, enforce subject pool + order rules,
 // fill missing board_mode / image_keywords from canonical pool.
 // =====================================================================
-function normalizePlan(raw, date, forcedSubjects) {
+function normalizePlan(raw, date, forcedSubjects, adaptive) {
   const out = {
     date,
     theme: String(raw.theme || 'Daily lessons').slice(0, 60),
@@ -333,11 +407,17 @@ function normalizePlan(raw, date, forcedSubjects) {
       image_keywords: Array.isArray(c.image_keywords)
         ? c.image_keywords.slice(0, 6).map(s => String(s).slice(0, 40))
         : [],
+      // Adaptive v1: consumed by /api/class-time/questions. Plans cached
+      // before this deploy simply lack these — questions defaults kick in.
+      difficulty: (adaptive && adaptive.difficultyBySubject && adaptive.difficultyBySubject[meta.key]) || 'standard',
+      review_topics: adaptive
+        ? adaptive.weak.filter((w) => w.subject === meta.key).map((w) => w.title).slice(0, 3)
+        : [],
     });
   }
   while (out.courses.length < 4) {
     // Pad with deterministic fallback so client always has 4 courses
-    const fallback = fallbackPlan(date, [], forcedSubjects);
+    const fallback = fallbackPlan(date, [], forcedSubjects, adaptive);
     out.courses.push(fallback.courses[out.courses.length]);
   }
   return out;
@@ -348,7 +428,7 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 // =====================================================================
 // Deterministic fallback if Haiku is unavailable
 // =====================================================================
-function fallbackPlan(date, recent, forcedSubjects) {
+function fallbackPlan(date, recent, forcedSubjects, adaptive) {
   const doy = (() => {
     const d = new Date(date + 'T12:00:00');
     const start = new Date(d.getFullYear(), 0, 0);
@@ -413,6 +493,10 @@ function fallbackPlan(date, recent, forcedSubjects) {
       target_minutes: i === 0 ? 8 : (i === 3 ? 10 : 9),
       topics,
       image_keywords: seedImageKeywords[subj] || [],
+      difficulty: (adaptive && adaptive.difficultyBySubject && adaptive.difficultyBySubject[meta.key]) || 'standard',
+      review_topics: adaptive
+        ? adaptive.weak.filter((w) => w.subject === meta.key).map((w) => w.title).slice(0, 3)
+        : [],
     };
   });
 
