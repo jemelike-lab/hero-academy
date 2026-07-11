@@ -1,7 +1,7 @@
 # Hero Academy — Technical Handoff
 
 **Last updated:** 2026-07-10 (session: adaptive loop v1 + envelope-unwrap fix + v180 enforcement)
-**Latest SW version:** v205 (commit on `main`; SW version is the canonical "did this deploy land" signal)
+**Latest SW version:** v206 (commit on `main`; SW version is the canonical "did this deploy land" signal)
 
 ---
 
@@ -55,3 +55,6 @@
 5. Rotate `CRON_SECRET` (exposed in terminal scrollback in a prior session)
 6. Ralphie expression variants: 15/16 deployed, never referenced in code
 7. From the app review (Josh has the full writeup): oral reading fluency via existing Scribe STT; COMAR portfolio export; IndexedDB prefetch of tomorrow's plan+questions; shared zone-runtime extraction; `node --test` suite for the math verifiers; API cost cap per child/day
+
+## 2026-07-10 addendum (v206)
+- Fluency calibration spike shipped: /fluency-check.html (parent-driven, 3 known passages, manual stop, posts to /api/humphrey/listen, saves via ha_record_fluency_sample to ha_fluency_samples). Decision gate: WER <=15% build the feature; 15-25% trends-only; >25% shelve.

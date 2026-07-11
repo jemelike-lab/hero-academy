@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Reading Check</title>
+<style>
+  :root { --bg:#1b2340; --card:#232c52; --ink:#f4f6ff; --amber:#ffb733; --green:#4ade80; --red:#f87171; --dim:#9aa4c7; }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--bg); color:var(--ink); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; padding:16px; }
+  .wrap { max-width:720px; margin:0 auto; }
+  h1 { font-size:1.3rem; margin-bottom:4px; }
+  .sub { color:var(--dim); font-size:.85rem; margin-bottom:16px; }
+  .card { background:var(--card); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .ptitle { color:var(--amber); font-weight:700; margin-bottom:10px; font-size:1rem; }
+  .passage { font-size:1.45rem; line-height:2.1; letter-spacing:.01em; }
+  .controls { display:flex; gap:12px; margin-top:18px; flex-wrap:wrap; }
+  button { border:0; border-radius:14px; padding:16px 22px; font-size:1.05rem; font-weight:700; cursor:pointer; }
+  #btnStart { background:var(--green); color:#0b2413; }
+  #btnStop { background:var(--red); color:#2b0b0b; display:none; }
+  #btnRetry, #btnNext { background:#3a4680; color:var(--ink); display:none; }
+  button:disabled { opacity:.45; }
+  .status { margin-top:14px; font-size:.95rem; color:var(--dim); min-height:1.4em; }
+  .rec { color:var(--red); font-weight:700; animation:blink 1.1s infinite; }
+  @keyframes blink { 50% { opacity:.35; } }
+  .result { margin-top:12px; padding:12px; border-radius:12px; background:#1a2140; font-size:.9rem; display:none; }
+  .result b { color:var(--amber); }
+  .tx { color:var(--dim); font-style:italic; margin-top:6px; word-break:break-word; }
+  .done-big { text-align:center; font-size:1.2rem; padding:30px 10px; display:none; }
+  .progress { color:var(--dim); font-size:.85rem; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Reading Check 🎤</h1>
+  <div class="sub">Parent-driven calibration. Tap Start, have Nigel read the whole passage at his own pace, then tap Stop. Pauses are fine — recording only stops when you stop it.</div>
+
+  <div class="card" id="stage">
+    <div class="progress" id="prog"></div>
+    <div class="ptitle" id="ptitle"></div>
+    <div class="passage" id="ptext"></div>
+    <div class="controls">
+      <button id="btnStart">🎙️ Start reading</button>
+      <button id="btnStop">⏹ Stop</button>
+      <button id="btnRetry">↻ Redo this one</button>
+      <button id="btnNext">Next passage →</button>
+    </div>
+    <div class="status" id="status">Ready.</div>
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="card done-big" id="doneCard">
+    ⭐ All done! Great reading, Nigel! ⭐<br><br>
+    <span style="font-size:.85rem;color:var(--dim)">All samples saved. Josh: results are in ha_fluency_samples — ping Claude to run the analysis.</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var SUPABASE_URL = 'https://yofqeuguxgujgqnaejmw.supabase.co';
+  var SB_KEY = 'sb_publishable_Cigt6z_S1YTSvChOi5E7tA_t1H_nNRI';
+  var CHILD_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
+  var MAX_RECORD_MS = 120000; // hard safety ceiling; normal stop is manual
+
+  var PASSAGES = [
+    { id: 'fox-field-v1', title: 'Passage 1 — The Fox',
+      text: 'The little red fox ran across the green field. He was looking for his friend the rabbit. The sun was warm and the sky was blue. The fox stopped by the big oak tree. He saw the rabbit hop out from under a bush. They played together all day.' },
+    { id: 'sam-boat-v1', title: 'Passage 2 — The Boat',
+      text: 'Sam has a small boat. He likes to sail it on the pond near his house. One day the wind blew very hard. The boat went fast across the water. Sam ran along the shore to catch it. His dog jumped in and pushed the boat back to him.' },
+    { id: 'snowman-v1', title: 'Passage 3 — The Snowman',
+      text: 'It was snowing outside. Maya put on her warm coat and her red hat. She went out to make a snowman. First she rolled a big ball of snow. Then she made a smaller one for the head. She used two stones for the eyes and a carrot for the nose.' }
+  ];
+
+  var idx = 0, stream = null, recorder = null, chunks = [], startTs = 0, ceilingTimer = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function setStatus(html) { $('status').innerHTML = html; }
+
+  function render() {
+    var p = PASSAGES[idx];
+    $('prog').textContent = 'Passage ' + (idx + 1) + ' of ' + PASSAGES.length;
+    $('ptitle').textContent = p.title;
+    $('ptext').textContent = p.text;
+    $('result').style.display = 'none';
+    $('btnStart').style.display = '';
+    $('btnStart').disabled = false;
+    $('btnStop').style.display = 'none';
+    $('btnRetry').style.display = 'none';
+    $('btnNext').style.display = 'none';
+    setStatus('Ready.');
+  }
+
+  function pickMime() {
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+    var c = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+    for (var i = 0; i < c.length; i++) { if (MediaRecorder.isTypeSupported(c[i])) return c[i]; }
+    return '';
+  }
+
+  function normWords(s) {
+    return String(s || '').toLowerCase()
+      .replace(/[^a-z' ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .filter(Boolean);
+  }
+
+  // Word-level Levenshtein distance -> WER against the reference.
+  function wer(refText, hypText) {
+    var r = normWords(refText), h = normWords(hypText);
+    if (!r.length) return { wer: 0, refWords: 0, hypWords: h.length };
+    var prev = [], cur = [], i, j;
+    for (j = 0; j <= h.length; j++) prev[j] = j;
+    for (i = 1; i <= r.length; i++) {
+      cur = [i];
+      for (j = 1; j <= h.length; j++) {
+        var cost = (r[i - 1] === h[j - 1]) ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      }
+      prev = cur;
+    }
+    return { wer: prev[h.length] / r.length, refWords: r.length, hypWords: h.length };
+  }
+
+  function saveSample(p, transcript, durationMs, clientWer) {
+    var body = {
+      p_child_id: CHILD_ID,
+      p_passage_id: p.id,
+      p_reference: p.text,
+      p_transcript: transcript,
+      p_duration_ms: durationMs,
+      p_client_wer: clientWer,
+      p_device: (navigator.userAgent || '').slice(0, 180)
+    };
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/ha_record_fluency_sample', {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+
+  function startRec() {
+    $('btnStart').disabled = true;
+    setStatus('Asking for the microphone…');
+    var pStream = stream ? Promise.resolve(stream)
+      : navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { stream = s; return s; });
+    pStream.then(function (s) {
+      chunks = [];
+      var mime = pickMime();
+      recorder = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s);
+      recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      recorder.onstop = onRecStop;
+      recorder.start();
+      startTs = Date.now();
+      ceilingTimer = setTimeout(function () { try { recorder.stop(); } catch (_) {} }, MAX_RECORD_MS);
+      $('btnStart').style.display = 'none';
+      $('btnStop').style.display = '';
+      setStatus('<span class="rec">● Recording…</span> read the whole passage, then tap Stop.');
+    }).catch(function (err) {
+      $('btnStart').disabled = false;
+      setStatus('Microphone problem: ' + (err && err.name ? err.name : err) + '. Check Chrome mic permission for this site.');
+    });
+  }
+
+  function stopRec() {
+    $('btnStop').style.display = 'none';
+    try { recorder.stop(); } catch (_) {}
+  }
+
+  function onRecStop() {
+    clearTimeout(ceilingTimer);
+    var durationMs = Date.now() - startTs;
+    var mime = (recorder && recorder.mimeType) || 'audio/webm';
+    var blob = new Blob(chunks, { type: mime });
+    if (!blob.size) { setStatus('No audio captured — try again.'); render(); return; }
+    setStatus('Sending to Ms. Humphrey\u2019s ears… (' + Math.round(blob.size / 1024) + ' KB, ' + Math.round(durationMs / 1000) + 's)');
+    var fd = new FormData();
+    fd.append('audio', blob, mime.indexOf('mp4') >= 0 ? 'read.mp4' : 'read.webm');
+    fetch('/api/humphrey/listen', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var transcript = (j && j.transcript) ? String(j.transcript) : '';
+        var p = PASSAGES[idx];
+        var m = wer(p.text, transcript);
+        var pct = Math.round(m.wer * 100);
+        var wcpm = durationMs > 0 ? Math.round((m.refWords * (1 - Math.min(m.wer, 1))) / (durationMs / 60000)) : 0;
+        var el = $('result');
+        el.style.display = '';
+        el.innerHTML = '<b>Saved.</b> Word error rate: <b>' + pct + '%</b> · ~' + wcpm +
+          ' words correct/min · heard ' + m.hypWords + ' of ' + m.refWords + ' words' +
+          '<div class="tx">Heard: \u201C' + transcript.replace(/</g, '&lt;').slice(0, 400) + '\u201D</div>';
+        setStatus(transcript ? 'Nice reading! ⭐' : 'Transcript came back empty — worth a redo.');
+        saveSample(p, transcript, durationMs, m.wer).catch(function () {
+          setStatus('Scored, but saving to the database failed — screenshot this result.');
+        });
+        $('btnRetry').style.display = '';
+        $('btnNext').style.display = '';
+        $('btnNext').textContent = (idx + 1 < PASSAGES.length) ? 'Next passage \u2192' : 'Finish \u2713';
+      })
+      .catch(function (err) {
+        setStatus('Transcription failed: ' + err + ' — tap Redo to try again.');
+        $('btnRetry').style.display = '';
+      });
+  }
+
+  $('btnStart').addEventListener('click', startRec);
+  $('btnStop').addEventListener('click', stopRec);
+  $('btnRetry').addEventListener('click', render);
+  $('btnNext').addEventListener('click', function () {
+    idx++;
+    if (idx >= PASSAGES.length) {
+      $('stage').style.display = 'none';
+      $('doneCard').style.display = '';
+      if (stream) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (_) {} stream = null; }
+    } else {
+      render();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
