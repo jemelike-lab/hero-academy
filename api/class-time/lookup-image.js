@@ -20,7 +20,7 @@
 // instantly retires every poisoned row from earlier resolvers (no migration,
 // no truncate — old rows simply stop being read).
 
-const RESOLVER_VERSION = 'v207';
+const RESOLVER_VERSION = 'v208';
 const WIKI_USER_AGENT = 'Hero-Academy/1.0 (homeschool-app; admin@hero-academy.local)';
 const HAIKU_MODEL = 'claude-haiku-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
