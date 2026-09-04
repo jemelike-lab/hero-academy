@@ -107,6 +107,25 @@ const UNSAFE_PATTERNS = [
   /\bgangsta rap\b/i, /\bhorrorcore\b/i,
 ];
 
+// v207 SAFETY category filter. The KEY lesson from the "Open Book" incident:
+// an album's explicit/"Parental Advisory" marking lives on the COVER ART, not
+// in the article prose — so a keyword scan of the text misses it entirely.
+// The robust fix is by CATEGORY: a commercial music/media release is never an
+// appropriate generic "photo of <noun>" for a 2nd-grade lesson (its image is
+// cover art, not a depiction of the subject). If a candidate's short
+// description marks it as one of these media types, drop it. This is matched
+// against the Wikipedia SHORT DESCRIPTION ONLY (not the extract), because the
+// extract can mention e.g. "featured on an album" for a legitimate subject.
+const MEDIA_TYPE_PATTERNS = [
+  /\balbum\b/i, /\bstudio album\b/i, /\bmixtape\b/i, /\bextended play\b/i,
+  /\b(debut|studio|compilation|live)\b.{0,12}\balbum\b/i,
+  /\b(song|single|track)\s+by\b/i, /\bhit single\b/i, /\bdebut single\b/i,
+  /\bsoundtrack\b/i, /\bmusic video\b/i,
+  /\bvideo game\b/i,
+  /\b\d{4}\s+film\b/i, /\bfilm\s+(directed|by|series)\b/i,
+  /\bfilm\s+franchise\b/i, /\bmedia franchise\b/i,
+];
+
 function isUnsafeText(str){
   const s = String(str || '');
   for (let i = 0; i < UNSAFE_PATTERNS.length; i++){
@@ -115,15 +134,29 @@ function isUnsafeText(str){
   return null;
 }
 
+function isMediaRelease(shortDescription){
+  const s = String(shortDescription || '');
+  for (let i = 0; i < MEDIA_TYPE_PATTERNS.length; i++){
+    if (MEDIA_TYPE_PATTERNS[i].test(s)) return MEDIA_TYPE_PATTERNS[i].source;
+  }
+  return null;
+}
+
 // True if a candidate article looks age-inappropriate for a 7-year-old.
-// Inspects title, short description, and the summary extract.
+// Inspects title, short description, and the summary extract; also rejects
+// commercial media releases by category (their image is cover art, which can
+// carry explicit markings that never appear in the article prose).
 function candidateIsUnsafe(cand){
   const hay = [
     cand && cand.title,
     cand && cand.description,
     cand && cand.summary && cand.summary.extract,
   ].filter(Boolean).join(' \u2014 ');
-  return isUnsafeText(hay);
+  const kw = isUnsafeText(hay);
+  if (kw) return kw;
+  const media = isMediaRelease(cand && cand.description);
+  if (media) return 'media-release:' + media;
+  return null;
 }
 
 async function wikiSummary(title){
