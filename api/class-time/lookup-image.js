@@ -20,7 +20,7 @@
 // instantly retires every poisoned row from earlier resolvers (no migration,
 // no truncate — old rows simply stop being read).
 
-const RESOLVER_VERSION = 'v143';
+const RESOLVER_VERSION = 'v207';
 const WIKI_USER_AGENT = 'Hero-Academy/1.0 (homeschool-app; admin@hero-academy.local)';
 const HAIKU_MODEL = 'claude-haiku-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -90,6 +90,42 @@ async function wikiSearch(query, limit = CANDIDATE_COUNT){
   return hits.map((h) => h.title).filter(Boolean);
 }
 
+// v207 SAFETY denylist. A deterministic guard that runs on EVERY candidate's
+// title + description + extract, independent of the Haiku disambiguation pass
+// (which can fail open). Any hit removes that candidate entirely — it never
+// reaches selection, caching, or Nigel's screen. Tuned for a 7-year-old's
+// dashboard: rejects explicit/mature media and adult themes. Word-boundary
+// matched to avoid false positives (e.g. "class" must not trip "ass").
+const UNSAFE_PATTERNS = [
+  /\bparental advisory\b/i, /\bexplicit\b/i, /\bexplicit content\b/i,
+  /\bpornograph/i, /\bporn\b/i, /\bxxx\b/i, /\bnsfw\b/i, /\berotic/i,
+  /\bsexual\b/i, /\bsex\b/i, /\bnudity\b/i, /\bnude\b/i, /\bnaked\b/i,
+  /\bprostitut/i, /\bstripper\b/i, /\bstrip club\b/i, /\bbrothel\b/i,
+  /\brape\b/i, /\bincest\b/i, /\bfetish\b/i, /\bbdsm\b/i,
+  /\bgore\b/i, /\bgraphic violence\b/i, /\bmassacre\b/i, /\bmutilat/i,
+  /\bcocaine\b/i, /\bheroin\b/i, /\bmethamphetamine\b/i, /\bnarcotic/i,
+  /\bgangsta rap\b/i, /\bhorrorcore\b/i,
+];
+
+function isUnsafeText(str){
+  const s = String(str || '');
+  for (let i = 0; i < UNSAFE_PATTERNS.length; i++){
+    if (UNSAFE_PATTERNS[i].test(s)) return UNSAFE_PATTERNS[i].source;
+  }
+  return null;
+}
+
+// True if a candidate article looks age-inappropriate for a 7-year-old.
+// Inspects title, short description, and the summary extract.
+function candidateIsUnsafe(cand){
+  const hay = [
+    cand && cand.title,
+    cand && cand.description,
+    cand && cand.summary && cand.summary.extract,
+  ].filter(Boolean).join(' \u2014 ');
+  return isUnsafeText(hay);
+}
+
 async function wikiSummary(title){
   const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
   const r = await fetch(url, { headers: { 'User-Agent': WIKI_USER_AGENT } });
@@ -127,6 +163,9 @@ async function pickBestCandidate(subject, candidates){
     'Example: subject "Maryland state flag" -> choose "Flag of Maryland", NEVER "Six Flags America"',
     '(an amusement park that happens to be in Maryland).',
     'If NONE of the candidates genuinely depict the subject, return -1.',
+    'SAFETY: this photo is shown to a young child. If a candidate is an album,',
+    'film, game, or any media with mature/explicit content, or is otherwise not',
+    'age-appropriate for a 7-year-old, treat it as NOT a match. When unsure, return -1.',
     'Respond with ONLY a JSON object: {"index": <number>}. No prose, no markdown.',
   ].join(' ');
 
@@ -189,6 +228,25 @@ async function lookupViaWikipedia(subject){
     });
   });
   if (candidates.length === 0) return null;
+
+  // Step 2b (v207 SAFETY): drop any age-inappropriate candidate BEFORE it can
+  // be selected, cached, or shown. This runs regardless of whether the Haiku
+  // pass succeeds, so an explicit result (e.g. a "Parental Advisory" album)
+  // can never reach Nigel even if disambiguation falls back to first-with-image.
+  const safeCandidates = candidates.filter((c) => {
+    const reason = candidateIsUnsafe(c);
+    if (reason) {
+      console.log(`[lookup-image] BLOCKED unsafe candidate "${c.title}" for "${subject}" (matched ${reason})`);
+      return false;
+    }
+    return true;
+  });
+  if (safeCandidates.length === 0) {
+    console.log(`[lookup-image] all candidates unsafe/empty for "${subject}" — returning no image`);
+    return null;
+  }
+  candidates.length = 0;
+  candidates.push(...safeCandidates);
 
   // Step 3: disambiguate. Haiku chooses the article that DEPICTS the subject.
   let chosen = null;

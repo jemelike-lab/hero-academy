@@ -494,7 +494,14 @@ function normalizeQuestion(q, subject) {
   // email too, which renders this same field.
   const isFluencyTopic = /fluen/i.test(topic) ||
     (subject === 'reading' && /\bsmooth(ly)?\b/i.test(question));
-  const visual = isFluencyTopic ? '' : String(q.visual == null ? '' : q.visual)
+  // v207 SAFETY: math questions must NEVER carry a visual. A photo adds nothing
+  // to arithmetic, and Haiku was ignoring the "use '' for pure math" rule and
+  // picking a literal noun from a word problem ("open book" -> a PARENTAL
+  // ADVISORY rap album titled 'The Open Book'). Blank it here so no image is
+  // ever fetched or rendered for math, whatever Haiku emits. Reading-fluency
+  // stays blanked for the pre-existing reason above.
+  const noVisualSubject = subject === 'math' || isFluencyTopic;
+  const visual = noVisualSubject ? '' : String(q.visual == null ? '' : q.visual)
     .replace(/[^\w\s'.&-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 64);
   const remediation = normalizeRemediation(q.remediation);
   if (!remediation) return null;
