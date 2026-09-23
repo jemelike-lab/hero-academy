@@ -325,6 +325,16 @@
         String(d.getDate()).padStart(2, '0');
       var titleEl = document.getElementById('startSchoolTitle');
       var subEl = document.getElementById('startSchoolSub');
+      // v210: Tuesday/Thursday are Game Days — the tile opens Digit Tower.
+      var isGameDay = (d.getDay() === 2 || d.getDay() === 4);
+      if (isGameDay) {
+        tile.setAttribute('href', 'game-day.html');
+        var eyebrow = tile.querySelector('.start-school-eyebrow');
+        if (eyebrow) eyebrow.textContent = 'Game Day with Ms. Humphrey';
+        if (titleEl) titleEl.textContent = 'Climb Digit Tower';
+        if (subEl) subEl.textContent = 'Math tower · 75 min · no clocks on locks';
+        var emo = tile.querySelector('.start-school-emoji'); if (emo) emo.textContent = '🗼';
+      }
       try {
         var raw = localStorage.getItem('ha_class_time_' + todayKey);
         if (raw) {
@@ -341,7 +351,7 @@
       // 4 courses are done, show "Pick up at course N — 2 of 4 done" so Nigel
       // (and a parent) can see at a glance where the school day stands. The
       // home tile previously only ever flipped on FULL completion.
-      if (!tile.classList.contains('is-complete')) {
+      if (!tile.classList.contains('is-complete') && !isGameDay) {
         var CHILD = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
         fetch('/api/class-time/course-progress?date=' + todayKey + '&child_id=' + CHILD, { cache: 'no-store' })
           .then(function (r) { return r.ok ? r.json() : null; })

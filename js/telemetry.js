@@ -44,6 +44,7 @@
     'diner-lanes.html':   { zoneId: 'explorer',    gameId: 'diner-lanes' },
     'story-lab.html':     { zoneId: 'writing',     gameId: 'story-lab' },
     'hero-hall.html':     { zoneId: 'hero-hall',   gameId: null },
+    'game-day.html':      { zoneId: 'number-lab',  gameId: 'digit-tower' },
   };
 
   // ----- Internal state ------------------------------------------------------

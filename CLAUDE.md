@@ -23,6 +23,7 @@ See `.claude/WORKFLOW.md` for deeper notes.
 - `js/humphrey.js` — Ms. Humphrey trigger API (catalog, init/say/expression)
 - `js/humphrey-integration.js` — legacy ConvAI tap-to-talk widget
 - `js/app.js` — homepage controller (state, zones, homework setup)
+- `game-day.html` + `js/digit-tower.js` — v210 Game Day (Tue/Thu): Digit Tower replaces the 4-course Class Time those days. 75-min phased session (hq → warm-up → floors → break → bonus → debrief), seeded room generator + 12 world skins, typed answers with work board, procedural WebAudio music, Ms. Humphrey TTS via `Humphrey.say`. Progress in `ha_tower_progress` / `ha_floor_runs` (migration `supabase/migrations/v210-digit-tower.sql`). `class-time.html?mode=class` forces the regular day.
 - `sw.js` — service worker; bump `CACHE_VERSION` on every release touching cached files
 - `css/style.css` — main stylesheet
 - `assets/` — Ralphie + Ms. Humphrey portraits, zone icons

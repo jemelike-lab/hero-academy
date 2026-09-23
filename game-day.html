@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Game Day — Digit Tower — Hero Academy</title>
+<link rel="icon" href="data:," />
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  /* v210 — Game Day (Tuesday / Thursday). Digit Tower replaces the 4-course
+     Class Time on those days: a 75-minute, untimed-per-problem math game with
+     Ms. Humphrey's voice carrying the session. Single dark arcade theme by
+     design; every world re-skins the canvas, the chrome stays constant. */
+  :root{ --ink:#0b0c22; --sky:#14163a; --sky2:#1f1d5c; --cream:#fff6e5; --cream70:rgba(255,246,229,.72);
+    --gold:#ffc72c; --magenta:#ff4f8b; --cyan:#35e0ff; --coral:#ff6b4a; --mint:#5cf0b0; --violet:#7b3fe4;
+    --line:rgba(255,246,229,.16); --panel:rgba(11,12,34,.92); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden]{ display:none !important; }
+  html, body { margin:0; padding:0; height:100%; width:100%; overflow:hidden; background:var(--sky); color:var(--cream);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; touch-action:none; }
+  .disp{ font-family:Impact,"Arial Narrow Bold","Segoe UI Black",sans-serif; letter-spacing:.04em; font-weight:400; }
+
+  #rotate-prompt { position:fixed; inset:0; z-index:9999; background:var(--sky); display:none; align-items:center; justify-content:center; flex-direction:column; gap:18px; padding:24px; text-align:center; }
+  @media (orientation: portrait) { #rotate-prompt { display:flex; } #tower { display:none; } }
+  #rotate-prompt .icon { font-size:80px; animation:rotate-hint 2s ease-in-out infinite; }
+  #rotate-prompt h2 { margin:0; font-size:28px; color:var(--gold); }
+  #rotate-prompt p { margin:0; font-size:18px; line-height:1.5; color:var(--cream70); max-width:440px; }
+  @keyframes rotate-hint { 0%,100%{transform:rotate(0)} 50%{transform:rotate(90deg)} }
+
+  #tower { position:fixed; inset:0; display:flex; flex-direction:column; }
+  .gd-header { flex:0 0 58px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 16px; background:rgba(11,12,34,.72); border-bottom:1px solid var(--line); }
+  .gd-title { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; color:var(--gold); white-space:nowrap; }
+  .gd-title .badge { background:rgba(255,199,44,.14); color:var(--gold); padding:2px 10px; border-radius:999px; font-size:12px; }
+  .gd-title .badge.world { background:rgba(53,224,255,.14); color:var(--cyan); }
+  /* class clock — 75 minutes as phase segments, no countdown */
+  .gd-clock { flex:1 1 auto; max-width:560px; display:flex; flex-direction:column; gap:4px; min-width:160px; }
+  .gd-clock-label { display:flex; justify-content:space-between; font-size:12px; color:var(--cream70); font-variant-numeric:tabular-nums; }
+  .gd-clock-bar { position:relative; height:12px; border-radius:6px; background:rgba(255,246,229,.10); overflow:hidden; display:flex; }
+  .gd-clock-bar i { display:block; height:100%; border-right:2px solid var(--ink); opacity:.35; }
+  .gd-clock-bar i.hq{ background:var(--violet) } .gd-clock-bar i.warmup{ background:var(--cyan) } .gd-clock-bar i.floors{ background:var(--gold) } .gd-clock-bar i.break{ background:var(--mint) } .gd-clock-bar i.bonus{ background:var(--magenta) } .gd-clock-bar i.debrief{ background:var(--coral); border-right:none }
+  .gd-clock-fill { position:absolute; left:0; top:0; bottom:0; width:0%; background:rgba(255,246,229,.55); mix-blend-mode:screen; transition:width 1s linear; }
+  .gd-meta { display:flex; align-items:center; gap:14px; font-size:15px; white-space:nowrap; }
+  .gd-gems { color:var(--cyan); font-weight:800; font-variant-numeric:tabular-nums; }
+  .gd-actions { display:flex; gap:8px; }
+  .gd-icon-btn { width:40px; height:40px; border-radius:12px; border:1px solid var(--line); background:rgba(255,246,229,.08); color:var(--cream); font-size:18px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .gd-icon-btn.exit { background:rgba(255,107,74,.15); color:var(--coral); border-color:rgba(255,107,74,.35); }
+
+  .gd-stage { flex:1 1 auto; position:relative; min-height:0; display:flex; align-items:center; justify-content:center; padding:8px 12px 12px; }
+  #stage { position:relative; height:100%; aspect-ratio:1280/720; max-width:100%; background:var(--ink); border-radius:16px; overflow:hidden; box-shadow:0 14px 40px rgba(0,0,0,.5); touch-action:manipulation; user-select:none; }
+  #game { width:100%; height:100%; display:block; cursor:pointer; }
+
+  .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:14px; background:rgba(11,12,34,.6); backdrop-filter:blur(3px); z-index:3; }
+  .overlay.solid { background:var(--sky); }
+  .panel { background:var(--panel); border:2px solid var(--line); border-radius:20px; padding:20px 24px; max-width:600px; width:100%; text-align:center; display:flex; flex-direction:column; gap:12px; align-items:center; max-height:100%; overflow:auto; }
+  .panel h2 { font-size:clamp(26px,4.6vw,44px); margin:0; color:var(--gold); line-height:1; text-wrap:balance; }
+  .panel p { margin:0; line-height:1.4; max-width:50ch; font-size:16px; }
+  .panel .sub { color:var(--cream70); font-size:14px; }
+  .humphrey { display:flex; gap:12px; align-items:flex-start; text-align:left; background:rgba(255,246,229,.06); border-radius:14px; padding:10px 14px; width:100%; }
+  .humphrey .av { flex:none; width:44px; height:44px; border-radius:50%; overflow:hidden; background:linear-gradient(135deg,var(--magenta),var(--violet) 60%,var(--cyan)); }
+  .humphrey .av img { width:100%; height:100%; object-fit:cover; display:block; }
+  .humphrey b { display:block; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--cream70); margin-bottom:2px; }
+  .btn { font:inherit; font-weight:800; border:2px solid var(--line); background:transparent; color:var(--cream); padding:10px 16px; border-radius:999px; cursor:pointer; min-height:44px; }
+  .btn.big { font-size:24px; background:var(--gold); color:var(--ink); border-color:var(--gold); padding:10px 34px; box-shadow:0 6px 0 #b8880a; }
+  .btn.big:active { transform:translateY(4px); box-shadow:0 2px 0 #b8880a; }
+  .btn.ghost { font-size:14px; padding:6px 12px; min-height:36px; }
+  .btn.ralphie { background:rgba(92,240,176,.14); color:var(--mint); border-color:rgba(92,240,176,.5); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* HQ */
+  .hq { max-width:820px; gap:14px; }
+  .hq-grid { display:grid; grid-template-columns:1.2fr 1fr; gap:14px; width:100%; align-items:stretch; }
+  .hq-card { background:rgba(255,246,229,.05); border:1px solid var(--line); border-radius:16px; padding:12px 14px; text-align:left; display:flex; flex-direction:column; gap:8px; }
+  .hq-card h3 { margin:0; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--cyan); }
+  .hq-map { display:flex; flex-wrap:wrap; gap:6px; }
+  .hq-map span { width:34px; height:34px; border-radius:9px; display:grid; place-items:center; font-size:12px; font-weight:800; color:var(--cream70); border:1px solid var(--line); }
+  .hq-map span.done { background:var(--gold); color:var(--ink); border-color:var(--gold); }
+  .hq-map span.now { border-color:var(--cyan); color:var(--cyan); box-shadow:0 0 0 3px rgba(53,224,255,.18); }
+  .hq-stats { display:flex; gap:18px; flex-wrap:wrap; }
+  .hq-stats div { display:flex; flex-direction:column; }
+  .hq-stats b { font-size:26px; color:var(--gold); line-height:1; }
+  .hq-stats span { font-size:12px; color:var(--cream70); }
+  .crown { display:flex; gap:4px; flex-wrap:wrap; }
+  .crown i { width:18px; height:18px; border-radius:4px; background:rgba(255,246,229,.1); border:1px solid var(--line); }
+  .crown i.on { background:var(--gold); border-color:var(--gold); box-shadow:0 0 10px rgba(255,199,44,.6); }
+  #hq-hero { width:100%; height:150px; display:block; }
+
+  /* lock modal */
+  .prob { max-width:820px; gap:10px; padding:16px 20px; }
+  .prob-head { display:flex; justify-content:space-between; align-items:center; width:100%; gap:8px; }
+  .prob-head .kind { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--cream70); }
+  .prob-head .tools { display:flex; gap:6px; }
+  .prob-body { display:grid; grid-template-columns:1fr 1fr; gap:14px; width:100%; align-items:start; }
+  .prompt { font-size:clamp(26px,4.4vw,40px); color:var(--cream); line-height:1.15; text-align:center; font-weight:800; text-wrap:balance; }
+  .prompt.small { font-size:clamp(20px,3vw,26px); font-weight:700; }
+  .answer { font-size:40px; font-weight:800; letter-spacing:.08em; min-height:66px; border:3px dashed var(--cyan); border-radius:16px; display:grid; place-items:center; color:var(--gold); background:rgba(53,224,255,.06); width:100%; font-variant-numeric:tabular-nums; }
+  .answer.shake { animation:shake .3s; border-color:var(--coral); }
+  .answer.ok { border-style:solid; border-color:var(--mint); color:var(--mint); }
+  @keyframes shake { 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .pad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%; }
+  .pad button { font-size:28px; font-weight:800; background:var(--sky2); color:var(--cream); border:3px solid rgba(53,224,255,.55); border-radius:14px; padding:6px 0; min-height:56px; cursor:pointer; box-shadow:0 4px 0 #0d7a90; }
+  .pad button:active { transform:translateY(3px); box-shadow:0 1px 0 #0d7a90; }
+  .pad button.go { grid-column:span 3; background:var(--gold); color:var(--ink); border-color:var(--gold); box-shadow:0 4px 0 #b8880a; }
+  .pad button.del { color:var(--coral); }
+  .left { display:flex; flex-direction:column; gap:10px; align-items:center; }
+  .work { width:100%; background:rgba(255,246,229,.05); border:1px solid var(--line); border-radius:14px; padding:10px 12px; text-align:left; display:flex; flex-direction:column; gap:8px; min-height:110px; }
+  .work h4 { margin:0; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--cyan); }
+  .cols { display:grid; grid-template-columns:auto auto auto auto; justify-content:center; column-gap:14px; row-gap:0; font-size:34px; font-weight:800; font-variant-numeric:tabular-nums; text-align:center; line-height:1.1; }
+  .cols .lab { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--cream70); font-weight:700; }
+  .cols .carry { font-size:16px; color:var(--magenta); min-height:18px; }
+  .cols .rule { grid-column:1/5; border-top:3px solid var(--cream); margin:2px 0; }
+  .cols .sum { color:var(--gold); } .cols .dim { color:rgba(255,246,229,.25); }
+  .seq { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; font-size:26px; font-weight:800; align-items:center; }
+  .seq span { background:var(--sky2); border-radius:10px; padding:2px 12px; } .seq span.q { color:var(--gold); border:2px dashed var(--gold); }
+  .seq small { font-size:13px; color:var(--magenta); font-weight:700; }
+  .tenframe { display:grid; grid-template-columns:repeat(10,1fr); gap:4px; max-width:250px; margin:0 auto; }
+  .tenframe i { aspect-ratio:1; border-radius:50%; border:2px solid var(--line); } .tenframe i.a { background:var(--cyan); border-color:var(--cyan); } .tenframe i.b { background:var(--magenta); border-color:var(--magenta); }
+  .steps { font-size:15px; line-height:1.45; color:var(--cream); }
+  .steps p { margin:0 0 4px; } .steps .now { color:var(--gold); font-weight:800; } .steps .dim { color:rgba(255,246,229,.3); }
+  .prob .humphrey { padding:8px 12px; }
+  .prob .humphrey span { font-size:15px; }
+  @media (max-width:820px) { .prob-body { grid-template-columns:1fr; } .work { min-height:0; } }
+
+  /* room end / break / complete */
+  .stars { display:flex; gap:10px; font-size:40px; line-height:1; }
+  .stars span { color:rgba(255,246,229,.18); } .stars span.on { color:var(--gold); text-shadow:0 0 18px rgba(255,199,44,.7); }
+  .stat { display:flex; gap:22px; font-size:14px; flex-wrap:wrap; justify-content:center; color:var(--cream70); }
+  .stat b { display:block; font-size:26px; color:var(--cyan); }
+  .break-timer { font-size:64px; font-weight:800; color:var(--mint); font-variant-numeric:tabular-nums; line-height:1; }
+
+  /* Floating Humphrey portrait — same as Class Time */
+  #humphrey-portrait { position:fixed; bottom:18px; right:18px; width:88px; height:88px; border-radius:50%; background:rgba(255,255,255,.2) center/cover; border:3px solid rgba(255,199,44,.4); box-shadow:0 4px 16px rgba(0,0,0,.5); overflow:hidden; z-index:20; transition:box-shadow .2s ease, transform .2s ease; }
+  #humphrey-portrait img { width:100%; height:100%; object-fit:cover; display:block; }
+  #humphrey-portrait.speaking { box-shadow:0 0 0 6px rgba(255,199,44,.25), 0 4px 16px rgba(0,0,0,.5); animation:speaking-bob 1.2s ease-in-out infinite; }
+  @keyframes speaking-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+  #boot-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:24px; background:var(--sky); text-align:center; }
+  #boot-overlay .ralphie { width:110px; height:auto; }
+  #boot-overlay .label { font-size:22px; color:var(--gold); font-weight:800; }
+  #boot-overlay .sub { font-size:15px; color:var(--cream70); }
+  @media (prefers-reduced-motion:reduce){ .answer.shake, #humphrey-portrait.speaking, #rotate-prompt .icon { animation:none; } }
+</style>
+</head>
+<body>
+
+<div id="rotate-prompt">
+  <div class="icon">📱</div>
+  <h2>Turn your tablet sideways</h2>
+  <p>Digit Tower needs the whole floor to fit.</p>
+</div>
+
+<div id="tower">
+  <div class="gd-header">
+    <div class="gd-title">
+      <span>🗼 Game Day</span>
+      <span class="badge world" id="world-badge">World 1 · Gem Vaults</span>
+      <span class="badge" id="phase-badge">Hero HQ</span>
+    </div>
+    <div class="gd-clock" title="Today's class clock">
+      <div class="gd-clock-label"><span id="clock-phase">Hero HQ</span><span id="clock-min">0 of 75 min</span></div>
+      <div class="gd-clock-bar">
+        <i class="hq" style="width:6.67%"></i><i class="warmup" style="width:10.67%"></i><i class="floors" style="width:41.33%"></i><i class="break" style="width:6.67%"></i><i class="bonus" style="width:16%"></i><i class="debrief" style="width:18.66%"></i>
+        <div class="gd-clock-fill" id="clock-fill"></div>
+      </div>
+    </div>
+    <div class="gd-meta">
+      <span class="gd-gems" id="gems">0 ◆</span>
+      <div class="gd-actions">
+        <button class="gd-icon-btn" id="music-btn" title="Music">🎵</button>
+        <button class="gd-icon-btn" id="mute-btn" title="Mute Ms. Humphrey">🔊</button>
+        <button class="gd-icon-btn exit" id="exit-btn" title="Exit">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="gd-stage">
+    <div id="stage">
+      <canvas id="game" width="1280" height="720" aria-label="Digit Tower floor"></canvas>
+
+      <!-- Hero HQ -->
+      <div class="overlay solid" id="hq-ov" hidden>
+        <div class="panel hq">
+          <h2 class="disp" id="hq-title">Hero HQ</h2>
+          <div class="hq-grid">
+            <div class="hq-card">
+              <h3>Tower map · Season 1</h3>
+              <div class="hq-map" id="hq-map"></div>
+              <div class="hq-stats">
+                <div><b id="hq-rank">Cadet</b><span>Hero rank</span></div>
+                <div><b id="hq-gems">0</b><span>Gems</span></div>
+                <div><b id="hq-locks">0</b><span>Locks opened</span></div>
+                <div><b id="hq-days">0</b><span>Game Days</span></div>
+              </div>
+              <h3>Number Crown</h3>
+              <div class="crown" id="hq-crown"></div>
+            </div>
+            <div class="hq-card">
+              <h3 id="hq-today">Today</h3>
+              <canvas id="hq-hero" width="360" height="150"></canvas>
+              <p id="hq-world-text" style="font-size:14px;color:var(--cream70)"></p>
+            </div>
+          </div>
+          <div class="humphrey"><div class="av"><img src="assets/humphrey/humphrey_smile_512.webp" alt="" onerror="this.style.display='none'"></div><div><b>Ms. Humphrey</b><span id="hq-say">Welcome to Game Day, Nigel.</span></div></div>
+          <button class="btn big disp" id="hq-go" type="button">Suit up</button>
+        </div>
+      </div>
+
+      <!-- Phase intro (warm-up, floors, bonus, debrief) -->
+      <div class="overlay" id="phase-ov" hidden>
+        <div class="panel">
+          <h2 class="disp" id="phase-title">Warm-up</h2>
+          <p id="phase-text"></p>
+          <div class="humphrey"><div class="av"><img src="assets/humphrey/humphrey_smile_512.webp" alt="" onerror="this.style.display='none'"></div><div><b>Ms. Humphrey</b><span id="phase-say"></span></div></div>
+          <button class="btn big disp" id="phase-go" type="button">Let's go</button>
+        </div>
+      </div>
+
+      <!-- Problem modal (locks, crates, warm-up, debrief) -->
+      <div class="overlay" id="prob-ov" hidden>
+        <div class="panel prob">
+          <div class="prob-head">
+            <span class="kind" id="prob-kind">Door lock</span>
+            <div class="tools">
+              <button class="btn ghost" id="read-btn" type="button">🔊 Read it again</button>
+              <button class="btn ghost ralphie" id="ralphie-btn" type="button" hidden>🐢 Ask Ralphie</button>
+              <button class="btn ghost" id="work-btn" type="button">Show my work</button>
+            </div>
+          </div>
+          <div class="prob-body">
+            <div class="left">
+              <div class="prompt" id="prompt">47 + 25 = ?</div>
+              <div class="answer" id="answer">&nbsp;</div>
+              <div class="pad" id="pad"></div>
+            </div>
+            <div>
+              <div class="work" id="work" hidden></div>
+              <div class="humphrey" style="margin-top:8px"><div class="av"><img src="assets/humphrey/humphrey_smile_512.webp" alt="" onerror="this.style.display='none'"></div><div><b>Ms. Humphrey</b><span id="prob-hint"></span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room cleared -->
+      <div class="overlay" id="room-ov" hidden>
+        <div class="panel">
+          <h2 class="disp" id="room-title">Room cleared!</h2>
+          <div class="stars" id="room-stars"><span>★</span><span>★</span><span>★</span></div>
+          <div class="stat"><div>Gems<b id="room-gems">0</b></div><div>Locks<b id="room-locks">0</b></div><div>First try<b id="room-first">0</b></div></div>
+          <div class="humphrey"><div class="av"><img src="assets/humphrey/humphrey_smile_512.webp" alt="" onerror="this.style.display='none'"></div><div><b>Ms. Humphrey</b><span id="room-say"></span></div></div>
+          <button class="btn big disp" id="room-go" type="button">Next room</button>
+        </div>
+      </div>
+
+      <!-- Break -->
+      <div class="overlay solid" id="break-ov" hidden>
+        <div class="panel">
+          <h2 class="disp">Stretch break</h2>
+          <p class="sub">🤸 Stretch · 💧 Water · 🌳 Look out a window</p>
+          <div class="break-timer" id="break-timer">5:00</div>
+          <p class="sub" id="break-next">Next: bonus room</p>
+          <button class="btn" id="break-skip" type="button">Skip break ▶</button>
+        </div>
+      </div>
+
+      <!-- Completion -->
+      <div class="overlay solid" id="done-ov" hidden>
+        <div class="panel">
+          <h2 class="disp">Game Day complete!</h2>
+          <div class="stars" id="done-stars"><span>★</span><span>★</span><span>★</span></div>
+          <div class="stat"><div>Gems today<b id="done-gems">0</b></div><div>Locks opened<b id="done-locks">0</b></div><div>First try<b id="done-first">0</b></div><div>Rank<b id="done-rank">Cadet</b></div></div>
+          <div class="humphrey"><div class="av"><img src="assets/humphrey/humphrey_smile_512.webp" alt="" onerror="this.style.display='none'"></div><div><b>Ms. Humphrey</b><span id="done-say"></span></div></div>
+          <button class="btn big disp" id="done-go" type="button">Back to Hero Hall</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="humphrey-portrait">
+  <img id="humphrey-img" src="assets/humphrey/humphrey_smile_512.webp" alt="Ms. Humphrey" onerror="this.src='assets/humphrey/humphrey_idle_512.webp'">
+</div>
+
+<div id="boot-overlay">
+  <img class="ralphie" src="assets/ralphie/ralphie_waving.webp" alt="Ralphie" onerror="this.style.display='none'">
+  <div class="label" id="boot-label">Opening the tower…</div>
+  <div class="sub" id="boot-sub">Ms. Humphrey is finding your floor</div>
+</div>
+
+<script src="js/humphrey.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/sw-register.js"></script>
+<script src="js/digit-tower.js"></script>
+</body>
+</html>

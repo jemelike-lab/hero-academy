@@ -1724,6 +1724,14 @@
 
   // -------- Boot --------
   async function boot() {
+    // v210: Tuesday/Thursday are Game Days — Digit Tower replaces the 4-course
+    // day (same 75 minutes, same completion markers). ?mode=class forces the
+    // regular day for parents/testing.
+    try {
+      const dow = new Date().getDay();
+      const forceClass = /[?&]mode=class\b/.test(window.location.search);
+      if ((dow === 2 || dow === 4) && !forceClass) { window.location.replace('game-day.html'); return; }
+    } catch (_) {}
     setBootMessage("Setting up today's class…", "Ms. Humphrey is getting ready");
 
     // Initialize Humphrey (TTS-only — no ConvAI in v171)
