@@ -5,6 +5,7 @@ import Manipulative from './manipulatives/Manipulative';
 import { parseEquation } from './manipulatives/parseEquation';
 import { COURSES_PER_DAY, SUBJECT_EMOJI, SUBJECT_LABEL, courseForIdx, useClassTime } from './useClassTime';
 import type { BoardState, TileState } from './useClassTime';
+import type { Probe } from './probes';
 import { ClassTimeVisuals } from './visuals';
 import { onSpeaking } from '@/lib/tts';
 import HumphreyPortrait from '@/components/HumphreyPortrait';
@@ -15,7 +16,7 @@ import type { DayPlan } from '@/lib/api';
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 export default function ClassTimePage() {
-  const { state: s, answer, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit } = useClassTime();
+  const { state: s, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit } = useClassTime();
   const [speaking, setSpeaking] = useState(false);
   useEffect(() => onSpeaking(setSpeaking), []);
 
@@ -92,7 +93,7 @@ export default function ClassTimePage() {
         </section>
 
         <TutorPanel bubble={s.bubble} speaking={speaking} portrait={humphreyState} hintRung={s.hintRung} board={s.phase === 'question' ? s.board : null}
-          canInteract={s.phase === 'question'} onReadAgain={readAgain} onHint={useHint} />
+          canInteract={s.phase === 'question' && !s.probe} probe={s.probe} probeAnswered={s.probeAnswered} onProbe={answerProbe} onReadAgain={readAgain} onHint={useHint} />
       </main>
 
       <footer className="mt-3 flex items-center gap-4">
@@ -159,8 +160,8 @@ function Tile({ letter, text, state, disabled, onClick }: { letter: string; text
   );
 }
 
-function TutorPanel({ bubble, speaking, portrait, hintRung, board, canInteract, onReadAgain, onHint }: {
-  bubble: string; speaking: boolean; portrait: HumphreyState; hintRung: number; board: BoardState | null; canInteract: boolean;
+function TutorPanel({ bubble, speaking, portrait, hintRung, board, canInteract, probe, probeAnswered, onProbe, onReadAgain, onHint }: {
+  bubble: string; speaking: boolean; portrait: HumphreyState; probe: Probe | null; probeAnswered: 0 | 1 | null; onProbe: (c: 0 | 1) => void; hintRung: number; board: BoardState | null; canInteract: boolean;
   onReadAgain: () => void; onHint: (r: 1 | 2 | 3) => void;
 }) {
   const rungs: Array<{ n: 1 | 2 | 3; label: string }> = [
@@ -179,6 +180,30 @@ function TutorPanel({ bubble, speaking, portrait, hintRung, board, canInteract, 
         {bubble || `Hi ${KID_NAME}!`}
         <span className="absolute left-6 -bottom-2 w-4 h-4 bg-tutor/10 rotate-45 rounded-[3px]" />
       </div>
+      <AnimatePresence>
+        {probe && (
+          <motion.div key="probe" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-4">
+            <div className="text-[12px] font-extrabold text-tutor mb-2">Quick check</div>
+            <div className="grid grid-cols-1 gap-2">
+              {probe.options.map((opt, i) => {
+                const picked = probeAnswered === i;
+                const settled = probeAnswered !== null;
+                const isRight = i === probe.correct_index;
+                return (
+                  <motion.button key={i} onClick={() => onProbe(i as 0 | 1)} disabled={settled} whileTap={settled ? undefined : { scale: 0.97 }}
+                    className={clsx('tap rounded-2xl border-[3px] px-4 text-left font-display font-medium text-[19px] leading-tight',
+                      !settled && 'border-tutor/40 bg-tutor/5',
+                      settled && picked && isRight && 'border-grass bg-grass text-white',
+                      settled && picked && !isRight && 'border-amber bg-amber/15',
+                      settled && !picked && 'border-line opacity-50')}>
+                    {opt}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <button onClick={onReadAgain} disabled={!canInteract} className="mt-4 min-h-[56px] w-full rounded-xl border-2 border-line bg-card font-bold text-[14px] text-muted disabled:opacity-50 flex items-center justify-center gap-2">🔊 Read again</button>
 
       <div className="mt-4">

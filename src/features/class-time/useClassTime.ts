@@ -12,6 +12,7 @@ import { recordTopicAttempt } from '@/lib/telemetry';
 import { say, stop, pause, setMuted as ttsSetMuted } from '@/lib/tts';
 import { MathBank } from './math-bank';
 import { WritingBank } from './writing-bank';
+import { fetchProbe, type Probe } from './probes';
 
 export const COURSES_PER_DAY = 4;
 const QUESTIONS_PER_COURSE = 8;
@@ -55,6 +56,8 @@ export interface ClassTimeState {
   muted: boolean;
   nextCourseIdx: number;
   error: string;
+  probe: Probe | null;
+  probeAnswered: 0 | 1 | null;
 }
 
 type Action =
@@ -72,7 +75,7 @@ const initial: ClassTimeState = {
   phase: 'boot', today: todayISO(), dayPlan: null, progress: [], courseIdx: 0, subject: 'math',
   questions: [], qIdx: 0, wrongAttempts: 0, locked: true, bubble: '', tiles: [], hintRung: 0, board: null,
   imageUrl: null, imageCaption: '', remediationDone: false, bootLabel: 'Setting up today’s class…', muted: false,
-  nextCourseIdx: 0, error: '',
+  nextCourseIdx: 0, error: '', probe: null, probeAnswered: null,
 };
 
 function ensureCorrectAnswer(q: Question): Question {
@@ -138,7 +141,7 @@ export function useClassTime() {
   const presentQuestion = useCallback(async (q: Question) => {
     patch({
       phase: 'question', wrongAttempts: 0, locked: true, hintRung: 0, board: null, remediationDone: false,
-      tiles: q.options.map(() => 'idle' as TileState), imageUrl: null, imageCaption: '',
+      tiles: q.options.map(() => 'idle' as TileState), imageUrl: null, imageCaption: '', probe: null, probeAnswered: null,
     });
     if (q.image_subject) {
       lookupImage(q.image_subject).then((img) => {
@@ -211,15 +214,39 @@ export function useClassTime() {
     patch({ wrongAttempts: wrong, locked: true });
     recordEvent('class_time_answer', { q_idx: s.qIdx, correct: false, attempts: wrong });
     if (wrong === 1) {
-      await speak(q.hint ? `Not quite. ${q.hint}` : 'Not quite. Try once more.');
+      // Vimi-style tutor turn: one pick-one check-in before the hint.
+      const probePromise = fetchProbe(q, idx, s.subject);
+      await speak('Not quite. Let me ask you something first.');
       if (abort.current) return;
-      // the wrong tile stays amber so he remembers; everything else re-opens
+      const probe = await probePromise;
+      if (abort.current) return;
+      if (probe) {
+        patch({ probe, probeAnswered: null });
+        recordEvent('class_time_probe', { q_idx: s.qIdx });
+        await speak(probe.ask);
+        if (abort.current) return;
+        patch({ bubble: probe.ask });
+        return; // answerProbe() continues the flow
+      }
+      await speak(q.hint ? `${q.hint}` : 'Try once more.');
+      if (abort.current) return;
       patch({ locked: false, hintRung: ref.current.hintRung < 1 ? 1 : ref.current.hintRung });
     } else {
       recordTopicAttempt(topicId, false, s.subject);
       await startRemediation(q);
     }
   }, [patch, speak, advance, startRemediation]);
+
+  const answerProbe = useCallback(async (choice: 0 | 1) => {
+    const s = ref.current;
+    if (!s.probe || s.probeAnswered !== null) return;
+    const right = choice === s.probe.correct_index;
+    patch({ probeAnswered: choice });
+    recordEvent('class_time_probe_answer', { q_idx: s.qIdx, correct: right });
+    await speak(right ? s.probe.right_say : s.probe.wrong_say);
+    if (abort.current) return;
+    patch({ probe: null, locked: false, hintRung: Math.max(1, ref.current.hintRung) as HintRung, bubble: 'Now try the question again.' });
+  }, [patch, speak]);
 
   // ---------- hint ladder (new) ----------
   const useHint = useCallback(async (rung: 1 | 2 | 3) => {
@@ -349,5 +376,5 @@ export function useClassTime() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { state, answer, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit };
+  return { state, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit };
 }
