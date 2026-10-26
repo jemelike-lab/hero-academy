@@ -157,7 +157,7 @@ function TutorPanel({ bubble, speaking, hintRung, board, canInteract, onReadAgai
     <aside className="bg-card rounded-xl3 shadow-card p-5 flex flex-col min-h-0 overflow-y-auto">
       <div className="flex items-center gap-3">
         <div className={clsx('w-16 h-16 rounded-2xl overflow-hidden bg-paper ring-2 ring-tutor/20', speaking && 'speaking')}>
-          <img src="/assets/humphrey/humphrey-smile.png" alt="Ms. Humphrey" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/assets/humphrey/humphrey-idle.png'; }} />
+          <img src="/assets/humphrey/humphrey_base_256.webp" alt="Ms. Humphrey" className="w-full h-full object-cover" />
         </div>
         <div className="leading-tight">
           <div className="font-display font-semibold text-[17px]">Ms. Humphrey</div>

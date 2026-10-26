@@ -2,6 +2,7 @@
 // legacy page (served from /public) until it is ported. Nothing is removed.
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
+import { Link } from 'react-router-dom';
 import { KID_NAME, isGameDay, todayISO } from '@/lib/child';
 
 const ZONES = [
@@ -41,7 +42,7 @@ export default function Home() {
         <img src="/assets/ralphie/ralphie_waving.webp" alt="Ralphie waving" className="w-24 h-24 object-contain" />
       </header>
 
-      <a href={gameDay ? '/game-day.html' : '/class-time'}
+      <Link to={gameDay ? '/game-day.html' : '/class-time'} reloadDocument={gameDay}
         className={clsx('mt-6 flex items-center gap-5 rounded-xl3 p-6 shadow-card text-ink', classDone ? 'bg-grass/20' : 'bg-sun')}>
         <span className="text-[56px] leading-none">{gameDay ? '🗼' : '🎒'}</span>
         <span className="flex-1">
@@ -49,7 +50,7 @@ export default function Home() {
           <span className="block font-display font-semibold text-[30px] leading-tight">{classDone ? 'All done today' : gameDay ? 'Climb Digit Tower' : 'Start school'}</span>
           <span className="block text-[14px] font-semibold text-ink/70">{classDone ? `Great work today, ${KID_NAME}.` : gameDay ? 'Math tower, about 75 minutes' : '4 classes, about 75 minutes, one break'}</span>
         </span>
-      </a>
+      </Link>
 
       <h2 className="font-display font-semibold text-[22px] mt-8 mb-3">Training zones</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
