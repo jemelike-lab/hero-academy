@@ -234,7 +234,7 @@ export function useClassTime() {
     } else if (rung === 2) {
       patch({ hintRung: Math.max(2, s.hintRung) as HintRung, locked: true });
       await playSteps(q, 0, 1, 'One step');
-      if (!abort.current) patch({ locked: false, bubble: 'Now you try.' });
+      if (!abort.current) patch({ locked: false, bubble: 'Try moving it yourself, then pick an answer.' });
     } else {
       await startRemediation(q);
     }

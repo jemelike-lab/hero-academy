@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
+import { AnimatePresence, motion } from 'framer-motion';
+import Manipulative from './manipulatives/Manipulative';
+import { parseEquation } from './manipulatives/parseEquation';
 import { COURSES_PER_DAY, SUBJECT_EMOJI, SUBJECT_LABEL, courseForIdx, useClassTime } from './useClassTime';
 import type { BoardState, TileState } from './useClassTime';
 import { ClassTimeVisuals } from './visuals';
@@ -61,7 +64,10 @@ export default function ClassTimePage() {
             )}
             <div className="flex flex-col min-h-0">
               {q?.description && <p className="text-[17px] text-muted leading-snug mb-2">{q.description}</p>}
-              <h2 key={s.qIdx} className="font-display font-medium text-[26px] md:text-[30px] leading-[1.15] break-words">{q?.question}</h2>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.h2 key={s.qIdx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}
+                  className="font-display font-medium text-[26px] md:text-[30px] leading-[1.15] break-words">{q?.question}</motion.h2>
+              </AnimatePresence>
               <div className="mt-3 text-[13px] font-bold text-muted flex items-center gap-2 min-h-[20px]">
                 {s.locked ? <><span className={clsx('w-2 h-2 rounded-full', speaking ? 'bg-tutor animate-pulse' : 'bg-line')} /> Ms. Humphrey is reading…</> : 'Pick the answer you think is right.'}
               </div>
@@ -74,7 +80,7 @@ export default function ClassTimePage() {
           </div>
 
           {s.phase === 'remediation' && s.board && (
-            <Board board={s.board} />
+            <Board board={s.board} interactive={false} />
           )}
           {s.phase === 'remediation' && s.remediationDone && (
             <button onClick={gotIt} className="tap mt-4 w-full rounded-xl2 bg-sun text-ink font-display font-semibold text-[20px] shadow-tile active:translate-y-[2px] active:shadow-none">I get it! Next question</button>
@@ -117,12 +123,13 @@ function Trail({ plan, currentIdx, doneSet }: { plan: DayPlan | null; currentIdx
         return (
           <li key={i} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
-              <div className={clsx('w-11 h-11 rounded-full flex items-center justify-center text-[19px] relative transition-transform',
+              <motion.div animate={current && !done ? { y: [0, -4, 0] } : { y: 0 }} transition={current && !done ? { repeat: Infinity, duration: 2.2, ease: 'easeInOut' } : undefined}
+                className={clsx('w-11 h-11 rounded-full flex items-center justify-center text-[19px] relative',
                 done && 'bg-grass text-white', current && !done && 'bg-teal text-white ring-[6px] ring-teal/15', !done && !current && 'bg-line/50 text-muted')}
                 aria-current={current ? 'step' : undefined}>
                 {SUBJECT_EMOJI[subj] || '📚'}
                 {done && <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-grass text-white text-[11px] font-extrabold flex items-center justify-center border-2 border-paper -rotate-12">✓</span>}
-              </div>
+              </motion.div>
               <span className={clsx('text-[10px] font-bold', current ? 'text-teal' : 'text-muted')}>{SUBJECT_LABEL[subj] || subj}</span>
             </div>
             {i < COURSES_PER_DAY - 1 && <div className={clsx('w-6 h-[3px] -mt-4 mx-0.5 rounded', doneSet.has(i + 1) ? 'bg-grass' : 'bg-line')} />}
@@ -135,14 +142,16 @@ function Trail({ plan, currentIdx, doneSet }: { plan: DayPlan | null; currentIdx
 
 function Tile({ letter, text, state, disabled, onClick }: { letter: string; text: string; state: TileState; disabled: boolean; onClick: () => void }) {
   const locked = disabled || state === 'dim' || state === 'correct';
+  const anim = state === 'wrong' ? { x: [0, -6, 6, -4, 4, 0] } : state === 'correct' ? { scale: [1, 1.06, 1] } : { x: 0, scale: 1 };
   return (
-    <button onClick={onClick} disabled={locked} data-state={state === 'idle' ? undefined : state}
-      className={clsx('tile tap rounded-xl2 px-4 py-3 flex items-center gap-3 text-left border-[3px] border-line bg-card transition-transform',
-        !locked && 'active:scale-[0.98]', disabled && state === 'idle' && 'opacity-60')}>
+    <motion.button onClick={onClick} disabled={locked} data-state={state === 'idle' ? undefined : state}
+      animate={anim} transition={{ duration: 0.4 }} whileTap={locked ? undefined : { scale: 0.97 }}
+      className={clsx('tile tap rounded-xl2 px-4 py-3 flex items-center gap-3 text-left border-[3px] border-line bg-card',
+        disabled && state === 'idle' && 'opacity-60')}>
       <span className={clsx('w-10 h-10 shrink-0 rounded-xl flex items-center justify-center font-display font-semibold text-[20px]',
         state === 'correct' ? 'bg-white/25 text-white' : state === 'wrong' ? 'bg-amber text-white' : 'bg-paper text-muted')}>{state === 'correct' ? '✓' : letter}</span>
       <span className="font-display font-medium text-[22px] leading-tight break-words">{text}</span>
-    </button>
+    </motion.button>
   );
 }
 
@@ -183,23 +192,37 @@ function TutorPanel({ bubble, speaking, hintRung, board, canInteract, onReadAgai
           ))}
         </div>
       </div>
-      {board && <Board board={board} compact />}
+      {board && <Board board={board} compact interactive />}
     </aside>
   );
 }
 
-function Board({ board, compact }: { board: BoardState; compact?: boolean }) {
+function Board({ board, compact, interactive }: { board: BoardState; compact?: boolean; interactive: boolean }) {
+  const lastEq = [...board.actions].reverse().find((a) => a.tool === 'drawEquation');
+  const parsed = parseEquation(lastEq?.args.equation);
   return (
-    <div className={clsx('rounded-xl2 border border-line bg-paper', compact ? 'mt-4 p-3' : 'mt-5 p-5')} aria-label={board.label}>
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className={clsx('rounded-xl2 border border-line bg-paper', compact ? 'mt-4 p-3' : 'mt-5 p-5')} aria-label={board.label}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[12px] font-extrabold text-teal">{board.label}</span>
         <span className="text-[12px] font-bold text-muted">Step {board.stepIdx + 1} of {board.stepsTotal}</span>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        {board.actions.map((a, i) => <BoardItem key={i} tool={a.tool} args={a.args} compact={compact} />)}
+        <AnimatePresence initial={false}>
+          {board.actions.map((a, i) => (
+            <motion.div key={`${i}-${a.tool}`} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+              <BoardItem tool={a.tool} args={a.args} compact={compact} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
         {board.actions.length === 0 && <span className="text-muted text-[13px] font-semibold">Listen…</span>}
       </div>
-    </div>
+      {parsed && (
+        <div className="mt-3 pt-3 border-t border-line/70">
+          <Manipulative key={`${parsed.raw}-${board.stepIdx}`} eq={parsed} show={!interactive} compact={compact} />
+        </div>
+      )}
+    </motion.div>
   );
 }
 
