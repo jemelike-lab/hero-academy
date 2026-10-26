@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hero Academy design tokens (v300 redesign). RGB triplets so Tailwind alpha works. */
+:root {
+  --c-paper: 255 248 238;   /* warm paper, the schoolroom table */
+  --c-card:  255 255 255;
+  --c-ink:   31 45 77;      /* deep navy ink */
+  --c-muted: 92 106 136;
+  --c-line:  222 214 200;
+  --c-sun:   255 197 61;    /* primary action, Hero Academy gold */
+  --c-teal:  14 140 140;    /* interactive, selected */
+  --c-tutor: 214 51 108;    /* Ms. Humphrey magenta */
+  --c-grass: 46 184 114;    /* correct */
+  --c-amber: 245 158 11;    /* try again */
+  color-scheme: light;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: rgb(var(--c-paper));
+  color: rgb(var(--c-ink));
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Tap targets for a 7-year-old: never smaller than 64px on primary controls. */
+.tap { min-height: 64px; }
+
+:focus-visible { outline: 3px solid rgb(var(--c-teal)); outline-offset: 3px; border-radius: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* The one orchestrated motion: Humphrey "speaking" breath on her portrait ring. */
+@keyframes speak-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--c-tutor) / 0.45); }
+  50%      { box-shadow: 0 0 0 14px rgb(var(--c-tutor) / 0); }
+}
+.speaking { animation: speak-breathe 1.4s ease-out infinite; }
+
+/* Answer tile result states (set via data-state) */
+.tile[data-state="correct"] { background: rgb(var(--c-grass)); color: #fff; border-color: rgb(var(--c-grass)); }
+.tile[data-state="wrong"]   { background: rgb(var(--c-amber) / 0.18); border-color: rgb(var(--c-amber)); }
+.tile[data-state="dim"]     { opacity: 0.45; }

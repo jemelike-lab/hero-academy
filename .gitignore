@@ -10,3 +10,6 @@ apply-*.py
 
 # Node (defensive)
 node_modules/
+
+# Vite
+dist/

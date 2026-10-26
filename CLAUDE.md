@@ -16,6 +16,10 @@ See `.claude/WORKFLOW.md` for deeper notes.
 
 ## Repo map
 
+**v300 (Oct 2026): React rewrite in progress.** Vite + React 18 + TypeScript + Tailwind. `src/` is the new app (`src/pages/Home.tsx`, `src/features/class-time/`). The legacy static site moved intact to `public/` and is still served at the same URLs (`/game-day.html`, `/word-tower.html`, …) until each zone is ported; the old homepage is `public/legacy-home.html`. `api/` is unchanged. `npm run build` → `dist/`. Routes handled by React need a rewrite in `vercel.json`.
+
+### Legacy map (public/)
+
 - `index.html` — homepage (zones grid, homework card, Ms. Humphrey widget)
 - `number-lab.html` + `js/number-lab.js` — math practice game
 - `cauldron-cafe.html` — Phaser cooking game (`CauldronScene`)

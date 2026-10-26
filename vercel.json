@@ -29,5 +29,11 @@
       "path": "/api/cron/class-time-lessons",
       "schedule": "0 10 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/class-time",
+      "destination": "/index.html"
+    }
   ]
 }

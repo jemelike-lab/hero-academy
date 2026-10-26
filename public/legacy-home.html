@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#fed7aa">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hero Academy">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/humphrey.css">
+  <link rel="stylesheet" href="css/today-mission.css">
+  <link rel="stylesheet" href="css/quests.css">
+  <link rel="stylesheet" href="css/review.css">
+  <style>
+    /* Today's Wonder — AI-generated science (Content-of-One Deploy 2) */
+    .today-wonder-card {
+      margin: 14px 16px 0;
+      padding: 18px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #67e8f9 100%);
+      color: #0c2540;
+      box-shadow: 0 12px 32px rgba(8, 145, 178, 0.4);
+      position: relative; overflow: hidden;
+      font-family: 'Nunito', system-ui, sans-serif;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .today-wonder-card:active { transform: scale(0.98); }
+    .today-wonder-card[hidden] { display: none !important; }
+    .today-wonder-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.3), transparent 55%);
+      pointer-events: none;
+    }
+    .today-wonder-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+      font-weight: 700; color: #0c2540;
+      background: rgba(255,255,255,0.4); padding: 4px 10px; border-radius: 999px;
+      margin-bottom: 10px;
+    }
+    .today-wonder-q {
+      font-family: 'Fredoka', system-ui, sans-serif;
+      font-size: 20px; line-height: 1.25; font-weight: 600;
+      margin: 0 0 6px; color: #0c2540;
+    }
+    .today-wonder-cta {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 8px;
+      font-size: 14px; font-weight: 700; color: #0c2540;
+    }
+    .today-wonder-overlay {
+      position: fixed; inset: 0; z-index: 9000;
+      background: #f0f9ff;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      padding: 18px 18px 60px;
+      font-family: 'Nunito', sans-serif;
+    }
+    .today-wonder-overlay[hidden] { display: none; }
+    .today-wonder-overlay-close {
+      align-self: flex-end;
+      width: 44px; height: 44px; border-radius: 999px;
+      background: #e0f2fe; color: #075985; border: none;
+      font-size: 22px; font-weight: 700; cursor: pointer;
+    }
+    .today-wonder-overlay h2 {
+      font-family: 'Fredoka', sans-serif;
+      color: #075985; font-size: 24px; line-height: 1.25;
+      margin: 8px 0 18px;
+    }
+    .today-wonder-overlay p {
+      font-size: 18px; line-height: 1.6; color: #0c2540;
+      margin: 0 0 14px;
+    }
+    .today-wonder-overlay .wonder-section {
+      margin-top: 18px; padding: 16px; border-radius: 16px;
+    }
+    .today-wonder-overlay .wonder-try {
+      background: #fef3c7; border-left: 4px solid #f59e0b;
+    }
+    .today-wonder-overlay .wonder-followup {
+      background: #ede9fe; border-left: 4px solid #7c3aed;
+    }
+    .today-wonder-overlay .wonder-section h3 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 17px; margin: 0 0 8px; color: #1e293b;
+    }
+
+    /* v160: Start School primary tile — biggest CTA on the home screen */
+    .start-school-tile {
+      display: flex; align-items: center; gap: 16px;
+      margin: 14px 16px 0; padding: 22px 22px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #ec4899 0%, #ff8b3d 55%, #ffd147 100%);
+      color: #2a0d1f;
+      text-decoration: none;
+      box-shadow: 0 14px 36px rgba(236, 72, 153, 0.45);
+      position: relative; overflow: hidden;
+      font-family: 'Nunito', system-ui, sans-serif;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .start-school-tile::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 90% 15%, rgba(255,255,255,0.35), transparent 55%);
+      pointer-events: none;
+    }
+    .start-school-tile:active { transform: scale(0.98); box-shadow: 0 8px 18px rgba(236, 72, 153, 0.4); }
+    .start-school-tile[hidden] { display: none !important; }
+    .start-school-emoji {
+      font-size: 56px; line-height: 1;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.15));
+      position: relative; z-index: 1;
+    }
+    .start-school-body { flex: 1 1 auto; min-width: 0; position: relative; z-index: 1; }
+    .start-school-eyebrow {
+      display: inline-block;
+      font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 800; color: #2a0d1f;
+      background: rgba(255,255,255,0.45); padding: 4px 10px; border-radius: 999px;
+      margin: 0 0 8px;
+    }
+    .start-school-title {
+      font-family: 'Fredoka', system-ui, sans-serif;
+      font-size: 28px; line-height: 1.1; font-weight: 700;
+      margin: 0 0 4px; color: #1a0612;
+    }
+    .start-school-sub {
+      font-size: 14px; line-height: 1.35; color: #3a1428; margin: 0; opacity: 0.85;
+    }
+    .start-school-arrow {
+      font-size: 32px; font-weight: 700; color: #1a0612;
+      position: relative; z-index: 1;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+    }
+    /* When all 4 courses for today are done, tile shifts to a calmer "complete" look */
+    .start-school-tile.is-complete {
+      background: linear-gradient(135deg, #16a34a 0%, #22c55e 55%, #86efac 100%);
+      box-shadow: 0 12px 30px rgba(34, 197, 94, 0.4);
+    }
+    .start-school-tile.is-complete .start-school-arrow { content: '✓'; }
+    /* v191: partial-progress state — amber to signal "in progress, resume". */
+    .start-school-tile.is-partial {
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 55%, #fcd34d 100%);
+      box-shadow: 0 12px 30px rgba(245, 158, 11, 0.38);
+    }
+  </style>
+  <link rel="preload" as="image" href="assets/ralphie/ralphie_waving.webp" type="image/webp">
+  <title>Hero Academy · Nigel</title>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <div class="stars stars-1"></div><div class="stars stars-2"></div><div class="stars stars-3"></div>
+    <div class="shooting-star"></div>
+    <div class="clouds"><div class="cloud cloud-1"></div><div class="cloud cloud-2"></div><div class="cloud cloud-3"></div></div>
+  </div>
+  <header class="hud" role="banner">
+    <button class="hud-avatar" id="avatarBtn" aria-label="View your hero">
+      <span class="avatar-ring"><span class="avatar-emoji">🐢</span><span class="avatar-level" id="avatarLevel">1</span></span>
+    </button>
+    <div class="hud-logo"><h1 class="logo-title"><span class="logo-line-1">HERO</span><span class="logo-line-2">ACADEMY</span></h1></div>
+    <div class="hud-stats">
+      <div class="stat stat-coins" title="Coins earned"><span class="stat-icon">🪙</span><span class="stat-value" id="coinCount">0</span></div>
+      <div class="stat stat-streak" title="Daily streak"><span class="stat-icon">🔥</span><span class="stat-value" id="streakCount">0</span></div>
+    </div>
+  </header>
+  <main class="main" role="main">
+    <section class="hero" aria-label="Welcome">
+      <div class="hero-greeting">
+        <p class="hero-eyebrow" id="timeGreeting">Good morning,</p>
+        <h2 class="hero-name">Nigel!</h2>
+        <p class="hero-message" id="heroMessage">Ready to train your powers today?</p>
+      </div>
+      <div class="hero-character">
+        <div class="hero-shadow"></div>
+        <img src="assets/ralphie/ralphie_waving.webp" alt="Ralphie waving hello" class="hero-ralphie" id="heroRalphie">
+        <div class="speech-bubble" id="speechBubble"><span class="speech-text">Welcome back!</span><span class="speech-tail"></span></div>
+      </div>
+    </section>
+    <!-- v160: primary "Start School" tile — the daily anchor. Class Time is
+         Nigel's full-day teacher; this surfaces it above missions/wonders. -->
+    <a href="class-time.html" class="start-school-tile" id="startSchoolTile" aria-label="Start today's school day with Ms. Humphrey">
+      <span class="start-school-emoji" aria-hidden="true">🎒</span>
+      <div class="start-school-body">
+        <p class="start-school-eyebrow">Class Time with Ms. Humphrey</p>
+        <p class="start-school-title" id="startSchoolTitle">Start school</p>
+        <p class="start-school-sub" id="startSchoolSub">4 courses · ~75 min · breaks between</p>
+      </div>
+      <span class="start-school-arrow" aria-hidden="true">→</span>
+    </a>
+    <section class="today-wonder-card" id="todayWonderCard" hidden role="button" tabindex="0" aria-label="Today's Wonder">
+      <span class="today-wonder-eyebrow">✨ Today's Wonder</span>
+      <p class="today-wonder-q" id="todayWonderQ">Loading…</p>
+      <span class="today-wonder-cta">Find out →</span>
+    </section>
+    <section id="todayMissionCard" class="today-mission" hidden aria-label="Today's Mission"></section>
+    <button type="button" id="realWorldQuestTile" class="quest-tile" hidden aria-label="Start a real-world quest from Ms. Humphrey">
+      <div class="quest-tile-row">
+        <span class="quest-tile-emoji" aria-hidden="true">🌟</span>
+        <div class="quest-tile-body">
+          <p class="quest-tile-eyebrow">Real-world Quest</p>
+          <p class="quest-tile-title">Ms. Humphrey has an off-screen mission</p>
+          <p class="quest-tile-sub">Go find something in your house and come back to tell me!</p>
+        </div>
+        <span class="quest-tile-arrow" aria-hidden="true">→</span>
+      </div>
+    </button>
+    <a href="review.html" class="daily-practice" id="dailyPracticeTile" hidden aria-label="Start Daily Practice">
+      <div class="daily-practice-row">
+        <span class="daily-practice-emoji" aria-hidden="true">🧠</span>
+        <div class="daily-practice-body">
+          <p class="daily-practice-eyebrow">DAILY PRACTICE</p>
+          <p class="daily-practice-title" id="dailyPracticeTitle">Memory boost ready!</p>
+          <p class="daily-practice-sub" id="dailyPracticeSub">A few quick questions to lock things in.</p>
+        </div>
+        <div class="daily-practice-count" id="dailyPracticeCount">·</div>
+      </div>
+    </a>
+    <!-- Build #3 — Hero Level tile (populated by inline script below) -->
+    <a href="hero-hall.html" class="hero-level-tile" id="heroLevelTile" hidden aria-label="See your hero journey">
+      <div class="hero-level-tile-row">
+        <div class="hero-level-tile-badge">
+          <div class="hero-level-tile-num" id="heroLevelTileNum">–</div>
+          <div class="hero-level-tile-lbl">LVL</div>
+        </div>
+        <div class="hero-level-tile-body">
+          <p class="hero-level-tile-eyebrow">HERO JOURNEY</p>
+          <p class="hero-level-tile-title" id="heroLevelTileTitle">…</p>
+          <div class="hero-level-tile-bar-frame"><div class="hero-level-tile-bar-fill" id="heroLevelTileBar" style="width:0%"></div></div>
+          <p class="hero-level-tile-sub" id="heroLevelTileSub">…</p>
+        </div>
+        <span class="hero-level-tile-arrow" aria-hidden="true">→</span>
+      </div>
+    </a>
+    <section class="daily-banner" aria-label="Today's challenge">
+      <div class="daily-icon">⭐</div>
+      <div class="daily-content"><p class="daily-label">TODAY'S CHALLENGE</p><p class="daily-text" id="dailyText">Complete 3 training zones to unlock a reward!</p></div>
+      <div class="daily-progress"><div class="progress-track"><div class="progress-fill" id="dailyProgress" style="width:0%"></div></div><span class="progress-text"><span id="dailyDone">0</span>/3</span></div>
+    </section>
+    <section class="zones" aria-label="Training zones">
+      <h3 class="section-title"><span class="title-pow">CHOOSE YOUR</span><span class="title-main">TRAINING ZONE</span></h3>
+      <div class="zones-grid" id="zonesGrid"></div>
+    </section>
+    <section class="homework-card" id="homeworkCard" hidden aria-label="Today's homework">
+      <div class="homework-header">
+        <span class="homework-emoji" aria-hidden="true">📚</span>
+        <div class="homework-title-wrap">
+          <span class="homework-eyebrow" id="hwStatus">Today's Homework</span>
+          <h2 class="homework-title" id="hwTitle">Math Practice</h2>
+        </div>
+      </div>
+      <div class="homework-progress">
+        <div class="homework-progress-track"><div class="homework-progress-fill" id="hwFill"></div></div>
+        <span class="homework-progress-text" id="hwProgress">0 / 10</span>
+      </div>
+      <button class="homework-btn" id="hwStart">START</button>
+    </section>
+    <!-- v81/v83: discreet parents access. Routes to #josh by default so the
+         dashboard loads on this device without needing to type the hash.
+         Bianca's link comes from the Saturday email already (with #bianca).
+         Picker appears so Josh OR Bianca can pick themselves. -->
+    <footer class="home-footer" aria-label="For parents">
+      <a class="home-parents-link" href="parent.html" rel="nofollow noopener">
+        <span class="home-parents-icon" aria-hidden="true">👨‍👩‍👧</span>
+        <span class="home-parents-text">For parents</span>
+        <span class="home-parents-arrow" aria-hidden="true">→</span>
+      </a>
+    </footer>
+      </main>
+<div class="welcome-overlay" id="welcomeOverlay" hidden>
+    <div class="welcome-content">
+      <div class="welcome-burst"><svg viewBox="0 0 200 200" class="burst-svg" aria-hidden="true"><path d="M100,10 L115,55 L160,40 L130,80 L175,90 L130,105 L160,150 L115,135 L100,180 L85,135 L40,150 L70,105 L25,90 L70,80 L40,40 L85,55 Z" fill="#ffd147"/></svg><h2 class="welcome-title">WELCOME!</h2></div>
+      <p class="welcome-text">I'm Ralphie, your buddy. Miss Humphrey is your teacher. Let's train!</p>
+      <button class="welcome-btn" id="welcomeBtn">LET'S GO!</button>
+    </div>
+  </div>
+  <div class="zone-modal" id="zoneModal" hidden>
+    <div class="zone-modal-backdrop"></div>
+    <div class="zone-modal-card" id="zoneModalCard">
+      <button class="zone-modal-close" id="zoneModalClose" aria-label="Close">×</button>
+      <div class="zone-modal-content">
+        <img src="" alt="" class="zone-modal-ralphie" id="zoneModalRalphie">
+        <h3 class="zone-modal-title" id="zoneModalTitle">Zone</h3>
+        <p class="zone-modal-desc" id="zoneModalDesc">Description</p>
+        <div class="zone-modal-stats"><div class="zone-stat"><span class="zone-stat-label">Progress</span><span class="zone-stat-value" id="zoneModalProgress">0%</span></div><div class="zone-stat"><span class="zone-stat-label">Today</span><span class="zone-stat-value">15 min</span></div></div>
+        <button class="zone-modal-enter" id="zoneModalEnter">ENTER ZONE</button>
+      </div>
+    </div>
+  </div>
+  <div class="today-wonder-overlay" id="todayWonderOverlay" hidden>
+    <button type="button" class="today-wonder-overlay-close" id="todayWonderClose" aria-label="Close">×</button>
+    <h2 id="todayWonderTitle"></h2>
+    <p id="todayWonderExplanation"></p>
+    <div class="wonder-section wonder-try">
+      <h3>🔬 Try this at home</h3>
+      <p id="todayWonderTry"></p>
+    </div>
+    <div class="wonder-section wonder-followup">
+      <h3>💬 Ask a grown-up</h3>
+      <p id="todayWonderFollowup"></p>
+    </div>
+  </div>
+  <script src="js/daily-content.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/telemetry.js"></script>
+  <script src="js/srs.js"></script>
+  <script src="js/today-mission.js"></script>
+  <script src="js/quests.js"></script>
+  <script src="js/characters.js"></script>
+  <script>
+    // v160: Start School tile status — reflect today's Class Time completion
+    // from the localStorage marker set by Class Time's handleDayCompletion.
+    (function () {
+      var tile = document.getElementById('startSchoolTile');
+      if (!tile) return;
+      var d = new Date();
+      var todayKey = d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+      var titleEl = document.getElementById('startSchoolTitle');
+      var subEl = document.getElementById('startSchoolSub');
+      // v210: Tuesday/Thursday are Game Days — the tile opens Digit Tower.
+      var isGameDay = (d.getDay() === 2 || d.getDay() === 4);
+      if (isGameDay) {
+        tile.setAttribute('href', 'game-day.html');
+        var eyebrow = tile.querySelector('.start-school-eyebrow');
+        if (eyebrow) eyebrow.textContent = 'Game Day with Ms. Humphrey';
+        if (titleEl) titleEl.textContent = 'Climb Digit Tower';
+        if (subEl) subEl.textContent = 'Math tower · 75 min · no clocks on locks';
+        var emo = tile.querySelector('.start-school-emoji'); if (emo) emo.textContent = '🗼';
+      }
+      try {
+        var raw = localStorage.getItem('ha_class_time_' + todayKey);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.completedAt) {
+            tile.classList.add('is-complete');
+            if (titleEl) titleEl.textContent = 'All done today!';
+            if (subEl) subEl.textContent = 'Great work today, Nigel — see you tomorrow.';
+          }
+        }
+      } catch (_) { /* ignore parse errors, leave default */ }
+
+      // v191: live partial-progress on the Start-School tile. Even before all
+      // 4 courses are done, show "Pick up at course N — 2 of 4 done" so Nigel
+      // (and a parent) can see at a glance where the school day stands. The
+      // home tile previously only ever flipped on FULL completion.
+      if (!tile.classList.contains('is-complete') && !isGameDay) {
+        var CHILD = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
+        fetch('/api/class-time/course-progress?date=' + todayKey + '&child_id=' + CHILD, { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) return;
+            var rows = Array.isArray(data) ? data : (data.progress || []);
+            var doneCount = rows.filter(function (c) { return c && c.completed_at; }).length;
+            if (doneCount <= 0 || doneCount >= 4) return; // 0 = default copy, 4 handled above
+            tile.classList.add('is-partial');
+            if (titleEl) titleEl.textContent = 'Pick up where you left off';
+            if (subEl) subEl.textContent = doneCount + ' of 4 courses done · resume course ' + (doneCount + 1);
+          })
+          .catch(function () { /* offline — leave default copy */ });
+      }
+    })();
+
+    if (window.HeroAcademy && window.HeroAcademy.TodayMission) {
+      window.HeroAcademy.TodayMission.init();
+    }
+    if (window.HeroAcademy && window.HeroAcademy.Quests) {
+      window.HeroAcademy.Quests.init();
+    }
+    // Build #3 — Hero Level tile. Fetches server episode progress, computes
+    // the level + chapters-earned, and reveals the tile. Hidden on error.
+    if (window.HeroAcademy && window.HeroAcademy.Characters &&
+        typeof window.HeroAcademy.Characters.heroLevel === 'function' &&
+        typeof window.HeroAcademy.Characters.totalEpisodesEarned === 'function') {
+      (async function () {
+        const NS3 = window.HeroAcademy.Characters;
+        let episodes = {};
+        try { episodes = await NS3.getProgress(); } catch (e) { episodes = {}; }
+        const total = NS3.totalEpisodesEarned(episodes);
+        const lvl = NS3.heroLevel(total);
+        var _avatarLvl = document.getElementById('avatarLevel');
+        if (_avatarLvl) _avatarLvl.textContent = lvl.level;
+        const tile = document.getElementById('heroLevelTile');
+        if (!tile) return;
+        document.getElementById('heroLevelTileNum').textContent = lvl.level;
+        document.getElementById('heroLevelTileTitle').textContent = lvl.title +
+          (total === 0 ? ' — start your journey!' : '');
+        const within = Math.max(0, total - lvl.floor);
+        const span = Math.max(1, lvl.ceiling - lvl.floor);
+        // Use a small minimum so the bar always reads as "present" — a
+        // freshly-leveled-up player sees a sliver, not an empty rail.
+        const rawPct = Math.round((within / span) * 100);
+        const pct = total === 0 ? 0 : Math.max(4, Math.min(100, rawPct));
+        document.getElementById('heroLevelTileBar').style.width = pct + '%';
+        document.getElementById('heroLevelTileSub').textContent =
+          total + '/15 hero chapters' +
+          (lvl.level < 6 ? ' \u00b7 ' + Math.max(0, lvl.ceiling - total) + ' more to Lvl ' + (lvl.level + 1)
+                         : ' \u00b7 max level!');
+        tile.hidden = false;
+      })();
+    }
+    // Daily Practice tile — populate from SRS queue count.
+    // On Fridays, swap to "Friday Quiz" framing + ?mode=friday route.
+    if (window.HeroAcademy && window.HeroAcademy.SRS) {
+      var isFriday = new Date().getDay() === 5;
+      var loader = isFriday
+        ? window.HeroAcademy.SRS.loadFridayQuiz(10).then(function (items) { return items.length; })
+        : window.HeroAcademy.SRS.countDue();
+      loader.then(function (n) {
+        var tile = document.getElementById('dailyPracticeTile');
+        if (!tile) return;
+        if (n > 0) {
+          var label = document.getElementById('dailyPracticeCount');
+          var sub = document.getElementById('dailyPracticeSub');
+          var title = document.getElementById('dailyPracticeTitle');
+          var eyebrow = tile.querySelector('.daily-practice-eyebrow');
+          if (label) label.textContent = String(n);
+          if (isFriday) {
+            tile.href = 'review.html?mode=friday';
+            if (eyebrow) eyebrow.textContent = 'FRIDAY QUIZ';
+            if (title) title.textContent = "This week's brain check!";
+            if (sub) sub.textContent = (n === 1 ? '1 question' : n + ' questions')
+              + ' covering everything you practiced.';
+            tile.classList.add('daily-practice--friday');
+          } else {
+            if (sub) sub.textContent = n === 1
+              ? '1 question to lock in.'
+              : n + ' quick questions to lock things in.';
+          }
+          tile.hidden = false;
+        }
+      });
+    }
+  </script>
+  <script src="js/humphrey.js"></script>
+  <script src="js/humphrey-memory.js"></script>
+  <!-- Conversational Ms. Humphrey: chat client + mic listener + Q&A wiring.
+       Load order matters — qna uses NS.Chat and NS.Listener at runtime.
+       (Restored v196: these were deleted in error by the v174e cleanup pass.) -->
+  <script src="js/humphrey-chat.js"></script>
+  <script src="js/humphrey-listener.js"></script>
+  <script src="js/humphrey-qna.js"></script>
+  <script>
+    if (window.HeroAcademy && window.HeroAcademy.Humphrey) {
+      window.HeroAcademy.Humphrey.init({
+        position: 'bottom-left',
+        audioEnabled: true,
+        debug: false,
+        welcomeEvent: 'welcome-home',
+        kidName: 'Nigel',
+      });
+      // Welcome line is now fired automatically on first user gesture
+      // (gated by ha_welcomed_welcome-home_<date>). No direct say() needed.
+      // The Ms. Humphrey button is wired by js/humphrey-qna.js (auto-runs on
+      // DOMContentLoaded). On the dashboard there's no active problem, so the
+      // default empty context provider is fine — Claude answers open-ended
+      // questions about anything Nigel asks.
+    }
+  </script>
+  <script>
+    /* Today's Wonder wiring — Content-of-One Deploy 2 */
+    (async function () {
+      const DC = window.HeroAcademy && window.HeroAcademy.DailyContent;
+      if (!DC) return;
+      const result = await DC.get('science_wonder');
+      if (!result || !result.payload || !result.payload.question) return;
+
+      const w = result.payload;
+      const card = document.getElementById('todayWonderCard');
+      const qEl = document.getElementById('todayWonderQ');
+      const overlay = document.getElementById('todayWonderOverlay');
+      const titleEl = document.getElementById('todayWonderTitle');
+      const explEl = document.getElementById('todayWonderExplanation');
+      const tryEl = document.getElementById('todayWonderTry');
+      const followEl = document.getElementById('todayWonderFollowup');
+      const closeBtn = document.getElementById('todayWonderClose');
+
+      qEl.textContent = w.question;
+      card.hidden = false;
+
+      function open() {
+        titleEl.textContent = w.question;
+        explEl.textContent = w.explanation || '';
+        tryEl.textContent = w.try_this || '';
+        followEl.textContent = w.follow_up_question || '';
+        overlay.hidden = false;
+        window.scrollTo(0, 0);
+        DC.markUsed('science_wonder');
+        // v162: Ms. Humphrey reads the full Wonder content sequentially.
+        try {
+          const hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (hp && typeof hp.say === 'function') {
+            const chunks = [];
+            chunks.push("Today's wonder, Nigel. " + (w.question || ''));
+            if (w.explanation)        chunks.push(w.explanation);
+            if (w.try_this)           chunks.push("Try this at home. " + w.try_this);
+            if (w.follow_up_question) chunks.push("And here's something to ask a grown-up. " + w.follow_up_question);
+            function splitForTts(text) {
+              var MAX = 450, t = String(text || '').trim();
+              if (!t) return []; if (t.length <= MAX) return [t];
+              var out = [], buf = '', sentences = t.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [t];
+              sentences.forEach(function (s) { var sentence = s.trim(); if (!sentence) return;
+                if ((buf + ' ' + sentence).trim().length > MAX) { if (buf) out.push(buf.trim()); buf = sentence.length > MAX ? sentence.slice(0, MAX) : sentence; }
+                else { buf = (buf + ' ' + sentence).trim(); }
+              }); if (buf) out.push(buf.trim()); return out;
+            }
+            chunks.forEach(function (c) { splitForTts(c).forEach(function (piece) {
+              hp.say('todays-wonder-read', { kidName: 'Nigel', text: piece, expression: 'encouraging', priority: 'high' });
+            }); });
+          }
+        } catch (_) {}
+      }
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      closeBtn.addEventListener('click', function () {
+        overlay.hidden = true;
+        try {
+          var hp = window.HeroAcademy && window.HeroAcademy.Humphrey;
+          if (hp && typeof hp.stop === 'function') hp.stop();
+        } catch (_) {}
+      });
+    })();
+  </script>
+  <script src="js/sw-register.js"></script>
+  <script src="js/break-timer.js" defer></script>
+</body>
+</html>
