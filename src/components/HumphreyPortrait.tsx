@@ -7,7 +7,11 @@ import clsx from 'clsx';
 
 export type HumphreyState = 'idle' | 'speaking' | 'delighted';
 const STATES: HumphreyState[] = ['idle', 'speaking', 'delighted'];
-const SRC = (s: HumphreyState) => `/assets/clips/humphrey_${s}.mp4`;
+const CLIP: Record<HumphreyState, string> = {
+  idle: '/assets/clips/humphrey_idle.mp4',
+  speaking: '/assets/clips/humphrey_speaking.mp4',
+  delighted: '/assets/clips/humphrey_delighted.mp4',
+};
 export const HUMPHREY_POSTER = '/assets/clips/humphrey_poster.jpg';
 
 export default function HumphreyPortrait({ state, className }: { state: HumphreyState; className?: string }) {
@@ -31,7 +35,7 @@ export default function HumphreyPortrait({ state, className }: { state: Humphrey
     <div className={clsx('relative overflow-hidden bg-paper', className)} aria-label={`Ms. Humphrey, ${state}`} role="img">
       <img src={HUMPHREY_POSTER} alt="" className="absolute inset-0 w-full h-full object-cover" />
       {STATES.map((s) => (
-        <video key={s} ref={(el) => { refs.current[s] = el; }} src={SRC(s)} muted loop playsInline preload="auto" autoPlay={s === 'idle'}
+        <video key={s} ref={(el) => { refs.current[s] = el; }} src={CLIP[s]} muted loop playsInline preload="auto" autoPlay={s === 'idle'}
           className={clsx('absolute inset-0 w-full h-full object-cover transition-opacity duration-300', s === state ? 'opacity-100' : 'opacity-0')} />
       ))}
     </div>
