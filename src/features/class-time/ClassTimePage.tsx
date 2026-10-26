@@ -7,6 +7,8 @@ import { COURSES_PER_DAY, SUBJECT_EMOJI, SUBJECT_LABEL, courseForIdx, useClassTi
 import type { BoardState, TileState } from './useClassTime';
 import { ClassTimeVisuals } from './visuals';
 import { onSpeaking } from '@/lib/tts';
+import HumphreyPortrait from '@/components/HumphreyPortrait';
+import type { HumphreyState } from '@/components/HumphreyPortrait';
 import { KID_NAME } from '@/lib/child';
 import type { DayPlan } from '@/lib/api';
 
@@ -18,6 +20,8 @@ export default function ClassTimePage() {
   useEffect(() => onSpeaking(setSpeaking), []);
 
   const q = s.questions[s.qIdx];
+  const celebrating = s.tiles.includes('correct');
+  const humphreyState: HumphreyState = celebrating ? 'delighted' : speaking ? 'speaking' : 'idle';
   const subjectLabel = SUBJECT_LABEL[s.subject] || s.subject;
   const doneSet = new Set(s.progress.filter((p) => p.completed_at).map((p) => p.course_order));
 
@@ -87,7 +91,7 @@ export default function ClassTimePage() {
           )}
         </section>
 
-        <TutorPanel bubble={s.bubble} speaking={speaking} hintRung={s.hintRung} board={s.phase === 'question' ? s.board : null}
+        <TutorPanel bubble={s.bubble} speaking={speaking} portrait={humphreyState} hintRung={s.hintRung} board={s.phase === 'question' ? s.board : null}
           canInteract={s.phase === 'question'} onReadAgain={readAgain} onHint={useHint} />
       </main>
 
@@ -155,8 +159,8 @@ function Tile({ letter, text, state, disabled, onClick }: { letter: string; text
   );
 }
 
-function TutorPanel({ bubble, speaking, hintRung, board, canInteract, onReadAgain, onHint }: {
-  bubble: string; speaking: boolean; hintRung: number; board: BoardState | null; canInteract: boolean;
+function TutorPanel({ bubble, speaking, portrait, hintRung, board, canInteract, onReadAgain, onHint }: {
+  bubble: string; speaking: boolean; portrait: HumphreyState; hintRung: number; board: BoardState | null; canInteract: boolean;
   onReadAgain: () => void; onHint: (r: 1 | 2 | 3) => void;
 }) {
   const rungs: Array<{ n: 1 | 2 | 3; label: string }> = [
@@ -165,9 +169,7 @@ function TutorPanel({ bubble, speaking, hintRung, board, canInteract, onReadAgai
   return (
     <aside className="bg-card rounded-xl3 shadow-card p-5 flex flex-col min-h-0 overflow-y-auto">
       <div className="flex items-center gap-3">
-        <div className={clsx('w-16 h-16 rounded-2xl overflow-hidden bg-paper ring-2 ring-tutor/20', speaking && 'speaking')}>
-          <img src="/assets/humphrey/humphrey_base_256.webp" alt="Ms. Humphrey" className="w-full h-full object-cover" />
-        </div>
+        <HumphreyPortrait state={portrait} className={clsx('w-24 h-24 rounded-2xl ring-2 ring-tutor/20 shrink-0', speaking && 'speaking')} />
         <div className="leading-tight">
           <div className="font-display font-semibold text-[17px]">Ms. Humphrey</div>
           <div className="text-[11px] font-bold text-muted">{speaking ? 'speaking' : 'listening'}</div>
