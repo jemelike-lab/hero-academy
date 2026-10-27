@@ -7,6 +7,7 @@ import { KID_NAME, isGameDay, todayISO } from '@/lib/child';
 import RalphiePortrait, { type RalphieState } from '@/components/RalphiePortrait';
 
 const ZONES = [
+  { id: 'game-day', name: 'Digit Tower', subject: 'Game Day · Math', emoji: '🗼', href: '/game-day' },
   { id: 'number-lab', name: 'Number Lab', subject: 'Math', emoji: '🧮', href: '/cauldron-cafe.html' },
   { id: 'letter-lab', name: 'Letter Lab', subject: 'Phonics', emoji: '🔤', href: '/letter-lab.html' },
   { id: 'word-tower', name: 'Word Tower', subject: 'Reading', emoji: '🗼', href: '/word-tower.html' },
@@ -67,11 +68,11 @@ export default function Home() {
       <h2 className="font-display font-semibold text-[22px] mt-8 mb-3">Training zones</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {ZONES.map((z) => (
-          <a key={z.id} href={z.href} className="tap bg-card rounded-xl2 shadow-card p-4 flex flex-col gap-1 active:scale-[0.98] transition-transform">
+          <Link key={z.id} to={z.href} reloadDocument={z.href.endsWith('.html')} className="tap bg-card rounded-xl2 shadow-card p-4 flex flex-col gap-1 active:scale-[0.98] transition-transform">
             <span className="text-[32px] leading-none">{z.emoji}</span>
             <span className="font-display font-semibold text-[17px] mt-1">{z.name}</span>
             <span className="text-[12px] font-bold text-muted">{z.subject}</span>
-          </a>
+          </Link>
         ))}
       </div>
 
