@@ -18,7 +18,7 @@ shipped under `public/assets/clips/`. Nothing is generated at runtime.
 - Delivery: download the MP4, transcode to 480×480 silent H.264 (`ffmpeg -an -vf scale=480:480
   -crf 26 -movflags +faststart`), save under `public/assets/clips/` with the names below.
 
-Status: batch 1 (idle, speaking, delighted) and batch 2 (thinking, encouraging, cheering, board, goodbye) rendered 2026-10-26, all eight accepted and wired in (board has faint doodles on the whiteboard; rerun with "blank whiteboard" if it bothers anyone). Batch 3 (Ralphie) rendered 2026-10-27: wave, cheer, thinking, sleepy, trophy accepted; idle rerun with "both arms down at his sides" (the reference pose is a wave, so say so or he keeps the arm up). Next: batch 4, set dressing stills.
+Status: batch 1 (idle, speaking, delighted) and batch 2 (thinking, encouraging, cheering, board, goodbye) rendered 2026-10-26, all eight accepted and wired in (board has faint doodles on the whiteboard; rerun with "blank whiteboard" if it bothers anyone). Batch 3 (Ralphie) rendered 2026-10-27: wave, cheer, thinking, sleepy, trophy accepted; idle rerun with "both arms down at his sides" accepted (the reference pose is a wave, so say so or he keeps the arm up). Next: batch 4, set dressing stills.
 
 ## Ms. Humphrey (portrait, chest-up, facing camera)
 
