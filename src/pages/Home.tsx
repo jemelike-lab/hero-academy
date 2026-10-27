@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { Link } from 'react-router-dom';
 import { KID_NAME, isGameDay, todayISO } from '@/lib/child';
+import RalphiePortrait, { type RalphieState } from '@/components/RalphiePortrait';
 
 const ZONES = [
   { id: 'number-lab', name: 'Number Lab', subject: 'Math', emoji: '🧮', href: '/cauldron-cafe.html' },
@@ -28,6 +29,8 @@ function greeting() {
 export default function Home() {
   const gameDay = isGameDay();
   const [classDone, setClassDone] = useState(false);
+  const [ralphie, setRalphie] = useState<RalphieState>('wave');
+  useEffect(() => { const t = setTimeout(() => setRalphie('idle'), 5200); return () => clearTimeout(t); }, []);
   useEffect(() => {
     try { const raw = localStorage.getItem(`ha_class_time_${todayISO()}`); setClassDone(!!(raw && JSON.parse(raw).completedAt)); } catch { /* ignore */ }
   }, []);
@@ -39,7 +42,7 @@ export default function Home() {
           <p className="text-muted font-bold">{greeting()},</p>
           <h1 className="font-display font-semibold text-[40px] leading-none">{KID_NAME}</h1>
         </div>
-        <img src="/assets/ralphie/ralphie_waving.webp" alt="Ralphie waving" className="w-24 h-24 object-contain" />
+        <RalphiePortrait state={ralphie} className="w-28 h-28 rounded-3xl ring-2 ring-teal/15" />
       </header>
 
       <Link to={gameDay ? '/game-day.html' : '/class-time'} reloadDocument={gameDay}

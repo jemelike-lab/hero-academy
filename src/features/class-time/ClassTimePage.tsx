@@ -9,6 +9,7 @@ import type { Probe } from './probes';
 import { ClassTimeVisuals } from './visuals';
 import { onSpeaking } from '@/lib/tts';
 import HumphreyPortrait from '@/components/HumphreyPortrait';
+import RalphiePortrait from '@/components/RalphiePortrait';
 import type { HumphreyState } from '@/components/HumphreyPortrait';
 import { KID_NAME } from '@/lib/child';
 import type { DayPlan } from '@/lib/api';
@@ -307,7 +308,10 @@ function ProgressCard({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan |
 function Completion({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan | null }) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
-      <HumphreyPortrait state="goodbye" className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />
+      <div className="flex items-end gap-4">
+        <HumphreyPortrait state="goodbye" className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />
+        <RalphiePortrait state="trophy" className="w-28 h-28 rounded-3xl ring-4 ring-sun/30" />
+      </div>
       <h1 className="font-display font-semibold text-[32px]">🎉 Great class, {KID_NAME}!</h1>
       <p className="text-muted font-semibold text-[18px]">Ms. Humphrey will see you tomorrow.</p>
       <ProgressCard doneSet={new Set([1, 2, 3, 4, ...doneSet])} plan={plan} />
@@ -330,7 +334,7 @@ function BreakScreen({ nextLabel, onResume }: { nextLabel: string; onResume: () 
   return (
     <div className="fixed inset-0 z-50 bg-ink/45 backdrop-blur-sm flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-labelledby="break-title">
       <div className="bg-card rounded-[32px] shadow-2xl max-w-md w-full p-8 text-center">
-        <div className="w-20 h-20 mx-auto rounded-full bg-teal/10 flex items-center justify-center text-4xl">🌿</div>
+        <RalphiePortrait state="sleepy" className="w-32 h-32 mx-auto rounded-3xl ring-4 ring-teal/10" />
         <h2 id="break-title" className="font-display font-semibold text-[26px] mt-4">Break time</h2>
         <p className="text-muted font-semibold mt-1">Stretch, grab a snack, go outside. Next up: {nextLabel}.</p>
         {minutes == null ? (
