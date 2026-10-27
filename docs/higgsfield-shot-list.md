@@ -18,7 +18,7 @@ shipped under `public/assets/clips/`. Nothing is generated at runtime.
 - Delivery: download the MP4, transcode to 480×480 silent H.264 (`ffmpeg -an -vf scale=480:480
   -crf 26 -movflags +faststart`), save under `public/assets/clips/` with the names below.
 
-Status: batch 1 (idle, speaking, delighted) rendered 2026-10-26, all three accepted and wired in.
+Status: batch 1 (idle, speaking, delighted) and batch 2 (thinking, encouraging, cheering, board, goodbye) rendered 2026-10-26, all eight accepted and wired in (board has faint doodles on the whiteboard; rerun with "blank whiteboard" if it bothers anyone). Next: batch 3, Ralphie.
 
 ## Ms. Humphrey (portrait, chest-up, facing camera)
 

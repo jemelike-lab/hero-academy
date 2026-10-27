@@ -21,8 +21,14 @@ export default function ClassTimePage() {
   useEffect(() => onSpeaking(setSpeaking), []);
 
   const q = s.questions[s.qIdx];
-  const celebrating = s.tiles.includes('correct');
-  const humphreyState: HumphreyState = celebrating ? 'delighted' : speaking ? 'speaking' : 'idle';
+  const humphreyState: HumphreyState =
+    s.phase === 'done' ? 'goodbye'
+    : s.phase === 'remediation' ? 'board'
+    : s.tiles.includes('correct') ? 'delighted'
+    : s.probe ? 'encouraging'
+    : s.phase === 'course-intro' && s.courseIdx > 0 ? 'cheering'
+    : s.phase === 'question' && s.board ? 'thinking'
+    : speaking ? 'speaking' : 'idle';
   const subjectLabel = SUBJECT_LABEL[s.subject] || s.subject;
   const doneSet = new Set(s.progress.filter((p) => p.completed_at).map((p) => p.course_order));
 
@@ -301,6 +307,7 @@ function ProgressCard({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan |
 function Completion({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan | null }) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <HumphreyPortrait state="goodbye" className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />
       <h1 className="font-display font-semibold text-[32px]">🎉 Great class, {KID_NAME}!</h1>
       <p className="text-muted font-semibold text-[18px]">Ms. Humphrey will see you tomorrow.</p>
       <ProgressCard doneSet={new Set([1, 2, 3, 4, ...doneSet])} plan={plan} />
