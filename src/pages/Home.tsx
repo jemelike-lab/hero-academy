@@ -46,8 +46,7 @@ export default function Home() {
         <RalphiePortrait state={ralphie} className="w-28 h-28 rounded-3xl ring-2 ring-teal/15" />
       </header>
 
-      {/* Tue/Thu stays on the proven legacy Game Day until the React Digit Tower has been tested on the iPad; it is reachable from its zone tile below. */}
-      <Link to={gameDay ? '/game-day.html' : '/class-time'} reloadDocument={gameDay}
+      <Link to={gameDay ? '/game-day' : '/class-time'}
         className={clsx('mt-6 flex items-center gap-5 rounded-xl3 p-6 shadow-card text-ink', classDone ? 'bg-grass/20' : 'bg-sun')}>
         <span className="text-[56px] leading-none">{gameDay ? '🗼' : '🎒'}</span>
         <span className="flex-1">
@@ -56,6 +55,12 @@ export default function Home() {
           <span className="block text-[14px] font-semibold text-ink/70">{classDone ? `Great work today, ${KID_NAME}.` : gameDay ? 'Math tower, about 75 minutes' : '4 classes, about 75 minutes, one break'}</span>
         </span>
       </Link>
+
+      <div className="mt-2 flex justify-end">
+        <Link to={gameDay ? '/class-time' : '/game-day'} className="text-[13px] font-bold text-teal underline-offset-2 hover:underline">
+          {gameDay ? 'Or do Class Time instead' : 'Or climb Digit Tower instead'}
+        </Link>
+      </div>
 
       <Link to="/path/math" className="mt-3 flex items-center gap-4 rounded-xl2 bg-card shadow-card px-5 py-4">
         <span className="text-[32px] leading-none">🗺️</span>
