@@ -48,3 +48,37 @@ body {
 .tile[data-state="correct"] { background: rgb(var(--c-grass)); color: #fff; border-color: rgb(var(--c-grass)); }
 .tile[data-state="wrong"]   { background: rgb(var(--c-amber) / 0.18); border-color: rgb(var(--c-amber)); }
 .tile[data-state="dim"]     { opacity: 0.45; }
+
+/* ---------------- Digit Tower (Game Day) scene, themed per world via --dt-* vars ---------------- */
+.dt-scene { background: radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--dt-wall) 70%, #ffffff 8%) 0%, var(--dt-wall) 45%, color-mix(in srgb, var(--dt-wall) 70%, #000 30%) 100%); color: #eef0ff; }
+.dt-tile { position: relative; border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--dt-floor2) 80%, #fff 14%) 0%, var(--dt-floor) 62%, color-mix(in srgb, var(--dt-floor) 80%, #000 20%) 100%);
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.10), inset 0 -6px 10px rgba(0,0,0,.45), 0 5px 0 color-mix(in srgb, var(--dt-floor) 60%, #000 40%), 0 8px 14px rgba(0,0,0,.45); }
+.dt-tile::after { content: ""; position: absolute; inset: 3px 3px auto 3px; height: 38%; border-radius: 10px 10px 30px 30px; background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0)); pointer-events: none; }
+.dt-tile.wall { background: linear-gradient(180deg, color-mix(in srgb, var(--dt-wall) 70%, #fff 16%) 0%, var(--dt-wall) 60%, color-mix(in srgb, var(--dt-wall) 80%, #000 20%) 100%);
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.10), inset 0 -8px 12px rgba(0,0,0,.55), 0 9px 0 color-mix(in srgb, var(--dt-wall) 50%, #000 50%), 0 12px 18px rgba(0,0,0,.55); }
+.dt-tile.fog { filter: saturate(.5) brightness(.45); }
+.dt-tile.lock { box-shadow: inset 0 2px 1px rgba(255,255,255,.10), inset 0 -6px 10px rgba(0,0,0,.45), 0 5px 0 color-mix(in srgb, var(--dt-floor) 60%, #000 40%), 0 0 22px color-mix(in srgb, var(--dt-acc) 60%, transparent), 0 8px 14px rgba(0,0,0,.45); }
+.dt-tile.stair { background: repeating-linear-gradient(180deg, rgba(255,255,255,.08) 0 6px, transparent 6px 12px), linear-gradient(180deg, var(--dt-floor2), var(--dt-floor));
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.12), inset 0 -6px 10px rgba(0,0,0,.5), 0 5px 0 color-mix(in srgb, var(--dt-floor) 60%, #000 40%), 0 0 20px color-mix(in srgb, var(--dt-acc2) 60%, transparent); }
+.dt-tile.sel { outline: 3px solid var(--dt-acc2); outline-offset: -3px; }
+@keyframes dt-pulse { 0%,100% { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--dt-acc) 70%, transparent)); } 50% { filter: drop-shadow(0 0 12px var(--dt-acc)); } }
+.dt-glow { animation: dt-pulse 2.4s ease-in-out infinite; }
+@keyframes dt-bob { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-6px) rotate(3deg); } }
+.dt-bob { animation: dt-bob 2.6s ease-in-out infinite; }
+@keyframes dt-path { 0%,100% { opacity: .5; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.1); } }
+.dt-pathdot { width: 10px; height: 10px; border-radius: 999px; background: var(--dt-acc2); box-shadow: 0 0 10px var(--dt-acc2), 0 0 20px color-mix(in srgb, var(--dt-acc2) 50%, transparent); animation: dt-path 1.3s ease-in-out infinite; }
+.dt-crate { background: linear-gradient(180deg, #b5773e 0%, #8a5526 70%, #6e431d 100%); box-shadow: inset 0 2px 2px rgba(255,220,160,.4), inset 0 -6px 8px rgba(0,0,0,.5), 0 4px 0 #4a2c12, 0 6px 10px rgba(0,0,0,.5); border: 2px solid #5e3a18; }
+.dt-pill { background: rgba(20,21,55,.7); border: 1px solid rgba(120,130,220,.25); backdrop-filter: blur(8px); }
+.dt-glass { background: linear-gradient(160deg, rgba(28,29,72,.94), rgba(15,16,42,.94)); border: 1px solid rgba(120,140,230,.28); box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(14px); }
+.dt-key { background: linear-gradient(180deg, #3a3790 0%, #2a2770 70%, #221f5e 100%); box-shadow: inset 0 2px 1px rgba(255,255,255,.18), inset 0 -5px 8px rgba(0,0,0,.4), 0 4px 0 #15143f, 0 6px 10px rgba(0,0,0,.45); color: #fff; }
+.dt-key:active { transform: translateY(2px); box-shadow: inset 0 2px 1px rgba(255,255,255,.18), 0 2px 0 #15143f; }
+.dt-key-gold { background: linear-gradient(180deg, #ffd75a 0%, #ffc72c 55%, #e0a200 100%); box-shadow: inset 0 2px 1px rgba(255,255,255,.5), inset 0 -5px 8px rgba(140,80,0,.35), 0 5px 0 #a06e00, 0 8px 14px rgba(255,199,44,.35); color: #3a2400; }
+.dt-key-gold:active { transform: translateY(2px); box-shadow: inset 0 2px 1px rgba(255,255,255,.5), 0 3px 0 #a06e00; }
+.dt-answer { background: linear-gradient(180deg, #0e0f2c, #14153480); border: 2px solid rgba(53,224,255,.45); box-shadow: inset 0 4px 14px rgba(0,0,0,.5), 0 0 22px rgba(53,224,255,.25); }
+.dt-answer.ok { border-color: #5cf0b0; box-shadow: 0 0 30px rgba(92,240,176,.6); }
+.dt-chip { background: rgba(40,42,95,.7); border: 1px solid rgba(120,130,220,.25); }
+.dt-workcol { background: linear-gradient(180deg, #11122e, #0c0d24); border: 1px solid rgba(120,130,220,.25); box-shadow: inset 0 2px 8px rgba(0,0,0,.4); }
+.dt-spot { background: radial-gradient(closest-side, rgba(255,235,180,.55), rgba(255,210,120,.18) 60%, transparent 80%); filter: blur(2px); }
+@keyframes dt-cape { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.dt-cape { animation: dt-cape 2.4s ease-in-out infinite; transform-origin: top center; }
+.dt-night { background: radial-gradient(circle at var(--hx) var(--hy), transparent 0, transparent 90px, rgba(4,4,16,.92) 220px); }
