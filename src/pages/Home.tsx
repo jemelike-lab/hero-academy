@@ -46,7 +46,8 @@ export default function Home() {
         <RalphiePortrait state={ralphie} className="w-28 h-28 rounded-3xl ring-2 ring-teal/15" />
       </header>
 
-      <Link to={gameDay ? '/game-day' : '/class-time'}
+      {/* Tue/Thu stays on the proven legacy Game Day until the React Digit Tower has been tested on the iPad; it is reachable from its zone tile below. */}
+      <Link to={gameDay ? '/game-day.html' : '/class-time'} reloadDocument={gameDay}
         className={clsx('mt-6 flex items-center gap-5 rounded-xl3 p-6 shadow-card text-ink', classDone ? 'bg-grass/20' : 'bg-sun')}>
         <span className="text-[56px] leading-none">{gameDay ? '🗼' : '🎒'}</span>
         <span className="flex-1">
