@@ -26,11 +26,11 @@ export function HeroSVG({ rank, className }: { rank: number; className?: string 
 
 function Lock({ kind }: { kind: string }) {
   if (kind === 'crate') return <div className="dt-crate rounded-md relative" style={{ width: '62%', height: '55%' }}><div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[3px] w-[30%] rounded" style={{ background: 'var(--dt-acc)', boxShadow: '0 0 6px var(--dt-acc)' }} /></div>;
-  if (kind === 'cage') return <svg width="56%" height="56%" viewBox="0 0 24 24" className="dt-glow" fill="none" stroke="#7bd389" strokeWidth="2" strokeLinecap="round"><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 6v14M12 6v14M16 6v14" /><circle cx="12" cy="13" r="2" fill="#7bd389" /></svg>;
+  if (kind === 'cage') return <svg width="56%" height="56%" viewBox="0 0 24 24" className="dt-glow" fill="none" stroke="#2EB872" strokeWidth="2" strokeLinecap="round"><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 6v14M12 6v14M16 6v14" /><circle cx="12" cy="13" r="2" fill="#2EB872" /></svg>;
   const vault = kind === 'vault';
   return (
     <svg width="46%" height="46%" viewBox="0 0 24 24" className="dt-glow" fill="none" stroke={vault ? '#ff4f8b' : 'var(--dt-acc)'} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="5" y="11" width="14" height="10" rx="2.5" fill="rgba(0,0,0,.55)" /><path d="M8 11V7a4 4 0 018 0v4" /><circle cx="12" cy="15.5" r="1.4" fill={vault ? '#ff4f8b' : 'var(--dt-acc)'} />
+      <rect x="5" y="11" width="14" height="10" rx="2.5" fill="rgba(255,255,255,.85)" /><path d="M8 11V7a4 4 0 018 0v4" /><circle cx="12" cy="15.5" r="1.4" fill={vault ? '#ff4f8b' : 'var(--dt-acc)'} />
     </svg>
   );
 }
@@ -38,7 +38,7 @@ function Lock({ kind }: { kind: string }) {
 function Gem() {
   return (
     <div className="dt-bob absolute" style={{ filter: 'drop-shadow(0 0 10px var(--dt-acc2))' }}>
-      <svg width="34" height="34" viewBox="0 0 24 24"><path d="M12 2l4 6-4 14-4-14z" fill="var(--dt-acc2)" stroke="#fff" strokeWidth="1" opacity=".95" /><path d="M12 2L8 8h8z" fill="#fff" opacity=".6" /></svg>
+      <svg width="34" height="34" viewBox="0 0 24 24"><path d="M12 2l4 6-4 14-4-14z" fill="var(--dt-acc2)" stroke="#fff" strokeWidth="1" opacity=".95" /><path d="M12 2L8 8h8z" fill="#fff" opacity=".8" /></svg>
     </div>
   );
 }
@@ -82,7 +82,7 @@ export const RoomGrid = memo(function RoomGrid({ room, twist, rank, sel, floats,
       </div>
       {room.ralphie && (
         <div className="absolute pointer-events-none w-9 h-9 transition-all duration-300" style={{ left: pct(room.hero.x - 0.55, COLS), top: pct(room.hero.y + 0.25, ROWS), transform: 'translate(-50%,-50%)' }}>
-          <img src="/assets/clips/ralphie_poster.jpg" alt="" className="w-full h-full rounded-full object-cover ring-2 ring-[#7bd389]" />
+          <img src="/assets/clips/ralphie_poster.jpg" alt="" className="w-full h-full rounded-full object-cover ring-2 ring-[#2EB872]" />
         </div>
       )}
 
