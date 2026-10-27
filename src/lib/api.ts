@@ -82,3 +82,16 @@ export function recordEvent(eventType: string, payload: Record<string, unknown> 
     }
   } catch { /* telemetry is best-effort */ }
 }
+
+export interface PathTopic {
+  topic_id: string; title: string; description: string | null; difficulty: number | null; sequence_order: number | null;
+  prerequisites: string[]; attempted: number; passed: number; pass_rate: number | null; mastered: boolean; last_session_at: string | null;
+}
+export async function fetchPath(subject: string): Promise<PathTopic[]> {
+  const data = await getJSON<{ topics: PathTopic[] }>(`/api/class-time/path?subject=${encodeURIComponent(subject)}&child_id=${CHILD_ID}`);
+  return data.topics || [];
+}
+export async function fetchPlacement(subject: string): Promise<{ topics: { id: string; title: string }[]; questions: Question[] }> {
+  const data = await getJSON<{ topics: { id: string; title: string }[]; questions: Question[] }>(`/api/class-time/placement?subject=${encodeURIComponent(subject)}&child_id=${CHILD_ID}`);
+  return { topics: data.topics || [], questions: data.questions || [] };
+}

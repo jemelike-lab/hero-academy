@@ -55,6 +55,15 @@ export default function Home() {
         </span>
       </Link>
 
+      <Link to="/path/math" className="mt-3 flex items-center gap-4 rounded-xl2 bg-card shadow-card px-5 py-4">
+        <span className="text-[32px] leading-none">🗺️</span>
+        <span className="flex-1">
+          <span className="block font-display font-semibold text-[18px]">My path</span>
+          <span className="block text-[13px] font-bold text-muted">See what you’ve mastered and what’s next, or find your level</span>
+        </span>
+        <span className="text-muted font-bold">›</span>
+      </Link>
+
       <h2 className="font-display font-semibold text-[22px] mt-8 mb-3">Training zones</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {ZONES.map((z) => (

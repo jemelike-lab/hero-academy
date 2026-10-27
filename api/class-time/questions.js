@@ -635,3 +635,6 @@ async function supabaseRpc(url, key, fn, params) {
   if (!txt) return null;
   try { return JSON.parse(txt); } catch (_) { return txt; }
 }
+
+// v306: shared with /api/class-time/placement.js
+export { generateWithHaiku, supabaseRpc };

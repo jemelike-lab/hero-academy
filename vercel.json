@@ -34,6 +34,18 @@
     {
       "source": "/class-time",
       "destination": "/index.html"
+    },
+    {
+      "source": "/path",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/path/:subject",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/level-check/:subject",
+      "destination": "/index.html"
     }
   ]
 }

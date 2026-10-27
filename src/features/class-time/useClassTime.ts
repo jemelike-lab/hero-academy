@@ -202,7 +202,8 @@ export function useClassTime() {
       dispatch({ type: 'tiles', tiles });
       patch({ locked: true });
       recordEvent('class_time_answer', { q_idx: s.qIdx, correct: true, attempts: s.wrongAttempts + 1 });
-      recordTopicAttempt(topicId, s.wrongAttempts === 0, s.subject);
+      // v306: a clean pass means no wrong tries AND no step/whole-thing hint (rung ≥ 2)
+      recordTopicAttempt(topicId, s.wrongAttempts === 0 && s.hintRung < 2, s.subject);
       await speak(q.explanation || 'Yes! That’s right.');
       await pause(POST_SPEECH_PAUSE_MS);
       if (!abort.current) await advance();
@@ -254,6 +255,7 @@ export function useClassTime() {
     if (s.phase !== 'question') return;
     const q = s.questions[s.qIdx];
     stop();
+    recordEvent('class_time_hint', { q_idx: s.qIdx, rung, topic: q.topic });
     if (rung === 1) {
       patch({ hintRung: Math.max(1, s.hintRung) as HintRung });
       await speak(q.hint || 'Read the question once more, slowly.');
