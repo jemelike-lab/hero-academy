@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useWordTower, type CardState, type WTState } from './useWordTower';
 import { firstTryCount, type Result } from './engine';
 import { onSpeaking } from '@/lib/tts';
-import HumphreyPortrait, { type HumphreyState } from '@/components/HumphreyPortrait';
+import HumphreyPortrait, { useHumphrey } from '@/components/HumphreyPortrait';
 import RalphiePortrait, { type RalphieState } from '@/components/RalphiePortrait';
 import { KID_NAME } from '@/lib/child';
 
@@ -17,8 +17,7 @@ export default function WordTowerPage() {
   useEffect(() => onSpeaking(setSpeaking), []);
   const w = s.queue[s.index];
 
-  const humphrey: HumphreyState = s.phase === 'done' ? 'cheering'
-    : speaking ? (s.mood === 'delighted' ? 'delighted' : s.mood === 'encouraging' ? 'encouraging' : 'speaking') : 'idle';
+  const humphrey = useHumphrey(s.phase === 'done' ? 'cheering' : s.mood === 'delighted' ? 'delighted' : s.mood === 'encouraging' ? 'encouraging' : null);
   const ralphie: RalphieState = s.phase === 'done' ? 'trophy'
     : s.status.kind === 'pass' ? 'cheer' : s.status.kind === 'hint' ? 'thinking' : 'reading';
 

@@ -98,7 +98,9 @@ export function onGesture(fn: () => void) { gestureHooks.add(fn); return () => {
 
 // ---- speaking ----
 export function onSpeaking(fn: Listener) { listeners.add(fn); return () => { listeners.delete(fn); }; }
-function emit(v: boolean) { listeners.forEach((l) => l(v)); }
+let speakingNow = false;
+function emit(v: boolean) { speakingNow = v; listeners.forEach((l) => l(v)); }
+export function isSpeaking() { return speakingNow; }
 
 export function setMuted(v: boolean) { muted = v; if (v) stop(); }
 export function isMuted() { return muted; }

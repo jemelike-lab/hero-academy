@@ -8,7 +8,7 @@ import WorkBoard from './WorkBoard';
 import { allVaultsOpen, tileAt, key } from './room';
 import { onSpeaking } from '@/lib/tts';
 import { KID_NAME } from '@/lib/child';
-import HumphreyPortrait, { type HumphreyState } from '@/components/HumphreyPortrait';
+import HumphreyPortrait, { useHumphrey } from '@/components/HumphreyPortrait';
 import RalphiePortrait from '@/components/RalphiePortrait';
 
 const PHASE_LABEL: Record<string, string> = { hq: 'Hero HQ', warmup: 'Warm-up', floors: 'Tower', break: 'Break', bonus: 'Bonus', debrief: 'Debrief' };
@@ -29,7 +29,7 @@ export default function DigitTowerPage() {
   const minutes = Math.floor(s.elapsedMs / 60000);
   const twist = TWISTS.find((t) => t.id === s.twist) || TWISTS[0];
   const vaults = s.room ? countVaults(s.room) : null;
-  const humphrey: HumphreyState = s.mode === 'done' ? 'goodbye' : s.mode === 'roomend' ? 'cheering' : s.answerState === 'ok' ? 'delighted' : s.mode === 'prob' && s.tries > 0 ? 'encouraging' : speaking ? 'speaking' : 'idle';
+  const humphrey = useHumphrey(s.mode === 'done' ? 'goodbye' : s.mode === 'roomend' ? 'cheering' : s.answerState === 'ok' ? 'delighted' : s.mode === 'prob' && s.tries > 0 ? 'encouraging' : null);
   // On a light scene a pale accent (cream, pale blue) disappears, so swap it for the world's other accent.
   const lum = (hex: string) => { const n = parseInt(hex.slice(1), 16); return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
   const acc2 = lum(w.acc2) > 0.8 ? (lum(w.acc) > 0.8 ? '#0E8C8C' : w.acc) : w.acc2;
@@ -193,7 +193,7 @@ export default function DigitTowerPage() {
         {s.mode === 'done' && s.doneSummary && (
           <Overlay key="done">
             <div className="dt-glass rounded-[26px] p-7 w-[640px] max-w-[94%] text-center">
-              <div className="flex items-end justify-center gap-4"><HumphreyPortrait state="goodbye" className="w-28 h-28 rounded-3xl ring-4 ring-line" /><RalphiePortrait state="trophy" className="w-24 h-24 rounded-3xl ring-4 ring-[#ffc72c]/30" /></div>
+              <div className="flex items-end justify-center gap-4"><HumphreyPortrait state={humphrey} className="w-28 h-28 rounded-3xl ring-4 ring-line" /><RalphiePortrait state="trophy" className="w-24 h-24 rounded-3xl ring-4 ring-[#ffc72c]/30" /></div>
               <h2 className="font-semibold text-[30px] mt-3">That’s Game Day!</h2>
               <div className="flex justify-center gap-2 mt-1 text-4xl">{[0, 1, 2].map((i) => <span key={i} className={i < s.doneSummary!.stars ? 'text-[#ffc72c]' : 'text-line'}>★</span>)}</div>
               <div className="grid grid-cols-4 gap-3 mt-4"><Stat n={s.gemsToday} l="gems" /><Stat n={s.locksToday} l="locks" /><Stat n={`${s.firstTryToday}/${s.locksToday}`} l="first try" /><Stat n={s.doneSummary.rank} l="rank" /></div>

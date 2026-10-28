@@ -8,7 +8,7 @@ import type { BoardState, TileState } from './useClassTime';
 import type { Probe } from './probes';
 import { ClassTimeVisuals } from './visuals';
 import { onSpeaking } from '@/lib/tts';
-import HumphreyPortrait from '@/components/HumphreyPortrait';
+import HumphreyPortrait, { useHumphrey } from '@/components/HumphreyPortrait';
 import RalphiePortrait from '@/components/RalphiePortrait';
 import type { HumphreyState } from '@/components/HumphreyPortrait';
 import { KID_NAME } from '@/lib/child';
@@ -22,14 +22,14 @@ export default function ClassTimePage() {
   useEffect(() => onSpeaking(setSpeaking), []);
 
   const q = s.questions[s.qIdx];
-  const humphreyState: HumphreyState =
+  const humphreyState = useHumphrey(
     s.phase === 'done' ? 'goodbye'
     : s.phase === 'remediation' ? 'board'
     : s.tiles.includes('correct') ? 'delighted'
     : s.probe ? 'encouraging'
     : s.phase === 'course-intro' && s.courseIdx > 0 ? 'cheering'
     : s.phase === 'question' && s.board ? 'thinking'
-    : speaking ? 'speaking' : 'idle';
+    : null);
   const subjectLabel = SUBJECT_LABEL[s.subject] || s.subject;
   const doneSet = new Set(s.progress.filter((p) => p.completed_at).map((p) => p.course_order));
 
@@ -116,6 +116,11 @@ export default function ClassTimePage() {
 }
 
 /* ---------------- pieces ---------------- */
+
+// Talks while saying goodbye, then waves.
+function CompletionHumphrey() {
+  return <HumphreyPortrait state={useHumphrey('goodbye', 8000)} className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />;
+}
 
 function IconButton({ children, label, onClick, danger }: { children: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
   return (
@@ -309,7 +314,7 @@ function Completion({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan | n
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="flex items-end gap-4">
-        <HumphreyPortrait state="goodbye" className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />
+        <CompletionHumphrey />
         <RalphiePortrait state="trophy" className="w-28 h-28 rounded-3xl ring-4 ring-sun/30" />
       </div>
       <h1 className="font-display font-semibold text-[32px]">🎉 Great class, {KID_NAME}!</h1>
