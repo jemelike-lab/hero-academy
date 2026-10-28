@@ -4,13 +4,14 @@ import ClassTimePage from './features/class-time/ClassTimePage';
 import PathPage from './pages/PathPage';
 import PlacementPage from './pages/PlacementPage';
 import DigitTowerPage from './features/digit-tower/DigitTowerPage';
+import TapToStart from './components/TapToStart';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/class-time" element={<ClassTimePage />} />
-      <Route path="/game-day" element={<DigitTowerPage />} />
+      <Route path="/class-time" element={<><ClassTimePage /><TapToStart title="Class Time with Ms. Humphrey" label="Start class" /></>} />
+      <Route path="/game-day" element={<><DigitTowerPage /><TapToStart title="Game Day with Ms. Humphrey" label="Let’s climb" /></>} />
       <Route path="/path" element={<PathPage />} />
       <Route path="/path/:subject" element={<PathPage />} />
       <Route path="/level-check/:subject" element={<PlacementPage />} />

@@ -21,7 +21,22 @@
 // no truncate — old rows simply stop being read).
 
 const RESOLVER_VERSION = 'v208';
-const WIKI_USER_AGENT = 'Hero-Academy/1.0 (homeschool-app; admin@hero-academy.local)';
+// v312: Wikimedia throttles clients without real contact info, and requests
+// from cloud hosts (Vercel) most of all; every lookup had been getting 503
+// since 21 Oct. The UA now names the live site, per the Wikimedia UA policy.
+const WIKI_USER_AGENT = 'HeroAcademy/1.2 (https://hero-academy-jemelike-6356s-projects.vercel.app; homeschool learning app) node-fetch';
+const WIKI_HEADERS = { 'User-Agent': WIKI_USER_AGENT, 'Api-User-Agent': WIKI_USER_AGENT, Accept: 'application/json' };
+
+// One polite retry on 429/503 (Retry-After honoured up to 2 s).
+async function wikiFetch(url){
+  let r = await fetch(url, { headers: WIKI_HEADERS });
+  if (r.status === 429 || r.status === 503){
+    const ra = parseFloat(r.headers.get('retry-after') || '');
+    await new Promise((res) => setTimeout(res, Number.isFinite(ra) ? Math.min(2000, ra * 1000) : 800));
+    r = await fetch(url, { headers: WIKI_HEADERS });
+  }
+  return r;
+}
 const HAIKU_MODEL = 'claude-haiku-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
 const CANDIDATE_COUNT = 5;
@@ -83,7 +98,7 @@ async function sbSaveCache(subject, rec){
 // Top N candidate article titles for a query (was srlimit=1 + blind first-hit).
 async function wikiSearch(query, limit = CANDIDATE_COUNT){
   const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=${limit}&format=json&origin=*`;
-  const r = await fetch(url, { headers: { 'User-Agent': WIKI_USER_AGENT } });
+  const r = await wikiFetch(url);
   if (!r.ok) throw new Error(`wiki search ${r.status}`);
   const j = await r.json();
   const hits = j?.query?.search || [];
@@ -161,7 +176,7 @@ function candidateIsUnsafe(cand){
 
 async function wikiSummary(title){
   const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-  const r = await fetch(url, { headers: { 'User-Agent': WIKI_USER_AGENT } });
+  const r = await wikiFetch(url);
   if (!r.ok) throw new Error(`wiki summary ${r.status}`);
   return r.json();
 }

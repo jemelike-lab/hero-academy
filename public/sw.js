@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'hero-academy-v300';
+const CACHE_VERSION = 'hero-academy-v312';
 const CORE = [
   "./", "./number-lab.html", "./cauldron-cafe.html",
   "./word-tower.html",
@@ -103,6 +103,11 @@ self.addEventListener("fetch", (e) => {
   // The course-progress endpoint was getting cached as empty, causing
   // Class Time to lose progress on reload.
   if (url.pathname.startsWith("/api/")) return;
+  // v312: leave video/audio and range requests to the network. Safari loads
+  // media with Range headers and needs 206 answers; a cached full 200 makes
+  // the Humphrey/Ralphie clips refuse to play on iPad.
+  if (e.request.headers.has("range") || /\.(mp4|webm|mov|m4a|mp3|wav)$/i.test(url.pathname) ||
+      e.request.destination === "video" || e.request.destination === "audio") return;
   var isHTML = e.request.mode === "navigate" ||
                (e.request.destination === "document") ||
                url.pathname.endsWith(".html") ||

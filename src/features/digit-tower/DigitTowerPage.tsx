@@ -147,9 +147,9 @@ export default function DigitTowerPage() {
                   <span className="text-[11px] font-body tracking-widest text-muted">YOUR ANSWER</span><span className="font-body font-extrabold text-[34px] leading-none tracking-wider min-w-[120px] text-right">{s.answerState === 'ok' ? `✓ ${s.q.answer}` : s.typed || '—'}</span>
                 </motion.div>
                 <div className="grid grid-cols-3 gap-2 mt-3">
-                  <button onClick={() => toggleWork()} className="dt-chip rounded-xl py-2.5 text-[12.5px] font-semibold">{s.workOpen ? 'Hide my work' : 'Show my work'}</button>
-                  <button onClick={readAgain} className="dt-chip rounded-xl py-2.5 text-[12.5px] font-semibold">🔊 Read it again</button>
-                  <button onClick={askRalphie} disabled={!(s.room?.ralphie && s.room.hintTokens > 0 && s.probMode === 'lock')} className="dt-chip rounded-xl py-2.5 text-[12.5px] font-semibold disabled:opacity-35">Ask Ralphie <span className="ml-1 px-1.5 rounded-full bg-[#ffc72c] text-[#3a2400] text-[10px] font-body font-extrabold">{s.room?.hintTokens || 0}</span></button>
+                  <button onClick={() => toggleWork()} className="tap dt-chip rounded-xl text-[14px] font-semibold">{s.workOpen ? 'Hide my work' : 'Show my work'}</button>
+                  <button onClick={readAgain} className="tap dt-chip rounded-xl text-[14px] font-semibold">🔊 Read it again</button>
+                  <button onClick={askRalphie} disabled={!(s.room?.ralphie && s.room.hintTokens > 0 && s.probMode === 'lock')} className="tap dt-chip rounded-xl text-[14px] font-semibold disabled:opacity-35">Ask Ralphie <span className="ml-1 px-1.5 rounded-full bg-[#ffc72c] text-[#3a2400] text-[10px] font-body font-extrabold">{s.room?.hintTokens || 0}</span></button>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2.5">
                   {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => <button key={d} onClick={() => typeDigit(d)} className="dt-key rounded-2xl h-16 font-body font-extrabold text-2xl">{d}</button>)}
@@ -185,7 +185,7 @@ export default function DigitTowerPage() {
               <h2 className="font-semibold text-[28px] mt-3">Stretch break</h2>
               <div className="font-body font-extrabold text-[52px] tabular-nums text-teal">{Math.floor(s.breakLeft / 60)}:{String(s.breakLeft % 60).padStart(2, '0')}</div>
               <p className="text-muted">Stand up, shake it out, drink some water.</p>
-              <button onClick={skipBreak} className="mt-4 dt-chip rounded-xl px-6 py-3 font-semibold">I’m ready</button>
+              <button onClick={skipBreak} className="tap mt-4 dt-chip rounded-xl px-10 text-[18px] font-semibold">I’m ready</button>
             </div>
           </Overlay>
         )}
@@ -215,7 +215,7 @@ function Overlay({ children, dim }: { children: React.ReactNode; dim?: boolean }
   );
 }
 function HudBtn({ children, label, onClick, dim }: { children: React.ReactNode; label: string; onClick: () => void; dim?: boolean }) {
-  return <button onClick={onClick} aria-label={label} className={clsx('dt-pill rounded-full w-10 h-10 grid place-items-center text-[16px]', dim && 'opacity-40')}>{children}</button>;
+  return <button onClick={onClick} aria-label={label} className={clsx('dt-pill rounded-full w-16 h-16 grid place-items-center text-[22px]', dim && 'opacity-40')}>{children}</button>;
 }
 function Stat({ n, l }: { n: number | string; l: string }) {
   return <div className="rounded-xl py-2 px-1" style={{ background: 'rgba(31,45,77,.05)' }}><div className="font-body font-extrabold text-[20px] leading-none">{n}</div><div className="text-[10px] font-body tracking-wide text-muted mt-1 uppercase">{l}</div></div>;

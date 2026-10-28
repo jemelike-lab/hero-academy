@@ -78,7 +78,12 @@ export default async function handler(req, res) {
       const cached = await supabaseRpc(SUPA_URL, SUPA_KEY, 'ha_get_class_time_questions', {
         p_child_id: childId, p_plan_date: date, p_course_order: courseOrder,
       });
-      if (cached && Array.isArray(cached.questions) && cached.questions.length >= 3) {
+      // v312: a cached 'fallback' stub (generation failed when the weekly cron
+      // ran) is retried instead of being served all day. Recent stubs are kept
+      // for 10 minutes so a Haiku outage doesn't retry on every request.
+      const staleStub = cached && cached.source === 'fallback' &&
+        (!cached.generated_at || Date.now() - Date.parse(cached.generated_at) > 10 * 60 * 1000);
+      if (cached && !staleStub && Array.isArray(cached.questions) && cached.questions.length >= 3) {
         return res.status(200).json({
           ok: true, source: 'cache',
           subject: cached.subject,

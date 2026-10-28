@@ -32,6 +32,10 @@ See `.claude/WORKFLOW.md` for deeper notes.
 - `css/style.css` — main stylesheet
 - `assets/` — Ralphie + Ms. Humphrey portraits, zone icons
 
+## Audio on the iPad (v312, read before porting a zone)
+
+iPad Safari only lets a media element play from code if that element has already played inside a tap. All of Ms. Humphrey's speech goes through `say()` in `src/lib/tts.ts`, which plays every line on one element primed by the first tap anywhere (`installAudioUnlock()` in `main.tsx`). Never create `new Audio()` for speech in a zone; call `say()`. Lines said before the first tap wait for it, and `<TapToStart>` (mounted per route in `App.tsx`) asks for that tap when a page is opened directly. WebAudio (music, sfx) must call `ctx.resume()` from `onGesture()` and on visibility change, because the iPad suspends it during sleep. Production never falls back to the browser voice (legacy v145); only the hosted preview build uses it. Timers that must survive sleep (breaks) count against `Date.now()`, not ticks. Tap targets are at least 64px tall and wide.
+
 ## Voice catalog (humphrey.js)
 
 `welcome` · `goodbye` · `zone-enter` · `level-start` · `correct-answer` · `wrong-answer` · `streak-3` · `streak-5` · `streak-10` · `mastery-achieved` · `character-unlocked` · `try-again` · `homework-assigned` · `homework-done` · `_default`
