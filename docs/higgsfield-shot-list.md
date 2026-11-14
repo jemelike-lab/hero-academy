@@ -18,7 +18,7 @@ shipped under `public/assets/clips/`. Nothing is generated at runtime.
 - Delivery: download the MP4, transcode to 480×480 silent H.264 (`ffmpeg -an -vf scale=480:480
   -crf 26 -movflags +faststart`), save under `public/assets/clips/` with the names below.
 
-Status: batch 1 (idle, speaking, delighted) and batch 2 (thinking, encouraging, cheering, board, goodbye) rendered 2026-10-26, all eight accepted and wired in (board has faint doodles on the whiteboard; rerun with "blank whiteboard" if it bothers anyone). Batch 3 (Ralphie) rendered 2026-10-27: wave, cheer, thinking, sleepy, trophy accepted; idle rerun with "both arms down at his sides" accepted (the reference pose is a wave, so say so or he keeps the arm up). Next: batch 4, set dressing stills.
+Status: batch 1 (idle, speaking, delighted) and batch 2 (thinking, encouraging, cheering, board, goodbye) rendered 2026-10-26, all eight accepted and wired in (board has faint doodles on the whiteboard; rerun with "blank whiteboard" if it bothers anyone). Batch 3 (Ralphie) rendered 2026-10-27: wave, cheer, thinking, sleepy, trophy accepted; idle rerun with "both arms down at his sides" accepted (the reference pose is a wave, so say so or he keeps the arm up). Next: batch 4, set dressing stills. Ralphie reading (Word Tower) rendered and accepted 2026-10-28, 23 credits (391 of 4,103 spent in total).
 
 ## Ms. Humphrey (portrait, chest-up, facing camera)
 
@@ -43,6 +43,7 @@ Status: batch 1 (idle, speaking, delighted) and batch 2 (thinking, encouraging, 
 | `ralphie_thinking.mp4` | hint pulled | scratches head with one hand, looks at viewer |
 | `ralphie_sleepy.mp4` | break screen | yawns, stretches, settles into a cosy pose |
 | `ralphie_trophy.mp4` | Hero Hall, level up | holds up a small gold star, beams |
+| `ralphie_reading.mp4` | Word Tower, beside the tower | sitting cross-legged, holding an open picture book in both hands at chest height (both arms bent, holding the book, not waving); eyes move along the page, turns one page with one hand, smiles; pages show pictures only, no letters; loops |
 
 ## Set dressing (stills, any image model, 16:9, 1536 wide)
 

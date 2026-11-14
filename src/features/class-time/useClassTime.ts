@@ -13,6 +13,7 @@ import { say, stop, pause, setMuted as ttsSetMuted } from '@/lib/tts';
 import { MathBank } from './math-bank';
 import { WritingBank } from './writing-bank';
 import { fetchProbe, type Probe } from './probes';
+import { isFriday, isWritingTest, type WritingKind } from '@/lib/writing';
 
 export const COURSES_PER_DAY = 4;
 const QUESTIONS_PER_COURSE = 8;
@@ -28,7 +29,7 @@ export const SUBJECT_EMOJI: Record<string, string> = {
   math: '🔢', reading: '📖', spelling: '🔤', science: '🔬', grammar: '✏️', vocabulary: '💬', writing: '📝', social: '🗺️', history: '🏛️',
 };
 
-export type Phase = 'boot' | 'course-intro' | 'question' | 'remediation' | 'break' | 'done' | 'error';
+export type Phase = 'boot' | 'course-intro' | 'question' | 'remediation' | 'break' | 'writing' | 'done' | 'error';
 export type TileState = 'idle' | 'correct' | 'wrong' | 'dim';
 export type HintRung = 0 | 1 | 2 | 3;
 
@@ -58,6 +59,8 @@ export interface ClassTimeState {
   error: string;
   probe: Probe | null;
   probeAnswered: 0 | 1 | null;
+  writingParts: WritingKind[];
+  writingDirect: boolean;
 }
 
 type Action =
@@ -75,8 +78,16 @@ const initial: ClassTimeState = {
   phase: 'boot', today: todayISO(), dayPlan: null, progress: [], courseIdx: 0, subject: 'math',
   questions: [], qIdx: 0, wrongAttempts: 0, locked: true, bubble: '', tiles: [], hintRung: 0, board: null,
   imageUrl: null, imageCaption: '', remediationDone: false, bootLabel: 'Setting up today’s class…', muted: false,
-  nextCourseIdx: 0, error: '', probe: null, probeAnswered: null,
+  nextCourseIdx: 0, error: '', probe: null, probeAnswered: null, writingParts: [], writingDirect: false,
 };
+
+// v315: Writing Time closes every class day (dictation); Fridays add the spelling test.
+// ?part=writing | dictation | spelling on /class-time opens it directly.
+function writingPartsFor(param: string | null): WritingKind[] {
+  if (param === 'spelling') return ['spelling'];
+  if (param === 'dictation') return ['dictation'];
+  return isFriday() ? ['dictation', 'spelling'] : ['dictation'];
+}
 
 function ensureCorrectAnswer(q: Question): Question {
   // Banks use correct_answer (string); API uses correct_index. Normalise.
@@ -334,11 +345,27 @@ export function useClassTime() {
     try { await recordCourse(s.today, s.courseIdx + 1, s.subject, topics); } catch { /* keep going; progress card will reconcile next boot */ }
     const prog = [...s.progress.filter((p) => p.course_order !== s.courseIdx + 1), { course_order: s.courseIdx + 1, subject: s.subject, started_at: null, completed_at: new Date().toISOString(), topics_covered: topics }];
     patch({ progress: prog });
-    if (s.courseIdx + 1 >= COURSES_PER_DAY) { completeDay('all-courses-done'); return; }
+    if (s.courseIdx + 1 >= COURSES_PER_DAY) { startWriting(null); return; }
     const breakDue = ((s.courseIdx + 1) % 2) === 0; // v194: one mid-day break
     if (breakDue) { patch({ phase: 'break', nextCourseIdx: s.courseIdx + 1 }); }
     else { await startCourse(s.courseIdx + 1); }
   }
+
+  function startWriting(part: string | null) {
+    stop();
+    if (!isWritingTest) recordEvent('class_time_writing_start', { part: part || 'end-of-class' });
+    patch({ phase: 'writing', writingParts: writingPartsFor(part), writingDirect: !!part, bubble: '' });
+  }
+
+  const finishWriting = useCallback(() => {
+    // Opened straight from a link (?part=…): don't mark the class day done.
+    if (ref.current.writingDirect) {
+      patch({ phase: 'done', bubble: `Great writing, ${KID_NAME}!` });
+      void say(`Great writing, ${KID_NAME}! See you next time.`);
+      return;
+    }
+    completeDay('writing-done');
+  }, [completeDay, patch]);
 
   const resumeFromBreak = useCallback(async () => {
     recordEvent('class_time_break_end', {});
@@ -361,13 +388,15 @@ export function useClassTime() {
     (async () => {
       try {
         const today = ref.current.today;
+        const part = new URLSearchParams(window.location.search).get('part');
+        if (part === 'writing' || part === 'dictation' || part === 'spelling') { startWriting(part); return; }
         const [plan, progress] = await Promise.all([
           fetchDayPlan(today).catch(() => null),
           fetchCourseProgress(today).catch(() => [] as CourseProgress[]),
         ]);
         patch({ dayPlan: plan, progress });
         const done = new Set(progress.filter((p) => p.completed_at).map((p) => p.course_order));
-        if (done.size >= COURSES_PER_DAY) { completeDay('already-done'); return; }
+        if (done.size >= COURSES_PER_DAY) { startWriting(null); return; }
         let first = 0; while (done.has(first + 1) && first < COURSES_PER_DAY) first++;
         await startCourse(first);
       } catch (e) {
@@ -378,5 +407,5 @@ export function useClassTime() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { state, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit };
+  return { state, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit, finishWriting };
 }

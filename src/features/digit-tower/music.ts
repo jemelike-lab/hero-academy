@@ -34,6 +34,8 @@ export const Music = (function () {
       stop() { running = false; clearInterval(timer); },
       toggle() { on = !on; if (!on) { running = false; clearInterval(timer); } else if (cfg && ac) { running = true; nextT = ac.currentTime + 0.05; clearInterval(timer); timer = setInterval(schedule, TICK); } return on; },
       isOn() { return on; },
+      // iPad suspends (or "interrupts") the context during sleep and app switches.
+      resume() { if (ac && ac.state !== 'running' && ac.state !== 'closed') ac.resume().catch(() => {}); },
       duck(d) { ducked = d; if (master) master.gain.setTargetAtTime(d ? 0.035 : 0.16, ac.currentTime, 0.15); },
       sfx(kind) {
         if (!ctx()) return; const t = ac.currentTime;

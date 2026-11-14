@@ -32,11 +32,19 @@
   ],
   "rewrites": [
     {
+      "source": "/parent/writing",
+      "destination": "/index.html"
+    },
+    {
       "source": "/class-time",
       "destination": "/index.html"
     },
     {
       "source": "/game-day",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/word-tower",
       "destination": "/index.html"
     },
     {

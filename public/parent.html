@@ -69,6 +69,15 @@
       <div id="todayBody" class="parent-today-body"></div>
     </section>
 
+    <!-- 0b. Writing Time review (v315) -->
+    <section class="parent-card">
+      <header class="parent-card-head">
+        <h2>✍️ Writing &amp; spelling</h2>
+        <a class="parent-pill-btn" id="writingReviewLink" href="/parent/writing">Open review</a>
+      </header>
+      <p class="parent-card-foot">Each Class Time ends with Ms. Humphrey reading sentences for Nigel to write. On Fridays she gives a spelling test. See what she said next to what he wrote.</p>
+    </section>
+
     <!-- 1. Weekly activity strip -->
     <section class="parent-card">
       <header class="parent-card-head">
@@ -145,6 +154,12 @@
 </div>
 
 <script src="js/parent.js" defer></script>
+<script>
+  (function () {
+    function sync() { var a = document.getElementById('writingReviewLink'); if (a) a.href = '/parent/writing' + (location.hash || ''); }
+    sync(); window.addEventListener('hashchange', sync);
+  })();
+</script>
 <script src="js/sw-register.js" defer></script>
 </body>
 </html>

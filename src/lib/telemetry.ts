@@ -19,3 +19,24 @@ export function recordTopicAttempt(topicId: string, passedFirstTry: boolean, sub
     p_child_id: CHILD_ID, p_topic_id: topicId, p_passed: !!passedFirstTry, p_subject: subject || 'unknown', p_zone_id: zoneId,
   }).catch(() => { /* best-effort */ });
 }
+
+// Zone session, as legacy js/telemetry.js autoStart did for each page:
+// ha_start_session on open, ha_end_session(completed=false) when the page is
+// hidden, closed, or left. Like legacy, a session is not reopened after it ends.
+export function startZoneSession(zoneId: string, gameId: string) {
+  let sessionId: string | null = null; let ended = false;
+  rpc('ha_start_session', { p_child_id: CHILD_ID, p_zone_id: zoneId, p_game_id: gameId, p_topic_id: null })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((u) => { sessionId = typeof u === 'string' ? u : (Array.isArray(u) && u[0]) || null; if (ended && sessionId) end(); })
+    .catch(() => { /* best-effort */ });
+  const end = () => {
+    ended = true;
+    if (!sessionId) return;
+    const id = sessionId; sessionId = null;
+    rpc('ha_end_session', { p_session_id: id, p_completed: false }, { keepalive: true }).catch(() => { /* best-effort */ });
+  };
+  const onVis = () => { if (document.visibilityState === 'hidden') end(); };
+  document.addEventListener('visibilitychange', onVis);
+  window.addEventListener('pagehide', end);
+  return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('pagehide', end); end(); };
+}

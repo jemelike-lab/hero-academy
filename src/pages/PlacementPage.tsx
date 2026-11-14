@@ -10,7 +10,7 @@ import { fetchPlacement, recordEvent, type Question } from '@/lib/api';
 import { KID_NAME } from '@/lib/child';
 import { recordTopicAttempt } from '@/lib/telemetry';
 import { onSpeaking, say, stop, pause } from '@/lib/tts';
-import HumphreyPortrait, { type HumphreyState } from '@/components/HumphreyPortrait';
+import HumphreyPortrait, { useHumphrey } from '@/components/HumphreyPortrait';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const LABEL: Record<string, string> = { math: 'Math', reading: 'Reading', spelling: 'Spelling', science: 'Science', grammar: 'Grammar', writing: 'Writing' };
@@ -99,7 +99,7 @@ export default function PlacementPage() {
     return { id: t?.id || '', title: t?.title || '', say };
   }
 
-  const humphrey: HumphreyState = phase === 'done' ? 'cheering' : speaking ? 'speaking' : picked !== null ? (results[results.length - 1] ? 'delighted' : 'encouraging') : 'idle';
+  const humphrey = useHumphrey(phase === 'done' ? 'cheering' : picked !== null ? (results[results.length - 1] ? 'delighted' : 'encouraging') : null);
   const q = questions[idx];
 
   return (

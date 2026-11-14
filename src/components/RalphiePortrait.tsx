@@ -1,6 +1,6 @@
 import ClipPortrait, { type ClipSet } from './ClipPortrait';
 
-export type RalphieState = 'idle' | 'wave' | 'cheer' | 'thinking' | 'sleepy' | 'trophy';
+export type RalphieState = 'idle' | 'wave' | 'cheer' | 'thinking' | 'sleepy' | 'trophy' | 'reading';
 
 export const RALPHIE: ClipSet<RalphieState> = {
   poster: '/assets/clips/ralphie_poster.jpg',
@@ -11,6 +11,7 @@ export const RALPHIE: ClipSet<RalphieState> = {
     thinking: '/assets/clips/ralphie_thinking.mp4',
     sleepy: '/assets/clips/ralphie_sleepy.mp4',
     trophy: '/assets/clips/ralphie_trophy.mp4',
+    reading: '/assets/clips/ralphie_reading.mp4',
   },
   restart: ['wave', 'cheer', 'thinking', 'trophy'],
 };

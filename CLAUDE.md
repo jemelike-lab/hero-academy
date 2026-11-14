@@ -16,7 +16,9 @@ See `.claude/WORKFLOW.md` for deeper notes.
 
 ## Repo map
 
-**v300 (Oct 2026): React rewrite in progress.** Vite + React 18 + TypeScript + Tailwind. `src/` is the new app (`src/pages/Home.tsx`, `src/features/class-time/`). The legacy static site moved intact to `public/` and is still served at the same URLs (`/game-day.html`, `/word-tower.html`, …) until each zone is ported; the old homepage is `public/legacy-home.html`. `api/` is unchanged. `npm run build` → `dist/`. Routes handled by React need a rewrite in `vercel.json`. React routes so far: `/` (home), `/class-time`, `/game-day` (Digit Tower, `src/features/digit-tower/`, logic ported from js/digit-tower.js; themed per world via --dt-* CSS vars), `/path/:subject` (My path, from `ha_get_subject_path`), `/level-check/:subject` (placement; `api/class-time/placement.js` reuses `generateWithHaiku`). Mastery signal (v306): a first-try pass requires no wrong tries and no hint beyond rung 1; placement attempts record with zone `placement`.
+**v300 (Oct 2026): React rewrite in progress.** Vite + React 18 + TypeScript + Tailwind. `src/` is the new app (`src/pages/Home.tsx`, `src/features/class-time/`). The legacy static site moved intact to `public/` and is still served at the same URLs (`/game-day.html`, `/word-tower.html`, …) until each zone is ported; the old homepage is `public/legacy-home.html`. `api/` is unchanged. `npm run build` → `dist/`. Routes handled by React need a rewrite in `vercel.json`. React routes so far: `/` (home), `/class-time`, `/game-day` (Digit Tower, `src/features/digit-tower/`, logic ported from js/digit-tower.js; themed per world via --dt-* CSS vars), `/path/:subject` (My path, from `ha_get_subject_path`), `/level-check/:subject` (placement; `api/class-time/placement.js` reuses `generateWithHaiku`), `/word-tower` (v313, `src/features/word-tower/`, ported 1:1 from js/word-tower-reading.js + js/word-lists.js: fixed 33-word digraph list, per-word stats in localStorage `ha_word_tower_words`; the older Supabase pool `ha_word_tower_items` + `ha_get_word_tower_batch` is unused since June). Zone telemetry sessions use `startZoneSession()` in `src/lib/telemetry.ts`. Mastery signal (v306): a first-try pass requires no wrong tries and no hint beyond rung 1; placement attempts record with zone `placement`.
+
+Writing Time (v315): the last part of Class Time. Dictation every class day (5 sentences Ms. Humphrey says twice; Nigel handwrites on `src/components/HandwritingPad.tsx`), plus a 10-word spelling test on Fridays. `src/features/class-time/WritingTime.tsx`, API `api/class-time/writing.js` (+ `api/_lib/week-words.js`: "this week's words" = spelling/sight-word lists in that week's `ha_day_lesson_plans`). Tables `ha_writing_sets` / `ha_writing_attempts` (migration `supabase/migrations/v315-writing-time.sql`, service key only). The app never grades dictation; parents review at `/parent/writing` (linked from parent.html) and mark spelling words. `/class-time?part=dictation|spelling|writing` opens it directly.
 
 ### Legacy map (public/)
 
@@ -31,6 +33,12 @@ See `.claude/WORKFLOW.md` for deeper notes.
 - `sw.js` — service worker; bump `CACHE_VERSION` on every release touching cached files
 - `css/style.css` — main stylesheet
 - `assets/` — Ralphie + Ms. Humphrey portraits, zone icons
+
+## Audio on the iPad (v312, read before porting a zone)
+
+iPad Safari only lets a media element play from code if that element has already played inside a tap. All of Ms. Humphrey's speech goes through `say()` in `src/lib/tts.ts`, which plays every line on one element primed by the first tap anywhere (`installAudioUnlock()` in `main.tsx`). Never create `new Audio()` for speech in a zone; call `say()`. Lines said before the first tap wait for it, and `<TapToStart>` (mounted per route in `App.tsx`) asks for that tap when a page is opened directly. WebAudio (music, sfx) must call `ctx.resume()` from `onGesture()` and on visibility change, because the iPad suspends it during sleep. Production never falls back to the browser voice (legacy v145); only the hosted preview build uses it. Timers that must survive sleep (breaks) count against `Date.now()`, not ticks. Tap targets are at least 64px tall and wide.
+
+Ms. Humphrey's clip: pick it with `useHumphrey(reaction)` from `HumphreyPortrait.tsx`, never by hand (v314). While her voice plays she always shows the talking clip (the reaction clips are laughs, cheers and waves without lip movement); only `board` may play over speech. Reactions play in the silence afterwards for up to 4 s, then idle.
 
 ## Voice catalog (humphrey.js)
 

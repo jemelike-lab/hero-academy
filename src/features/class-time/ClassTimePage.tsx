@@ -7,8 +7,9 @@ import { COURSES_PER_DAY, SUBJECT_EMOJI, SUBJECT_LABEL, courseForIdx, useClassTi
 import type { BoardState, TileState } from './useClassTime';
 import type { Probe } from './probes';
 import { ClassTimeVisuals } from './visuals';
+import WritingTime from './WritingTime';
 import { onSpeaking } from '@/lib/tts';
-import HumphreyPortrait from '@/components/HumphreyPortrait';
+import HumphreyPortrait, { useHumphrey } from '@/components/HumphreyPortrait';
 import RalphiePortrait from '@/components/RalphiePortrait';
 import type { HumphreyState } from '@/components/HumphreyPortrait';
 import { KID_NAME } from '@/lib/child';
@@ -17,19 +18,19 @@ import type { DayPlan } from '@/lib/api';
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 export default function ClassTimePage() {
-  const { state: s, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit } = useClassTime();
+  const { state: s, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit, finishWriting } = useClassTime();
   const [speaking, setSpeaking] = useState(false);
   useEffect(() => onSpeaking(setSpeaking), []);
 
   const q = s.questions[s.qIdx];
-  const humphreyState: HumphreyState =
+  const humphreyState = useHumphrey(
     s.phase === 'done' ? 'goodbye'
     : s.phase === 'remediation' ? 'board'
     : s.tiles.includes('correct') ? 'delighted'
     : s.probe ? 'encouraging'
     : s.phase === 'course-intro' && s.courseIdx > 0 ? 'cheering'
     : s.phase === 'question' && s.board ? 'thinking'
-    : speaking ? 'speaking' : 'idle';
+    : null);
   const subjectLabel = SUBJECT_LABEL[s.subject] || s.subject;
   const doneSet = new Set(s.progress.filter((p) => p.completed_at).map((p) => p.course_order));
 
@@ -40,7 +41,8 @@ export default function ClassTimePage() {
         doneSet={doneSet} plan={s.dayPlan} />
     );
   }
-  if (s.phase === 'done') return <Completion doneSet={doneSet} plan={s.dayPlan} />;
+  if (s.phase === 'writing') return <WritingTime parts={s.writingParts} date={s.today} onDone={finishWriting} onExit={exit} />;
+  if (s.phase === 'done') return <Completion doneSet={doneSet} plan={s.dayPlan} writingOnly={s.writingDirect} />;
 
   return (
     <div className="h-full flex flex-col px-4 py-3 lg:px-7 lg:py-4 max-w-[1320px] mx-auto w-full">
@@ -117,10 +119,15 @@ export default function ClassTimePage() {
 
 /* ---------------- pieces ---------------- */
 
+// Talks while saying goodbye, then waves.
+function CompletionHumphrey() {
+  return <HumphreyPortrait state={useHumphrey('goodbye', 8000)} className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />;
+}
+
 function IconButton({ children, label, onClick, danger }: { children: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
   return (
     <button onClick={onClick} aria-label={label} title={label}
-      className={clsx('w-11 h-11 rounded-xl border-2 text-[18px] flex items-center justify-center bg-card', danger ? 'border-amber/40 text-amber' : 'border-line')}>{children}</button>
+      className={clsx('w-16 h-16 rounded-2xl border-2 text-[24px] flex items-center justify-center bg-card', danger ? 'border-amber/40 text-amber' : 'border-line')}>{children}</button>
   );
 }
 
@@ -211,14 +218,14 @@ function TutorPanel({ bubble, speaking, portrait, hintRung, board, canInteract, 
           </motion.div>
         )}
       </AnimatePresence>
-      <button onClick={onReadAgain} disabled={!canInteract} className="mt-4 min-h-[56px] w-full rounded-xl border-2 border-line bg-card font-bold text-[14px] text-muted disabled:opacity-50 flex items-center justify-center gap-2">🔊 Read again</button>
+      <button onClick={onReadAgain} disabled={!canInteract} className="mt-4 min-h-[64px] w-full rounded-xl border-2 border-line bg-card font-bold text-[14px] text-muted disabled:opacity-50 flex items-center justify-center gap-2">🔊 Read again</button>
 
       <div className="mt-4">
         <div className="text-[12px] font-extrabold text-muted mb-2">Need a hand?</div>
         <div className="space-y-2">
           {rungs.map((r) => (
             <button key={r.n} onClick={() => onHint(r.n)} disabled={!canInteract}
-              className={clsx('w-full min-h-[56px] flex items-center gap-3 rounded-2xl border-2 px-3 text-left text-[14px] font-bold disabled:opacity-50',
+              className={clsx('w-full min-h-[64px] flex items-center gap-3 rounded-2xl border-2 px-3 text-left text-[14px] font-bold disabled:opacity-50',
                 hintRung >= r.n ? 'border-teal bg-teal/10' : 'border-line bg-card')}>
               <span className={clsx('w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-extrabold shrink-0', hintRung >= r.n ? 'bg-teal text-white' : 'bg-paper text-muted')}>{r.n}</span>
               {r.label}
@@ -305,16 +312,16 @@ function ProgressCard({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan |
   );
 }
 
-function Completion({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan | null }) {
+function Completion({ doneSet, plan, writingOnly }: { doneSet: Set<number>; plan: DayPlan | null; writingOnly?: boolean }) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="flex items-end gap-4">
-        <HumphreyPortrait state="goodbye" className="w-40 h-40 rounded-3xl ring-4 ring-tutor/20" />
+        <CompletionHumphrey />
         <RalphiePortrait state="trophy" className="w-28 h-28 rounded-3xl ring-4 ring-sun/30" />
       </div>
-      <h1 className="font-display font-semibold text-[32px]">🎉 Great class, {KID_NAME}!</h1>
-      <p className="text-muted font-semibold text-[18px]">Ms. Humphrey will see you tomorrow.</p>
-      <ProgressCard doneSet={new Set([1, 2, 3, 4, ...doneSet])} plan={plan} />
+      <h1 className="font-display font-semibold text-[32px]">🎉 {writingOnly ? 'Great writing' : 'Great class'}, {KID_NAME}!</h1>
+      <p className="text-muted font-semibold text-[18px]">{writingOnly ? 'Your writing is saved for Mom and Dad.' : 'Ms. Humphrey will see you tomorrow.'}</p>
+      {!writingOnly && <ProgressCard doneSet={new Set([1, 2, 3, 4, ...doneSet])} plan={plan} />}
       <a href="/" className="tap mt-2 inline-flex items-center justify-center rounded-xl2 bg-sun px-8 font-display font-semibold text-[20px] shadow-tile">Back to Hero Hall</a>
     </div>
   );
@@ -325,9 +332,14 @@ function BreakScreen({ nextLabel, onResume }: { nextLabel: string; onResume: () 
   const [left, setLeft] = useState(0);
   useEffect(() => {
     if (minutes == null) return;
-    setLeft(minutes * 60);
-    const id = setInterval(() => setLeft((v) => (v <= 1 ? 0 : v - 1)), 1000);
-    return () => clearInterval(id);
+    // Count against the clock, not ticks: the iPad pauses timers while it
+    // sleeps, and a break taken with the screen off should still end on time.
+    const endAt = Date.now() + minutes * 60_000;
+    const tick = () => setLeft(Math.max(0, Math.ceil((endAt - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); };
   }, [minutes]);
   const finished = minutes != null && left === 0;
   const mm = String(Math.floor(left / 60)).padStart(2, '0'), ss = String(left % 60).padStart(2, '0');

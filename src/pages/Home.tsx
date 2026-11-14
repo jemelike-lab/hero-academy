@@ -10,7 +10,7 @@ const ZONES = [
   { id: 'game-day', name: 'Digit Tower', subject: 'Game Day · Math', emoji: '🗼', href: '/game-day' },
   { id: 'number-lab', name: 'Number Lab', subject: 'Math', emoji: '🧮', href: '/cauldron-cafe.html' },
   { id: 'letter-lab', name: 'Letter Lab', subject: 'Phonics', emoji: '🔤', href: '/letter-lab.html' },
-  { id: 'word-tower', name: 'Word Tower', subject: 'Reading', emoji: '🗼', href: '/word-tower.html' },
+  { id: 'word-tower', name: 'Word Tower', subject: 'Reading', emoji: '🗼', href: '/word-tower' },
   { id: 'story-time', name: 'Story Time', subject: 'Reading', emoji: '📖', href: '/story-time.html' },
   { id: 'writing', name: 'Story Lab', subject: 'Writing', emoji: '✍️', href: '/story-lab.html' },
   { id: 'discovery', name: 'Discovery Dome', subject: 'Science', emoji: '🔬', href: '/discovery-dome.html' },

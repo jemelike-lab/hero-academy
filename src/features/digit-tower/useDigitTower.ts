@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { CHILD_ID, KID_NAME, todayISO } from '@/lib/child';
 import { rpc } from '@/lib/telemetry';
-import { say, stop, setMuted as ttsSetMuted } from '@/lib/tts';
+import { say, stop, onGesture, setMuted as ttsSetMuted } from '@/lib/tts';
 import { C, DEBRIEF_MAX, DEBRIEF_N, DEBRIEF_UNTIL_MIN, MIN, PHASES, RANKS, SEASON, TOTAL_MIN, TWISTS, WARMUP_N, WORLDS, rankFor, type Kind, type Phase } from './config';
 import { GEN, makeQuestion, weakKindFromTopic, type Q } from './questions';
 import { Music } from './music';
@@ -237,7 +237,9 @@ export function useDigitTower() {
     setPhase('break'); patch({ room: null, mode: 'break', breakLeft: 5 * 60 }); Music.stop();
     voice(`Stretch break, ${KID_NAME}. Stand up, shake it out, drink some water. I will call you back in five minutes.`);
     if (breakTimer.current) clearInterval(breakTimer.current);
-    breakTimer.current = window.setInterval(() => { const left = ref.current.breakLeft - 1; patch({ breakLeft: left }); if (left <= 0) endBreak(); }, 1000);
+    // Clock-based so a break with the iPad asleep still ends after five real minutes.
+    const endAt = Date.now() + 5 * 60_000;
+    breakTimer.current = window.setInterval(() => { const left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000)); if (left !== ref.current.breakLeft) patch({ breakLeft: left }); if (left <= 0) endBreak(); }, 500);
   }
   function endBreak() { if (breakTimer.current) clearInterval(breakTimer.current); breakTimer.current = null; startBonusRef.current(); }
   const skipBreak = useCallback(() => endBreak(), []);
@@ -340,9 +342,11 @@ export function useDigitTower() {
         : `Happy Game Day, ${KID_NAME}! Today we climb ${w.n}, floor ${s2.floorIdx}. ${s2.floorIdx === 2 ? w.vil + ' is waiting at the stairs. ' : ''}There is no clock on any lock. Take your time, and use the work board whenever you like.`;
       voice(line);
     })();
-    const onHide = () => { if (document.visibilityState === 'hidden') saveLocal(); lastTick.current = Date.now(); };
-    document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', saveLocal);
-    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', saveLocal); stop(); Music.stop(); if (breakTimer.current) clearInterval(breakTimer.current); };
+    const onHide = () => { if (document.visibilityState === 'hidden') saveLocal(); else Music.resume(); lastTick.current = Date.now(); };
+    document.addEventListener('visibilitychange', onHide); window.addEventListener('pagehide', saveLocal); window.addEventListener('pageshow', Music.resume);
+    // The iPad suspends WebAudio while asleep; resuming from a tap always works, from visibility only sometimes.
+    const offGesture = onGesture(() => Music.resume());
+    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', saveLocal); window.removeEventListener('pageshow', Music.resume); offGesture(); stop(); Music.stop(); if (breakTimer.current) clearInterval(breakTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
