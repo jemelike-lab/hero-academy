@@ -20,9 +20,13 @@ export interface WritingDaySummary {
 
 const BASE = '/api/class-time/writing';
 
-// Testing hook: sessionStorage 'ha_writing_test_child' (a UUID) keeps test
+// Testing hook: ?test_child=<uuid> (kept in sessionStorage for the tab) keeps test
 // writing out of Nigel's record. Unset in normal use.
 const CHILD = (() => {
+  try {
+    const q = new URLSearchParams(window.location.search).get('test_child');
+    if (q && /^[0-9a-f-]{36}$/i.test(q)) sessionStorage.setItem('ha_writing_test_child', q);
+  } catch { /* noop */ }
   try { const v = sessionStorage.getItem('ha_writing_test_child'); if (v && /^[0-9a-f-]{36}$/i.test(v)) return v; } catch { /* noop */ }
   return CHILD_ID;
 })();
