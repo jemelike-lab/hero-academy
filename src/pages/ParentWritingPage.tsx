@@ -30,11 +30,12 @@ export default function ParentWritingPage() {
   const [sets, setSets] = useState<WritingDaySet[] | null>(null);
   const [error, setError] = useState('');
 
+  const [daysTick, setDaysTick] = useState(0);
   useEffect(() => {
     if (!who) return;
     fetchWritingDays(60).then((d) => { setDays(d); setSelected((cur) => cur || d[0]?.set_date || null); })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load.'));
-  }, [who]);
+  }, [who, daysTick]);
 
   useEffect(() => {
     if (!selected) return;
@@ -103,7 +104,7 @@ export default function ParentWritingPage() {
             {!sets && <p className="text-muted font-semibold">Loading…</p>}
             {sets?.map((s) => s.kind === 'dictation'
               ? <DictationCard key={s.id} set={s} />
-              : <SpellingCard key={s.id} set={s} who={who} onChanged={(a) => setSets((cur) => cur?.map((x) => x.id === s.id ? { ...x, attempts: x.attempts.map((y) => y.id === a.id ? a : y) } : x) || null)} />)}
+              : <SpellingCard key={s.id} set={s} who={who} onChanged={(a) => { setSets((cur) => cur?.map((x) => x.id === s.id ? { ...x, attempts: x.attempts.map((y) => y.id === a.id ? a : y) } : x) || null); setDaysTick((t) => t + 1); }} />)}
           </div>
         </div>
       )}

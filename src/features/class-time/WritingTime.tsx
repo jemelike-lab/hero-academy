@@ -13,7 +13,7 @@ import RalphiePortrait from '@/components/RalphiePortrait';
 import { KID_NAME } from '@/lib/child';
 import { recordEvent as record } from '@/lib/api';
 import { onSpeaking, pause, say, stop } from '@/lib/tts';
-import { fetchWritingSet, isWritingTest, saveWritingAttempt, type DictationItem, type SpellingItem, type WritingKind, type WritingSet } from '@/lib/writing';
+import { fetchWritingSet, isFriday, isWritingTest, saveWritingAttempt, type DictationItem, type SpellingItem, type WritingKind, type WritingSet } from '@/lib/writing';
 
 // Test runs (?test_child=) leave Nigel's activity log alone.
 const recordEvent: typeof record = (t, p) => { if (!isWritingTest) record(t, p); };
@@ -100,7 +100,7 @@ export default function WritingTime({ parts, date, onDone, onExit }: { parts: Wr
             ? [`Now it’s writing time, ${KID_NAME}! I’ll say a sentence two times. Listen carefully, then write it on the lines.`, 'Start with a capital letter, and put a period, a question mark, or an exclamation mark at the end.']
             : [`Let’s finish our writing, ${KID_NAME}.`])
           : (first === 0
-            ? [`It’s Friday, ${KID_NAME}, so it’s spelling test time!`, 'I’ll say a word, use it in a sentence, and say the word again. Write the word on the line.']
+            ? [isFriday() ? `It’s Friday, ${KID_NAME}, so it’s spelling test time!` : `It’s spelling test time, ${KID_NAME}!`, 'I’ll say a word, use it in a sentence, and say the word again. Write the word on the line.']
             : ['Let’s finish your spelling test.']);
         setBubble(intro[0]);
         await talk(intro, 500);
