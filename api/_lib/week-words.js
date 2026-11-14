@@ -161,16 +161,18 @@ async function haikuJSON(apiKey, system, user, maxTokens = 900) {
   if (!r.ok) throw new Error('anthropic ' + r.status);
   const j = await r.json();
   const text = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  return JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim());
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a < 0 || b <= a) throw new Error('no json in reply: ' + text.slice(0, 120));
+  return JSON.parse(text.slice(a, b + 1));
 }
 
 /** Five dictation sentences built from the week's words. Returns null on any failure. */
 export async function haikuDictation(apiKey, words, lessonSentences, n = 5) {
   const system = [
     'You are Ms. Humphrey, a warm 2nd-grade teacher. You are writing a short dictation for Nigel, who is 7 and finds writing hard.',
-    `Write EXACTLY ${n} sentences that you will say aloud and he will write by hand.`,
+    `Write ${n + 3} sentences that you will say aloud and he will write by hand (a few spares; the first ${n} will be used if they follow the rules).`,
     'Rules:',
-    '- Sentences 1 and 2: 3 to 4 words. Sentences 3 to 5: 5 to 7 words.',
+    '- The first two sentences: 3 to 4 words. The rest: 5 to 7 words.',
     "- Use this week's words wherever they fit, and otherwise only short words a struggling 2nd grader can sound out (CVC words, blends, common sight words).",
     '- Start with a capital letter. End with a period, a question mark, or an exclamation mark. At least one question.',
     '- No commas, quotation marks, numbers, hyphens, or names (Mom and Dad are fine).',
@@ -179,8 +181,11 @@ export async function haikuDictation(apiKey, words, lessonSentences, n = 5) {
   ].join('\n');
   const user = `This week's words: ${words.slice(0, 30).join(', ') || '(none)'}\nExample sentences from this week's lessons: ${lessonSentences.slice(0, 6).join(' ') || '(none)'}`;
   const out = await haikuJSON(apiKey, system, user);
-  const s = (out?.sentences || []).map((x) => String(x).trim()).filter(validSentence);
-  return s.length >= n ? s.slice(0, n) : null;
+  const all = (out?.sentences || []).map((x) => String(x).trim().replace(/\s+/g, ' ').replace(/[\u2018\u2019]/g, "'"));
+  const s = all.filter(validSentence);
+  if (s.length < n) { console.warn('[writing] dictation sentences rejected', JSON.stringify(all).slice(0, 400)); return null; }
+  const short = s.filter((x) => x.split(' ').length <= 4), long = s.filter((x) => x.split(' ').length > 4);
+  return [...short.slice(0, 2), ...long, ...short.slice(2)].slice(0, n);
 }
 
 /** One short sentence per spelling word, each using the word as written. */

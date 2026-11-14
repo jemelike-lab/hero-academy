@@ -72,14 +72,14 @@ async function buildSet(e, childId, kind, setDate) {
 
   if (kind === 'dictation') {
     let list = null; let source = 'haiku';
-    if (e.ai) { try { list = await haikuDictation(e.ai, wordList, sentences, DICTATION_COUNT); } catch { list = null; } }
+    if (e.ai) { try { list = await haikuDictation(e.ai, wordList, sentences, DICTATION_COUNT); } catch (err) { console.warn('[writing] dictation haiku failed', String(err?.message || err)); list = null; } }
     if (!list) { list = fallbackDictation(setDate, sentences, DICTATION_COUNT); source = 'fallback'; }
     return { weekStart, weekWords: wordList, source, items: list.map((text, index) => ({ index, text })) };
   }
 
   const { words: picked, fromLessons } = pickSpellingWords(words, weekStart, SPELLING_COUNT);
   let sentencesByWord = new Map(); let source = fromLessons >= SPELLING_COUNT ? 'lessons' : `lessons+sight(${SPELLING_COUNT - fromLessons})`;
-  if (e.ai) { try { sentencesByWord = await haikuSpellingSentences(e.ai, picked); } catch { sentencesByWord = new Map(); } }
+  if (e.ai) { try { sentencesByWord = await haikuSpellingSentences(e.ai, picked); } catch (err) { console.warn('[writing] spelling haiku failed', String(err?.message || err)); sentencesByWord = new Map(); } }
   if (sentencesByWord.size < picked.length) source += '+template';
   return {
     weekStart, weekWords: wordList, source,
