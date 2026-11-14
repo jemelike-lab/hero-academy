@@ -7,6 +7,7 @@ import { COURSES_PER_DAY, SUBJECT_EMOJI, SUBJECT_LABEL, courseForIdx, useClassTi
 import type { BoardState, TileState } from './useClassTime';
 import type { Probe } from './probes';
 import { ClassTimeVisuals } from './visuals';
+import WritingTime from './WritingTime';
 import { onSpeaking } from '@/lib/tts';
 import HumphreyPortrait, { useHumphrey } from '@/components/HumphreyPortrait';
 import RalphiePortrait from '@/components/RalphiePortrait';
@@ -17,7 +18,7 @@ import type { DayPlan } from '@/lib/api';
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 export default function ClassTimePage() {
-  const { state: s, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit } = useClassTime();
+  const { state: s, answer, answerProbe, useHint, readAgain, gotIt, resumeFromBreak, toggleMute, exit, finishWriting } = useClassTime();
   const [speaking, setSpeaking] = useState(false);
   useEffect(() => onSpeaking(setSpeaking), []);
 
@@ -40,6 +41,7 @@ export default function ClassTimePage() {
         doneSet={doneSet} plan={s.dayPlan} />
     );
   }
+  if (s.phase === 'writing') return <WritingTime parts={s.writingParts} date={s.today} onDone={finishWriting} onExit={exit} />;
   if (s.phase === 'done') return <Completion doneSet={doneSet} plan={s.dayPlan} />;
 
   return (

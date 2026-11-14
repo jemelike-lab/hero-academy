@@ -32,6 +32,10 @@
   ],
   "rewrites": [
     {
+      "source": "/parent/writing",
+      "destination": "/index.html"
+    },
+    {
       "source": "/class-time",
       "destination": "/index.html"
     },
