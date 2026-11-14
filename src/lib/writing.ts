@@ -31,6 +31,8 @@ const CHILD = (() => {
   return CHILD_ID;
 })();
 
+export const isWritingTest = CHILD !== CHILD_ID;
+
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) {
     let detail = '';

@@ -11,9 +11,12 @@ import HandwritingPad, { type HandwritingPadHandle } from '@/components/Handwrit
 import HumphreyPortrait, { useHumphrey, type HumphreyState } from '@/components/HumphreyPortrait';
 import RalphiePortrait from '@/components/RalphiePortrait';
 import { KID_NAME } from '@/lib/child';
-import { recordEvent } from '@/lib/api';
+import { recordEvent as record } from '@/lib/api';
 import { onSpeaking, pause, say, stop } from '@/lib/tts';
-import { fetchWritingSet, saveWritingAttempt, type DictationItem, type SpellingItem, type WritingKind, type WritingSet } from '@/lib/writing';
+import { fetchWritingSet, isWritingTest, saveWritingAttempt, type DictationItem, type SpellingItem, type WritingKind, type WritingSet } from '@/lib/writing';
+
+// Test runs (?test_child=) leave Nigel's activity log alone.
+const recordEvent: typeof record = (t, p) => { if (!isWritingTest) record(t, p); };
 
 const NUM = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 const CHEERS = ['Nice work.', 'Thank you. Good effort.', 'Well done.', 'Great job sticking with it.', 'Lovely. Let’s keep going.'];
@@ -152,6 +155,7 @@ export default function WritingTime({ parts, date, onDone, onExit }: { parts: Wr
       return;
     }
     const cheer = CHEERS[idx % CHEERS.length];
+    setStage('between');
     setBubble(cheer);
     await say(cheer);
     if (!alive.current) return;
@@ -194,7 +198,7 @@ export default function WritingTime({ parts, date, onDone, onExit }: { parts: Wr
             ))}
           </div>
           <div className="font-display font-medium text-[24px] md:text-[28px] leading-tight">
-            {stage === 'listening' || stage === 'intro' || stage === 'loading' ? '👂 Listen…' : stage === 'saving' ? 'Saving…' : kind === 'spelling' ? '✏️ Write the word.' : '✏️ Write the sentence.'}
+            {stage === 'listening' || stage === 'intro' || stage === 'loading' ? '👂 Listen…' : stage === 'saving' ? 'Saving…' : stage === 'between' ? '⭐ Saved!' : kind === 'spelling' ? '✏️ Write the word.' : '✏️ Write the sentence.'}
           </div>
           <HandwritingPad ref={pad} rows={kind === 'spelling' ? 1 : 2} onInk={setHasInk} disabled={!writing && stage !== 'listening'} />
           <div className="grid grid-cols-3 gap-3">

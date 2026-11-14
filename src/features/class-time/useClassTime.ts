@@ -13,7 +13,7 @@ import { say, stop, pause, setMuted as ttsSetMuted } from '@/lib/tts';
 import { MathBank } from './math-bank';
 import { WritingBank } from './writing-bank';
 import { fetchProbe, type Probe } from './probes';
-import { isFriday, type WritingKind } from '@/lib/writing';
+import { isFriday, isWritingTest, type WritingKind } from '@/lib/writing';
 
 export const COURSES_PER_DAY = 4;
 const QUESTIONS_PER_COURSE = 8;
@@ -60,6 +60,7 @@ export interface ClassTimeState {
   probe: Probe | null;
   probeAnswered: 0 | 1 | null;
   writingParts: WritingKind[];
+  writingDirect: boolean;
 }
 
 type Action =
@@ -77,7 +78,7 @@ const initial: ClassTimeState = {
   phase: 'boot', today: todayISO(), dayPlan: null, progress: [], courseIdx: 0, subject: 'math',
   questions: [], qIdx: 0, wrongAttempts: 0, locked: true, bubble: '', tiles: [], hintRung: 0, board: null,
   imageUrl: null, imageCaption: '', remediationDone: false, bootLabel: 'Setting up today’s class…', muted: false,
-  nextCourseIdx: 0, error: '', probe: null, probeAnswered: null, writingParts: [],
+  nextCourseIdx: 0, error: '', probe: null, probeAnswered: null, writingParts: [], writingDirect: false,
 };
 
 // v315: Writing Time closes every class day (dictation); Fridays add the spelling test.
@@ -352,11 +353,19 @@ export function useClassTime() {
 
   function startWriting(part: string | null) {
     stop();
-    recordEvent('class_time_writing_start', { part: part || 'end-of-class' });
-    patch({ phase: 'writing', writingParts: writingPartsFor(part), bubble: '' });
+    if (!isWritingTest) recordEvent('class_time_writing_start', { part: part || 'end-of-class' });
+    patch({ phase: 'writing', writingParts: writingPartsFor(part), writingDirect: !!part, bubble: '' });
   }
 
-  const finishWriting = useCallback(() => { completeDay('writing-done'); }, [completeDay]);
+  const finishWriting = useCallback(() => {
+    // Opened straight from a link (?part=…): don't mark the class day done.
+    if (ref.current.writingDirect) {
+      patch({ phase: 'done', bubble: `Great writing, ${KID_NAME}!` });
+      void say(`Great writing, ${KID_NAME}! See you next time.`);
+      return;
+    }
+    completeDay('writing-done');
+  }, [completeDay, patch]);
 
   const resumeFromBreak = useCallback(async () => {
     recordEvent('class_time_break_end', {});

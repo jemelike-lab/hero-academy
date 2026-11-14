@@ -42,7 +42,7 @@ export default function ClassTimePage() {
     );
   }
   if (s.phase === 'writing') return <WritingTime parts={s.writingParts} date={s.today} onDone={finishWriting} onExit={exit} />;
-  if (s.phase === 'done') return <Completion doneSet={doneSet} plan={s.dayPlan} />;
+  if (s.phase === 'done') return <Completion doneSet={doneSet} plan={s.dayPlan} writingOnly={s.writingDirect} />;
 
   return (
     <div className="h-full flex flex-col px-4 py-3 lg:px-7 lg:py-4 max-w-[1320px] mx-auto w-full">
@@ -312,16 +312,16 @@ function ProgressCard({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan |
   );
 }
 
-function Completion({ doneSet, plan }: { doneSet: Set<number>; plan: DayPlan | null }) {
+function Completion({ doneSet, plan, writingOnly }: { doneSet: Set<number>; plan: DayPlan | null; writingOnly?: boolean }) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="flex items-end gap-4">
         <CompletionHumphrey />
         <RalphiePortrait state="trophy" className="w-28 h-28 rounded-3xl ring-4 ring-sun/30" />
       </div>
-      <h1 className="font-display font-semibold text-[32px]">🎉 Great class, {KID_NAME}!</h1>
-      <p className="text-muted font-semibold text-[18px]">Ms. Humphrey will see you tomorrow.</p>
-      <ProgressCard doneSet={new Set([1, 2, 3, 4, ...doneSet])} plan={plan} />
+      <h1 className="font-display font-semibold text-[32px]">🎉 {writingOnly ? 'Great writing' : 'Great class'}, {KID_NAME}!</h1>
+      <p className="text-muted font-semibold text-[18px]">{writingOnly ? 'Your writing is saved for Mom and Dad.' : 'Ms. Humphrey will see you tomorrow.'}</p>
+      {!writingOnly && <ProgressCard doneSet={new Set([1, 2, 3, 4, ...doneSet])} plan={plan} />}
       <a href="/" className="tap mt-2 inline-flex items-center justify-center rounded-xl2 bg-sun px-8 font-display font-semibold text-[20px] shadow-tile">Back to Hero Hall</a>
     </div>
   );
