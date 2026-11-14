@@ -134,7 +134,7 @@ export function validSentence(s) {
   const t = s.trim();
   if (!SENTENCE_RE.test(t) || /\s{2,}/.test(t)) return false;
   const n = t.split(/\s+/).length;
-  return n >= 3 && n <= 8;
+  return n >= 3 && n <= 7;
 }
 
 export function fallbackDictation(dateISO, lessonSentences, n = 5) {

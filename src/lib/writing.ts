@@ -20,6 +20,13 @@ export interface WritingDaySummary {
 
 const BASE = '/api/class-time/writing';
 
+// Testing hook: sessionStorage 'ha_writing_test_child' (a UUID) keeps test
+// writing out of Nigel's record. Unset in normal use.
+const CHILD = (() => {
+  try { const v = sessionStorage.getItem('ha_writing_test_child'); if (v && /^[0-9a-f-]{36}$/i.test(v)) return v; } catch { /* noop */ }
+  return CHILD_ID;
+})();
+
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) {
     let detail = '';
@@ -30,7 +37,7 @@ async function json<T>(r: Response): Promise<T> {
 }
 
 export async function fetchWritingSet(kind: WritingKind, date: string): Promise<{ set: WritingSet; done: number[] }> {
-  return json(await fetch(`${BASE}?action=set&kind=${kind}&date=${date}&child_id=${CHILD_ID}`, { cache: 'no-store' }));
+  return json(await fetch(`${BASE}?action=set&kind=${kind}&date=${date}&child_id=${CHILD}`, { cache: 'no-store' }));
 }
 
 export async function saveWritingAttempt(a: { set_id: string; item_index: number; drawing_png: string; spoken_text: string; replays: number; started_at: string }) {
@@ -40,12 +47,12 @@ export async function saveWritingAttempt(a: { set_id: string; item_index: number
 }
 
 export async function fetchWritingDays(limit = 30): Promise<WritingDaySummary[]> {
-  const d = await json<{ days: WritingDaySummary[] }>(await fetch(`${BASE}?action=days&limit=${limit}&child_id=${CHILD_ID}`, { cache: 'no-store' }));
+  const d = await json<{ days: WritingDaySummary[] }>(await fetch(`${BASE}?action=days&limit=${limit}&child_id=${CHILD}`, { cache: 'no-store' }));
   return d.days || [];
 }
 
 export async function fetchWritingDay(date: string): Promise<WritingDaySet[]> {
-  const d = await json<{ sets: WritingDaySet[] }>(await fetch(`${BASE}?action=day&date=${date}&child_id=${CHILD_ID}`, { cache: 'no-store' }));
+  const d = await json<{ sets: WritingDaySet[] }>(await fetch(`${BASE}?action=day&date=${date}&child_id=${CHILD}`, { cache: 'no-store' }));
   return d.sets || [];
 }
 
