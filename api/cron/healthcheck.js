@@ -21,7 +21,9 @@
  *   2. Run four checks in parallel (each with its own timeout):
  *        - supabase: GET /rest/v1/ha_children?select=id&limit=1
  *        - anthropic: POST /v1/messages, max_tokens=1
- *        - saturday_email_cron: GET own /api/cron/saturday-email?dry_run=1
+ *        - saturday_email_cron: GET own /api/cron/saturday-email?dry_run=1&probe=1
+ *          (probe mode: real Supabase queries + real render, but no Haiku,
+ *          no ElevenLabs, no Storage upload, so it answers in ~1-2s)
  *        - zapier_dns: HEAD on the Zapier webhook host (network reachability)
  *      …plus an instant env-presence check.
  *   3. Compute overall_status = 'ok' if every check ok===true, else 'degraded'.
@@ -289,7 +291,7 @@ async function checkSaturdayEmail({ SELF_BASE, cronSecret }) {
   const t0 = Date.now();
   try {
     const r = await withTimeout(
-      fetch(`${SELF_BASE}/api/cron/saturday-email?dry_run=1`, {
+      fetch(`${SELF_BASE}/api/cron/saturday-email?dry_run=1&probe=1`, {
         headers: { Authorization: `Bearer ${cronSecret}` },
       }),
       TIMEOUTS.saturday_email_cron,
