@@ -18,7 +18,17 @@
  * Manual testing:
  *   curl -X GET 'https://.../api/cron/saturday-email?dry_run=1' \
  *        -H 'Authorization: Bearer YOUR_CRON_SECRET'
- *   (dry_run skips the Zapier POST; the rendered HTML is in the JSON response)
+ *   (dry_run skips the Zapier POST; the rendered HTML is in the JSON response.
+ *    It also skips Ms. Humphrey's audio: no ElevenLabs call and no upload, so a
+ *    test never overwrites the briefing-YYYY-MM-DD.mp3 a real email links to.
+ *    Add &audio=1 to hear the voice; that take goes to preview-YYYY-MM-DD.mp3.)
+ *
+ *   ?dry_run=1&probe=1 is the fast health probe that /api/cron/healthcheck
+ *   calls every 6h. It runs the real Supabase queries and renders the real
+ *   email, but writes the briefing with the deterministic fallback instead of
+ *   Haiku, and never calls ElevenLabs or Storage. Haiku is already checked on
+ *   its own by the heartbeat; the full pipeline took 5-7s (sometimes 45s) and
+ *   kept tripping the heartbeat's 8s limit.
  *
  * Env vars required:
  *   CRON_SECRET                  — bearer token Vercel attaches; also gates manual triggers
@@ -75,6 +85,10 @@ export default async function handler(req, res) {
 
   const dryRun = String(req.query.dry_run || '') === '1';
   const skipSend = dryRun || String(req.query.skip_send || '') === '1';
+  // probe=1 only counts together with dry_run=1, so a stray flag can never
+  // turn a real Saturday send into a fallback-only email.
+  const probe = dryRun && String(req.query.probe || '') === '1';
+  const previewAudio = dryRun && !probe && String(req.query.audio || '') === '1';
 
   // ---------- 2. Required server env ----------
   const SB_URL = process.env.SUPABASE_URL;
@@ -84,7 +98,7 @@ export default async function handler(req, res) {
   if (!SB_URL || !SB_KEY) {
     return res.status(500).json({ error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing' });
   }
-  if (!ANTHROPIC_KEY) {
+  if (!ANTHROPIC_KEY && !probe) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY missing' });
   }
   if (!skipSend && !ZAP_URL) {
@@ -106,7 +120,7 @@ export default async function handler(req, res) {
   // "let's reconnect next week" tutor-appointment language for empty weeks;
   // the fallback frames it correctly ("didn't log in; app is ready when he is").
   let briefing;
-  if (data.summary.sessions_total === 0) {
+  if (probe || data.summary.sessions_total === 0) {
     briefing = renderFallbackBriefing(data);
   } else {
     try {
@@ -125,9 +139,15 @@ export default async function handler(req, res) {
   let audio_url = null;
   let audio_status = 'skipped';
   const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY;
-  if (ELEVENLABS_KEY) {
+  if (dryRun && !previewAudio) {
+    // Dry runs (including the 6-hourly health probe) used to synthesize and
+    // upload a fresh take every time, which cost ElevenLabs credits 4x a day,
+    // took up to ~45s, and overwrote the audio in that Saturday's real email.
+    audio_status = probe ? 'skipped (probe)' : 'skipped (dry run; add &audio=1)';
+  } else if (ELEVENLABS_KEY) {
     try {
-      const weekTag = new Date().toISOString().slice(0, 10);
+      const day = new Date().toISOString().slice(0, 10);
+      const weekTag = previewAudio ? `preview-${day}` : day;
       const audioBytes = await synthesizeBriefingAudio({
         ELEVENLABS_KEY,
         text: briefingToSpeech(briefing),
@@ -189,6 +209,7 @@ export default async function handler(req, res) {
   return res.status(200).json({
     ok: true,
     dry_run: dryRun,
+    probe: probe,
     zapier: zapierStatus,
     audio: audio_status,
     audio_url: audio_url,
@@ -957,7 +978,7 @@ async function uploadAudioToStorage({ SB_URL, SB_KEY, weekTag, audioBytes }) {
   // service-role key bypasses RLS so this works without a write policy.
   // File path uses the week-ending date so each Saturday gets its own file
   // and we can re-run safely (upsert=true).
-  const path = `briefing-${weekTag}.mp3`;
+  const path = weekTag.startsWith('preview-') ? `${weekTag}.mp3` : `briefing-${weekTag}.mp3`;
   const url = `${SB_URL}/storage/v1/object/humphrey-audio/${path}`;
   const r = await fetch(url, {
     method: 'POST',
