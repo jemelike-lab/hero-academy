@@ -44,6 +44,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/letter-lab",
+      "destination": "/index.html"
+    },
+    {
       "source": "/word-tower",
       "destination": "/index.html"
     },

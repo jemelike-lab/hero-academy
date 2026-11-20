@@ -6,6 +6,7 @@ import PlacementPage from './pages/PlacementPage';
 import DigitTowerPage from './features/digit-tower/DigitTowerPage';
 import TapToStart from './components/TapToStart';
 import WordTowerPage from './features/word-tower/WordTowerPage';
+import LetterLabPage from './features/letter-lab/LetterLabPage';
 import ParentWritingPage from './pages/ParentWritingPage';
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/class-time" element={<><ClassTimePage /><TapToStart title="Class Time with Ms. Humphrey" label="Start class" /></>} />
       <Route path="/game-day" element={<><DigitTowerPage /><TapToStart title="Game Day with Ms. Humphrey" label="Let’s climb" /></>} />
+      <Route path="/letter-lab" element={<><LetterLabPage /><TapToStart title="Letter Lab with Ms. Humphrey" label="Start writing" /></>} />
       <Route path="/word-tower" element={<><WordTowerPage /><TapToStart title="Word Tower with Ms. Humphrey" label="Start reading" /></>} />
       <Route path="/parent/writing" element={<ParentWritingPage />} />
       <Route path="/path" element={<PathPage />} />
