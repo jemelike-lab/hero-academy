@@ -40,7 +40,7 @@
 const DEFAULT_RECIPIENTS = 'bianca.parker92@gmail.com,jemelike@gmail.com';
 const HAIKU_MODEL = 'claude-haiku-4-5';
 const HUMPHREY_PORTRAIT_URL = 'https://hero-academy-jemelike-6356s-projects.vercel.app/assets/humphrey/humphrey_base_512.png';
-const REPO_DATA_URL = 'https://raw.githubusercontent.com/jemelike-lab/hero-academy/main/data/sound-stage.js';
+const REPO_DATA_URL = 'https://raw.githubusercontent.com/jemelike-lab/hero-academy/main/public/data/sound-stage.js';
 
 // Channels Haiku is allowed to suggest videos from. v112: dropped
 // "Super Simple Songs" because Haiku rationalized it as a Sesame Workshop

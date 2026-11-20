@@ -16,6 +16,7 @@
 
 import { readFileSync } from 'fs';
 import path from 'path';
+import { PROFILE_PATH } from '../_lib/profile-path.js';
 
 const HAIKU_MODEL = 'claude-haiku-4-5';
 
@@ -96,7 +97,7 @@ const EPISODES = {
 let PROFILE = {};
 try {
   PROFILE = JSON.parse(readFileSync(
-    path.join(process.cwd(), 'data', 'nigel-profile.json'), 'utf-8'
+    PROFILE_PATH, 'utf-8'
   ));
 } catch (_) {}
 

@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { PROFILE_PATH } from './profile-path.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -162,7 +163,7 @@ const ALL_THEMES = Object.keys(THEMES);
 
 function loadProfile() {
   try {
-    const p = path.join(process.cwd(), 'data', 'nigel-profile.json');
+    const p = PROFILE_PATH;
     return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch (_) {
     return null;

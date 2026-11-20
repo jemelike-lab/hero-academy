@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { PROFILE_PATH } from '../_lib/profile-path.js';
 
 const NIGEL_CHILD_ID = '2e0e51c5-f120-4152-8aa1-041eeecc8165';
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -24,7 +25,7 @@ function isoDate(d = new Date()) {
 
 function loadProfile() {
   try {
-    const p = path.join(process.cwd(), 'data', 'nigel-profile.json');
+    const p = PROFILE_PATH;
     return JSON.parse(fs.readFileSync(p, 'utf8'));
   } catch (_) {
     return null;

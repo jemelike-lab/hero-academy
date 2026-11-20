@@ -21,6 +21,7 @@
 
 import { readFileSync } from 'fs';
 import path from 'path';
+import { PROFILE_PATH } from '../_lib/profile-path.js';
 
 const HAIKU_MODEL    = 'claude-haiku-4-5';
 const MIN_UNSEEN     = 30;
@@ -37,13 +38,13 @@ const DIFFICULTY_BANDS = [
 
 
 // Cold-start: load Nigel's profile from the repo. Vercel functions get the
-// repo bundle, so data/nigel-profile.json is available at runtime.
+// repo bundle, so public/data/nigel-profile.json is available at runtime (api/_lib/profile-path.js).
 // Fallback to an empty object if it's missing — Haiku still works, just
 // without personalization.
 let PROFILE = {};
 try {
   PROFILE = JSON.parse(readFileSync(
-    path.join(process.cwd(), 'data', 'nigel-profile.json'), 'utf-8'
+    PROFILE_PATH, 'utf-8'
   ));
 } catch (e) { /* leave empty */ }
 
