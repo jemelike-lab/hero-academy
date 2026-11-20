@@ -8,7 +8,7 @@ import RalphiePortrait, { type RalphieState } from '@/components/RalphiePortrait
 
 const ZONES = [
   { id: 'game-day', name: 'Digit Tower', subject: 'Game Day · Math', emoji: '🗼', href: '/game-day' },
-  { id: 'number-lab', name: 'Number Lab', subject: 'Math', emoji: '🧮', href: '/cauldron-cafe.html' },
+  { id: 'number-lab', name: 'Number Lab', subject: 'Math', emoji: '🧮', href: '/cauldron-cafe' },
   { id: 'letter-lab', name: 'Letter Lab', subject: 'Phonics', emoji: '🔤', href: '/letter-lab' },
   { id: 'word-tower', name: 'Word Tower', subject: 'Reading', emoji: '🗼', href: '/word-tower' },
   { id: 'story-time', name: 'Story Time', subject: 'Reading', emoji: '📖', href: '/story-time.html' },

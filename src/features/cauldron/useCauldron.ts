@@ -78,6 +78,9 @@ export function useCauldron() {
   const speak = useCallback((text: string, mood: Mood = null) => { lastLine.current = text; if (mood !== undefined) patch({ mood }); return say(text); }, [patch]);
 
   const recipe = () => ref.current.recipes[ref.current.ri];
+  // A step that starts while Today's Special is open waits: the question is
+  // said when the overlay closes, so it never talks over a special problem.
+  const sayStep = (text: string) => { if (ref.current.special.open) lastLine.current = text; else void speak(text); };
 
   // ---------- steps ----------
   const runStep = useCallback((k: number) => {
@@ -85,14 +88,14 @@ export function useCauldron() {
     const base = { si: k, tiles: {}, feedback: NO_FEEDBACK, mood: null as Mood };
     if (st.kind === 'serve') {
       patch({ ...base, question: st.text, options: [], serving: true, entry: '', basket: { veg: null, size: 0, label: 'Recipe ready!', flying: false, counting: false } });
-      void speak(st.text);
+      sayStep(st.text);
       return;
     }
     const basket = st.kind === 'count'
       ? { veg: r.ingredients[st.ing].veggie, size: st.size, label: 'New bunch!', flying: false, counting: false }
       : { veg: null, size: 0, label: st.kind === 'bridge' ? 'Empty (answer first)' : 'Pot wants more! ✨', flying: false, counting: false };
     patch({ ...base, question: st.text, options: makeOptions(st.answer), serving: false, basket });
-    void speak(st.text);
+    sayStep(st.text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patch, speak]);
 
@@ -186,7 +189,10 @@ export function useCauldron() {
     patch({ special: { open: true, idx: 0, entry: '', result: 'none' } });
     void speak(s.specials[0].prompt);
   }, [patch, speak]);
-  const closeSpecial = useCallback(() => { patch({ special: { ...ref.current.special, open: false } }); }, [patch]);
+  const closeSpecial = useCallback(() => {
+    const s = ref.current; patch({ special: { ...s.special, open: false } });
+    if (s.phase === 'playing' && !s.served && s.question) void speak(s.question);
+  }, [patch, speak]);
   const specialKey = useCallback((k: string) => {
     const sp = ref.current.special; if (sp.result === 'right') return;
     const entry = k === 'del' ? sp.entry.slice(0, -1) : (sp.entry + k).replace(/^0+(?=\d)/, '').slice(0, 4);
@@ -200,10 +206,10 @@ export function useCauldron() {
   }, [patch, speak]);
   const nextSpecial = useCallback(() => {
     const s = ref.current; const idx = s.special.idx + 1;
-    if (idx >= s.specials.length) { patch({ special: { ...s.special, open: false } }); return; }
+    if (idx >= s.specials.length) { closeSpecial(); return; }
     patch({ special: { open: true, idx, entry: '', result: 'none' } });
     void speak(s.specials[idx].prompt);
-  }, [patch, speak]);
+  }, [patch, speak, closeSpecial]);
 
   // ---------- boot ----------
   const boot = useCallback(async () => {
