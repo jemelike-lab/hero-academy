@@ -189,46 +189,53 @@ export default function WritingTime({ parts, date, onDone, onExit }: { parts: Wr
           className="w-16 h-16 rounded-2xl border-2 border-amber/40 text-amber text-[24px] flex items-center justify-center bg-card">✕</button>
       </header>
 
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 mt-3 min-h-0">
-        <section className="bg-card rounded-xl3 shadow-card p-5 lg:p-7 flex flex-col gap-4 min-h-0 overflow-y-auto">
-          <div className="flex items-center gap-2 flex-wrap">
-            {Array.from({ length: total }).map((_, i) => (
-              <span key={i} className={clsx('w-9 h-9 rounded-full grid place-items-center text-[13px] font-extrabold',
-                i < idx ? 'bg-grass text-white' : i === idx ? 'bg-teal text-white ring-4 ring-teal/15' : 'bg-line/50 text-muted')}>{i < idx ? '✓' : i + 1}</span>
-            ))}
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_320px] gap-4 mt-3 [@media(max-height:620px)]:mt-2 min-h-0">
+        {/* The paper takes every pixel the card has left, so a whole sentence fits. */}
+        <section className="bg-card rounded-xl3 shadow-card p-4 lg:p-5 flex flex-col gap-3 min-h-0 overflow-y-auto">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="font-display font-medium text-[22px] md:text-[26px] leading-tight">
+              {stage === 'listening' || stage === 'intro' || stage === 'loading' ? '👂 Listen…' : stage === 'saving' ? 'Saving…' : stage === 'between' ? '⭐ Saved!' : kind === 'spelling' ? '✏️ Write the word.' : '✏️ Write the sentence.'}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {Array.from({ length: total }).map((_, i) => (
+                <span key={i} className={clsx('w-8 h-8 rounded-full grid place-items-center text-[12px] font-extrabold',
+                  i < idx ? 'bg-grass text-white' : i === idx ? 'bg-teal text-white ring-4 ring-teal/15' : 'bg-line/50 text-muted')}>{i < idx ? '✓' : i + 1}</span>
+              ))}
+            </div>
           </div>
-          <div className="font-display font-medium text-[24px] md:text-[28px] leading-tight">
-            {stage === 'listening' || stage === 'intro' || stage === 'loading' ? '👂 Listen…' : stage === 'saving' ? 'Saving…' : stage === 'between' ? '⭐ Saved!' : kind === 'spelling' ? '✏️ Write the word.' : '✏️ Write the sentence.'}
+          <div className="flex-1 min-h-[300px]">
+            <HandwritingPad ref={pad} fill onInk={setHasInk} disabled={!writing && stage !== 'listening'} />
           </div>
-          <HandwritingPad ref={pad} rows={kind === 'spelling' ? 1 : 2} onInk={setHasInk} disabled={!writing && stage !== 'listening'} />
-          <div className="grid grid-cols-3 gap-3">
-            <button onClick={hearAgain} disabled={!writing} className="tap min-h-[64px] rounded-2xl border-2 border-line bg-card font-bold text-[16px] disabled:opacity-50">🔊 Hear it again</button>
-            <button onClick={() => pad.current?.undo()} disabled={!hasInk || stage === 'saving'} className="tap min-h-[64px] rounded-2xl border-2 border-line bg-card font-bold text-[16px] disabled:opacity-50">↶ Undo</button>
-            <button onClick={() => pad.current?.clear()} disabled={!hasInk || stage === 'saving'} className="tap min-h-[64px] rounded-2xl border-2 border-line bg-card font-bold text-[16px] disabled:opacity-50">🧽 Erase all</button>
-          </div>
-          {stage === 'save-error' ? (
-            <button onClick={submit} className="tap min-h-[72px] w-full rounded-xl2 bg-amber text-white font-display font-semibold text-[22px] shadow-tile">Try again</button>
-          ) : (
-            <motion.button onClick={submit} disabled={!writing || !hasInk} whileTap={writing && hasInk ? { scale: 0.97 } : undefined}
-              className="tap min-h-[72px] w-full rounded-xl2 bg-sun text-ink font-display font-semibold text-[22px] shadow-tile disabled:opacity-40 active:translate-y-[2px] active:shadow-none">I’m done ✓</motion.button>
-          )}
         </section>
 
-        <aside className="bg-card rounded-xl3 shadow-card p-5 flex flex-col min-h-0">
+        <aside className="bg-card rounded-xl3 shadow-card p-4 lg:p-5 flex flex-col gap-3 min-h-0 overflow-y-auto">
           <div className="flex items-center gap-3">
-            <HumphreyPortrait state={portrait} className={clsx('w-24 h-24 rounded-2xl ring-2 ring-tutor/20 shrink-0', speaking && 'speaking')} />
+            <HumphreyPortrait state={portrait} className={clsx('w-20 h-20 lg:w-24 lg:h-24 [@media(max-height:620px)]:w-14 [@media(max-height:620px)]:h-14 rounded-2xl ring-2 ring-tutor/20 shrink-0', speaking && 'speaking')} />
             <div className="leading-tight">
               <div className="font-display font-semibold text-[17px]">Ms. Humphrey</div>
               <div className="text-[11px] font-bold text-muted">{speaking ? 'speaking' : 'listening'}</div>
             </div>
           </div>
-          <div className="relative mt-4 bg-tutor/10 rounded-2xl px-4 py-3 text-[15px] font-semibold leading-snug min-h-[64px]" aria-live="polite">
+          <div className="relative bg-tutor/10 rounded-2xl px-4 py-3 text-[15px] font-semibold leading-snug min-h-[64px]" aria-live="polite">
             {bubble || `Hi ${KID_NAME}!`}
             <span className="absolute left-6 -bottom-2 w-4 h-4 bg-tutor/10 rotate-45 rounded-[3px]" />
           </div>
-          <p className="mt-5 text-[13px] font-bold text-muted leading-snug">
+          <p className="mt-2 text-[13px] font-bold text-muted leading-snug [@media(max-height:620px)]:hidden">
             {kind === 'spelling' ? 'Take your time. Sound the word out in your head.' : 'Capital letter at the start. Spaces between words. A mark at the end.'}
           </p>
+          <div className="mt-auto flex flex-col gap-3 pt-2">
+            <button onClick={hearAgain} disabled={!writing} className="tap min-h-[64px] w-full rounded-2xl border-2 border-line bg-card font-bold text-[16px] disabled:opacity-50">🔊 Hear it again</button>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => pad.current?.undo()} disabled={!hasInk || stage === 'saving'} className="tap min-h-[64px] rounded-2xl border-2 border-line bg-card font-bold text-[16px] disabled:opacity-50">↶ Undo</button>
+              <button onClick={() => pad.current?.clear()} disabled={!hasInk || stage === 'saving'} className="tap min-h-[64px] rounded-2xl border-2 border-line bg-card font-bold text-[16px] disabled:opacity-50">🧽 Erase all</button>
+            </div>
+            {stage === 'save-error' ? (
+              <button onClick={submit} className="tap min-h-[72px] w-full rounded-xl2 bg-amber text-white font-display font-semibold text-[22px] shadow-tile">Try again</button>
+            ) : (
+              <motion.button onClick={submit} disabled={!writing || !hasInk} whileTap={writing && hasInk ? { scale: 0.97 } : undefined}
+                className="tap min-h-[72px] w-full rounded-xl2 bg-sun text-ink font-display font-semibold text-[22px] shadow-tile disabled:opacity-40 active:translate-y-[2px] active:shadow-none">I’m done ✓</motion.button>
+            )}
+          </div>
         </aside>
       </main>
     </div>

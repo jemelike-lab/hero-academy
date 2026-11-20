@@ -2,6 +2,8 @@
 // dashed middle, baseline), finger or Apple Pencil. When a pencil has been
 // used, finger touches are ignored so a resting palm doesn't draw.
 // toPNG() bakes the lines and his writing into one image for the parents.
+// `fill` makes the paper take its parent's height and fit as many rows of at
+// least MIN_ROW_H as there is room for (up to MAX_ROWS), so a sentence fits.
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import clsx from 'clsx';
 
@@ -10,6 +12,8 @@ export interface HandwritingPadHandle { toPNG: () => string; clear: () => void; 
 
 const ROW_H = 150;       // css px per writing row
 const PAD_Y = 14;
+const MIN_ROW_H = 150;   // fill mode: never squeeze a row below this
+const MAX_ROWS = 4;
 const INK = '#1f2d4d';
 
 function drawGuides(ctx: CanvasRenderingContext2D, w: number, h: number, rows: number, scale: number) {
@@ -46,15 +50,20 @@ function drawStroke(ctx: CanvasRenderingContext2D, s: Pt[], w: number, h: number
   ctx.stroke();
 }
 
-const HandwritingPad = forwardRef<HandwritingPadHandle, { rows?: number; onInk?: (has: boolean) => void; disabled?: boolean; className?: string }>(
-  function HandwritingPad({ rows = 1, onInk, disabled, className }, ref) {
+const HandwritingPad = forwardRef<HandwritingPadHandle, { rows?: number; fill?: boolean; onInk?: (has: boolean) => void; disabled?: boolean; className?: string }>(
+  function HandwritingPad({ rows: fixedRows = 1, fill = false, onInk, disabled, className }, ref) {
     const wrap = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
     const strokes = useRef<Pt[][]>([]);
     const live = useRef<{ id: number; pts: Pt[] } | null>(null);
     const penSeen = useRef(false);
     const [width, setWidth] = useState(0);
-    const height = rows * ROW_H + PAD_Y * 2;
+    const [boxH, setBoxH] = useState(0);
+    const fillH = Math.max(MIN_ROW_H + PAD_Y * 2, boxH);
+    const avail = fillH - PAD_Y * 2;
+    // Two slightly shorter rows beat one tall one on a small tablet.
+    const rows = fill ? Math.min(MAX_ROWS, Math.max(avail >= 260 ? 2 : 1, Math.floor(avail / MIN_ROW_H))) : fixedRows;
+    const height = fill ? fillH : rows * ROW_H + PAD_Y * 2;
 
     const redraw = useCallback(() => {
       const c = canvas.current; if (!c || !width) return;
@@ -70,8 +79,9 @@ const HandwritingPad = forwardRef<HandwritingPadHandle, { rows?: number; onInk?:
 
     useEffect(() => {
       const el = wrap.current; if (!el) return;
-      const ro = new ResizeObserver(() => setWidth(Math.floor(el.clientWidth)));
-      ro.observe(el); setWidth(Math.floor(el.clientWidth));
+      const measure = () => { setWidth(Math.floor(el.clientWidth)); setBoxH(Math.floor(el.clientHeight)); };
+      const ro = new ResizeObserver(measure);
+      ro.observe(el); measure();
       return () => ro.disconnect();
     }, []);
 
@@ -134,8 +144,8 @@ const HandwritingPad = forwardRef<HandwritingPadHandle, { rows?: number; onInk?:
     };
 
     return (
-      <div ref={wrap} className={clsx('w-full rounded-xl2 bg-white border-2 border-line overflow-hidden select-none', disabled && 'opacity-60', className)}
-        style={{ height }}>
+      <div ref={wrap} className={clsx('w-full rounded-xl2 bg-white border-2 border-line overflow-hidden select-none', fill && 'h-full', disabled && 'opacity-60', className)}
+        style={fill ? undefined : { height }}>
         <canvas ref={canvas} aria-label="Writing paper" role="img"
           style={{ touchAction: 'none', display: 'block' }}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
