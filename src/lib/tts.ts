@@ -101,6 +101,13 @@ export function onSpeaking(fn: Listener) { listeners.add(fn); return () => { lis
 let speakingNow = false;
 function emit(v: boolean) { speakingNow = v; listeners.forEach((l) => l(v)); }
 export function isSpeaking() { return speakingNow; }
+/** Where the current line is in its audio clip, for pacing a word highlight.
+ *  null while nothing is playing, or for the browser voice (preview builds). */
+export function speechClock(): { t: number; d: number } | null {
+  if (!speakingNow || !el || el.paused) return null;
+  const d = el.duration;
+  return Number.isFinite(d) && d > 0 ? { t: el.currentTime, d } : null;
+}
 
 export function setMuted(v: boolean) { muted = v; if (v) stop(); }
 export function isMuted() { return muted; }

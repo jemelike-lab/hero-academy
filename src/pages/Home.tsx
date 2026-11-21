@@ -11,7 +11,7 @@ const ZONES = [
   { id: 'number-lab', name: 'Number Lab', subject: 'Math', emoji: '🧮', href: '/cauldron-cafe' },
   { id: 'letter-lab', name: 'Letter Lab', subject: 'Phonics', emoji: '🔤', href: '/letter-lab' },
   { id: 'word-tower', name: 'Word Tower', subject: 'Reading', emoji: '🗼', href: '/word-tower' },
-  { id: 'story-time', name: 'Story Time', subject: 'Reading', emoji: '📖', href: '/story-time.html' },
+  { id: 'story-time', name: 'Story Time', subject: 'Reading', emoji: '📖', href: '/story-time' },
   { id: 'writing', name: 'Story Lab', subject: 'Writing', emoji: '✍️', href: '/story-lab.html' },
   { id: 'discovery', name: 'Discovery Dome', subject: 'Science', emoji: '🔬', href: '/discovery-dome.html' },
   { id: 'explorer', name: "Explorer's Hall", subject: 'Social studies', emoji: '🗺️', href: '/explorers-hall.html' },

@@ -44,6 +44,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/story-time",
+      "destination": "/index.html"
+    },
+    {
       "source": "/cauldron-cafe",
       "destination": "/index.html"
     },
