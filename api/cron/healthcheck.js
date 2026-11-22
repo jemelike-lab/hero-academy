@@ -60,7 +60,7 @@ const DEFAULT_ALERT_EMAIL = 'jemelike@gmail.com';
 // upstream never burns the whole 10s Vercel function budget.
 const TIMEOUTS = {
   supabase: 4000,
-  anthropic: 6000,
+  anthropic: 15000, // was 6000; a normal ping took 4.7 s and a 7 AM run timed out (Nov 22)
   saturday_email_cron: 8000,
   zapier_dns: 4000,
 };
