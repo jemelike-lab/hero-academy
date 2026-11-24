@@ -44,6 +44,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/story-lab",
+      "destination": "/index.html"
+    },
+    {
       "source": "/story-time",
       "destination": "/index.html"
     },
