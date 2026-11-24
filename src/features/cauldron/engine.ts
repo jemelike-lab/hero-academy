@@ -138,7 +138,9 @@ export function writeSeen(store: KV, titles: string[]) { try { store.setItem(SEE
 
 // Today's Special: payload.items[] with string answers; keep whole-number answers only.
 export interface Special { prompt: string; answer: number }
-export function specialsFrom(payload: unknown): Special[] {
+export function specialsFrom(result: unknown): Special[] {
+  // ha_get_todays_content returns { payload, content_date, is_today }; accept a bare payload too.
+  const payload = result && typeof result === 'object' && 'payload' in result ? (result as { payload: unknown }).payload : result;
   const items = (payload && typeof payload === 'object' && Array.isArray((payload as { items?: unknown[] }).items)) ? (payload as { items: unknown[] }).items
     : Array.isArray(payload) ? payload : [];
   return items.map((it) => {
